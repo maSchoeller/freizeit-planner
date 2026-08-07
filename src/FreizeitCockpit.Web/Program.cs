@@ -230,6 +230,8 @@ app.MapIdentityEndpoints();
 app.MapLifecycleEndpoints();
 app.MapTenantAdministrationEndpoints();
 app.MapCampPlanningEndpoints();
+app.MapCateringEndpoints();
+app.MapSpiritualEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
