@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Files/Files.Contracts/Files.Contracts.csproj" />
+    <ProjectReference Include="../../src/Files/Files.Implementation/Files.Implementation.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>
