@@ -8,7 +8,10 @@
   Member, and Viewer are camp-scoped. Privilege escalation is rejected server-side.
 - Contracts: current actor/access checks, member summaries, responsibility candidate lookup, organization status.
 - Data/schema: owns `identity`; tenant rows include `organization_id`; memberships and assignments are authoritative.
-- Runtime persistence: ASP.NET Core Identity users, hashed login challenges, rate events and revocable sessions live
-  in PostgreSQL through `IdentityDbContext`; the web host never migrates. The migrator uses an advisory lock and
-  owns the only Development seed. Fast tests use the deterministic in-memory adapter.
+- Lifecycle: Platform Admins create organizations only through 48-hour first-Owner invitations; team invitations
+  last seven days. Invitation tokens and email-change codes are stored only as HMAC hashes. Account and organization
+  deletion use a reversible 30-day schedule; the last active Owner invariant applies to leaving and account deletion.
+- Runtime persistence: ASP.NET Core Identity users, hashed challenges, invitations, memberships, assignments, rate
+  events and revocable sessions live in PostgreSQL through `IdentityDbContext`; the web host never migrates. The
+  migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
 - Dependencies: may emit metadata-only Activity events. All modules may depend on its Contracts, never implementation.

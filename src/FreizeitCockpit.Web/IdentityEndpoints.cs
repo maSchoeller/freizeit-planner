@@ -66,6 +66,7 @@ internal static class IdentityEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         IPasswordlessLogin passwordlessLogin,
+        TimeProvider timeProvider,
         CancellationToken cancellationToken)
     {
         if (await ValidateAntiforgeryAsync(context, antiforgery) is { } problem)
@@ -89,7 +90,9 @@ internal static class IdentityEndpoints
         {
             new Claim(ClaimTypes.NameIdentifier, result.Session.UserId.ToString()),
             new Claim(ClaimTypes.Name, result.Session.DisplayName),
-            new Claim("session_id", result.Session.Id.ToString())
+            new Claim("session_id", result.Session.Id.ToString()),
+            new Claim("auth_time", timeProvider.GetUtcNow().ToUnixTimeSeconds().ToString(
+                System.Globalization.CultureInfo.InvariantCulture))
         };
         var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
         await context.SignInAsync(
@@ -187,7 +190,7 @@ internal static class IdentityEndpoints
         return Results.NoContent();
     }
 
-    private static bool TryGetSession(ClaimsPrincipal principal, out Guid userId, out Guid sessionId)
+    internal static bool TryGetSession(ClaimsPrincipal principal, out Guid userId, out Guid sessionId)
     {
         userId = Guid.Empty;
         sessionId = Guid.Empty;
@@ -195,7 +198,7 @@ internal static class IdentityEndpoints
             && Guid.TryParse(principal.FindFirstValue("session_id"), out sessionId);
     }
 
-    private static async ValueTask<IResult?> ValidateAntiforgeryAsync(
+    internal static async ValueTask<IResult?> ValidateAntiforgeryAsync(
         HttpContext context,
         IAntiforgery antiforgery)
     {

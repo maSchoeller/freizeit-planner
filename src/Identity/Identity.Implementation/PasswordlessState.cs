@@ -1,5 +1,3 @@
-using System.Collections.Concurrent;
-
 namespace Identity.Implementation;
 
 public interface IPasswordlessState
@@ -24,82 +22,6 @@ public interface IPasswordlessState
         string partition,
         DateTimeOffset since,
         CancellationToken cancellationToken);
-}
-
-public sealed class InMemoryPasswordlessState(IEnumerable<KnownUser> users) : IPasswordlessState
-{
-    private readonly Dictionary<string, KnownUser> users = users.ToDictionary(
-        user => user.NormalizedEmail,
-        StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<string, LoginChallenge> challenges = new(StringComparer.Ordinal);
-    private readonly ConcurrentDictionary<Guid, LoginSession> sessions = new();
-    private readonly ConcurrentQueue<RateEvent> rateEvents = new();
-
-    public ValueTask<KnownUser?> FindUserAsync(string normalizedEmail, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        users.TryGetValue(normalizedEmail, out var user);
-        return ValueTask.FromResult(user);
-    }
-
-    public ValueTask SaveChallengeAsync(LoginChallenge challenge, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        challenges[challenge.NormalizedEmail] = challenge;
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask<LoginChallenge?> FindCurrentChallengeAsync(
-        string normalizedEmail,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        challenges.TryGetValue(normalizedEmail, out var challenge);
-        return ValueTask.FromResult(challenge);
-    }
-
-    public ValueTask SaveSessionAsync(LoginSession session, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        sessions[session.Id] = session;
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask<LoginSession?> FindSessionAsync(Guid sessionId, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        sessions.TryGetValue(sessionId, out var session);
-        return ValueTask.FromResult(session);
-    }
-
-    public ValueTask<IReadOnlyList<LoginSession>> ListSessionsAsync(
-        Guid userId,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        IReadOnlyList<LoginSession> result = sessions.Values
-            .Where(session => session.UserId == userId)
-            .OrderByDescending(session => session.CreatedAt)
-            .ToArray();
-        return ValueTask.FromResult(result);
-    }
-
-    public ValueTask AddRateEventAsync(RateEvent rateEvent, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        rateEvents.Enqueue(rateEvent);
-        return ValueTask.CompletedTask;
-    }
-
-    public ValueTask<int> CountRateEventsAsync(
-        string partition,
-        DateTimeOffset since,
-        CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        var count = rateEvents.Count(item => item.Partition == partition && item.OccurredAt >= since);
-        return ValueTask.FromResult(count);
-    }
 }
 
 public sealed record KnownUser(Guid Id, string NormalizedEmail, string DisplayName);

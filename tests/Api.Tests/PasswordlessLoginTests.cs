@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using Identity.Contracts;
+using Identity.Implementation;
+using FreizeitCockpit.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -16,7 +18,17 @@ public sealed class PasswordlessLoginTests : IClassFixture<WebApplicationFactory
 
     public PasswordlessLoginTests(WebApplicationFactory<Program> factory)
     {
-        client = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Testing"))
+        client = factory.WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IPasswordlessState>();
+                services.RemoveAll<ILoginCodeSender>();
+                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
+                services.AddSingleton<ILoginCodeSender, NoOpSender>();
+            });
+        })
             .CreateClient(new WebApplicationFactoryClientOptions
             {
                 AllowAutoRedirect = false,
@@ -68,7 +80,9 @@ public sealed class PasswordlessLoginTests : IClassFixture<WebApplicationFactory
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
+                services.RemoveAll<IPasswordlessState>();
                 services.RemoveAll<ILoginCodeSender>();
+                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
             });
         });
@@ -165,5 +179,14 @@ public sealed class PasswordlessLoginTests : IClassFixture<WebApplicationFactory
             Codes.Add(code);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class NoOpSender : ILoginCodeSender
+    {
+        public Task SendAsync(
+            string email,
+            string code,
+            DateTimeOffset expiresAt,
+            CancellationToken cancellationToken) => Task.CompletedTask;
     }
 }

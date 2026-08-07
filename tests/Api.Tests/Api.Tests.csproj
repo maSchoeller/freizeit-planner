@@ -7,5 +7,6 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/FreizeitCockpit.Web/FreizeitCockpit.Web.csproj" />
+    <ProjectReference Include="../FreizeitCockpit.TestSupport/FreizeitCockpit.TestSupport.csproj" />
   </ItemGroup>
 </Project>

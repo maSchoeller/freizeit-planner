@@ -8,6 +8,8 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 {
     public required string DisplayName { get; set; }
 
+    public bool IsPlatformAdmin { get; set; }
+
     public DateTimeOffset? DeletionScheduledAt { get; set; }
 }
 
@@ -19,6 +21,16 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     internal DbSet<LoginSessionEntity> LoginSessions => Set<LoginSessionEntity>();
 
     internal DbSet<LoginRateEventEntity> LoginRateEvents => Set<LoginRateEventEntity>();
+
+    internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
+
+    internal DbSet<MembershipEntity> Memberships => Set<MembershipEntity>();
+
+    internal DbSet<CampAssignmentEntity> CampAssignments => Set<CampAssignmentEntity>();
+
+    internal DbSet<InvitationEntity> Invitations => Set<InvitationEntity>();
+
+    internal DbSet<EmailChangeChallengeEntity> EmailChangeChallenges => Set<EmailChangeChallengeEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -54,7 +66,118 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasIndex(item => new { item.Partition, item.OccurredAt });
             entity.Property(item => item.Partition).HasMaxLength(400);
         });
+        builder.Entity<OrganizationEntity>(entity =>
+        {
+            entity.ToTable("organizations");
+            entity.HasKey(item => item.Id);
+            entity.HasIndex(item => item.Slug).IsUnique();
+            entity.Property(item => item.Name).HasMaxLength(160);
+            entity.Property(item => item.Slug).HasMaxLength(80);
+        });
+        builder.Entity<MembershipEntity>(entity =>
+        {
+            entity.ToTable("memberships");
+            entity.HasKey(item => new { item.OrganizationId, item.UserId });
+            entity.Property(item => item.OrganizationId).HasColumnName("organization_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.HasIndex(item => new { item.UserId, item.IsActive });
+        });
+        builder.Entity<CampAssignmentEntity>(entity =>
+        {
+            entity.ToTable("camp_assignments");
+            entity.HasKey(item => new { item.CampId, item.UserId });
+            entity.Property(item => item.OrganizationId).HasColumnName("organization_id");
+            entity.Property(item => item.CampId).HasColumnName("camp_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.HasIndex(item => new { item.OrganizationId, item.UserId });
+        });
+        builder.Entity<InvitationEntity>(entity =>
+        {
+            entity.ToTable("invitations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).HasColumnName("organization_id");
+            entity.Property(item => item.CampId).HasColumnName("camp_id");
+            entity.Property(item => item.NormalizedEmail).HasMaxLength(320);
+            entity.Property(item => item.TokenHash).HasMaxLength(64);
+            entity.HasIndex(item => new { item.OrganizationId, item.NormalizedEmail });
+            entity.HasIndex(item => item.ExpiresAt);
+        });
+        builder.Entity<EmailChangeChallengeEntity>(entity =>
+        {
+            entity.ToTable("email_change_challenges");
+            entity.HasKey(item => item.UserId);
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.Email).HasMaxLength(320);
+            entity.Property(item => item.NormalizedEmail).HasMaxLength(320);
+            entity.Property(item => item.CodeHash).HasMaxLength(64);
+            entity.HasIndex(item => item.NormalizedEmail);
+            entity.HasIndex(item => item.ExpiresAt);
+        });
     }
+}
+
+internal sealed class OrganizationEntity
+{
+    public Guid Id { get; set; }
+
+    public required string Name { get; set; }
+
+    public required string Slug { get; set; }
+
+    public Identity.Contracts.OrganizationStatus Status { get; set; }
+
+    public DateTimeOffset? DeletionScheduledAt { get; set; }
+
+    public long Version { get; set; }
+}
+
+internal sealed class MembershipEntity
+{
+    public Guid OrganizationId { get; set; }
+
+    public Guid UserId { get; set; }
+
+    public Identity.Contracts.TenantRole Role { get; set; }
+
+    public bool IsActive { get; set; }
+}
+
+internal sealed class CampAssignmentEntity
+{
+    public Guid OrganizationId { get; set; }
+
+    public Guid CampId { get; set; }
+
+    public Guid UserId { get; set; }
+
+    public Identity.Contracts.TenantRole Role { get; set; }
+}
+
+internal sealed class InvitationEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid OrganizationId { get; set; }
+
+    public required string NormalizedEmail { get; set; }
+
+    public Identity.Contracts.TenantRole Role { get; set; }
+
+    public Guid? CampId { get; set; }
+
+    public required string TokenHash { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    public bool IsPlatformInvitation { get; set; }
+
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    public DateTimeOffset? UsedAt { get; set; }
+
+    public Guid? RotatedFromId { get; set; }
 }
 
 internal sealed class LoginChallengeEntity
@@ -62,6 +185,23 @@ internal sealed class LoginChallengeEntity
     public Guid Id { get; set; }
 
     public Guid UserId { get; set; }
+
+    public required string NormalizedEmail { get; set; }
+
+    public required string CodeHash { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    public int FailedAttempts { get; set; }
+
+    public DateTimeOffset? UsedAt { get; set; }
+}
+
+internal sealed class EmailChangeChallengeEntity
+{
+    public Guid UserId { get; set; }
+
+    public required string Email { get; set; }
 
     public required string NormalizedEmail { get; set; }
 

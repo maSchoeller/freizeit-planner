@@ -62,17 +62,22 @@ builder.Services.AddAuthorization();
 builder.Services.AddSingleton(TimeProvider.System);
 if (builder.Environment.IsEnvironment("Testing"))
 {
-    var seededUsers = new[]
-    {
-        new KnownUser(
-            Guid.Parse("10000000-0000-0000-0000-000000000001"),
-            "MIRIAM@EXAMPLE.TEST",
-            "Miriam König")
-    };
-    builder.Services.AddSingleton<IPasswordlessState>(new InMemoryPasswordlessState(seededUsers));
-    builder.Services.AddSingleton<ILoginCodeSender, TestingLoginCodeSender>();
+    builder.Services.AddSingleton<IPasswordlessState>(_ =>
+        throw new InvalidOperationException("Tests that use authentication must supply IPasswordlessState."));
+    builder.Services.AddSingleton<ILoginCodeSender>(_ =>
+        throw new InvalidOperationException("Tests that request codes must supply ILoginCodeSender."));
+    builder.Services.AddSingleton<IEmailChangeCodeSender>(_ =>
+        throw new InvalidOperationException("Tests that send email-change codes must supply IEmailChangeCodeSender."));
+    builder.Services.AddSingleton<IInvitationSender>(_ =>
+        throw new InvalidOperationException("Tests that send invitations must supply IInvitationSender."));
     builder.Services.AddSingleton<IPasswordlessLogin>(services =>
         CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
+    builder.Services.AddScoped<IInvitationLifecycle>(_ =>
+        throw new InvalidOperationException("Tests that use invitation endpoints must supply IInvitationLifecycle."));
+    builder.Services.AddScoped<IAccountLifecycle>(_ =>
+        throw new InvalidOperationException("Tests that use account endpoints must supply IAccountLifecycle."));
+    builder.Services.AddScoped<IEmailChangeLifecycle>(_ =>
+        throw new InvalidOperationException("Tests that use email-change endpoints must supply IEmailChangeLifecycle."));
 }
 else
 {
@@ -84,9 +89,21 @@ else
         .AddRoles<IdentityRole<Guid>>()
         .AddEntityFrameworkStores<IdentityDbContext>();
     builder.Services.AddScoped<IPasswordlessState, EfPasswordlessState>();
+    builder.Services.AddScoped<IIdentityLifecycleState, EfIdentityLifecycleState>();
+    builder.Services.AddScoped<IEmailChangeState, EfEmailChangeState>();
     builder.Services.AddSingleton<ILoginCodeSender, SmtpLoginCodeSender>();
+    builder.Services.AddSingleton<IEmailChangeCodeSender, SmtpEmailChangeCodeSender>();
+    builder.Services.AddSingleton<IInvitationSender, SmtpInvitationSender>();
     builder.Services.AddScoped<IPasswordlessLogin>(services =>
         CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
+    builder.Services.AddScoped<IdentityLifecycleService>(services =>
+        CreateIdentityLifecycle(services, builder.Configuration, builder.Environment));
+    builder.Services.AddScoped<IInvitationLifecycle>(services =>
+        services.GetRequiredService<IdentityLifecycleService>());
+    builder.Services.AddScoped<IAccountLifecycle>(services =>
+        services.GetRequiredService<IdentityLifecycleService>());
+    builder.Services.AddScoped<IEmailChangeLifecycle>(services =>
+        CreateEmailChangeLifecycle(services, builder.Configuration, builder.Environment));
 }
 
 var app = builder.Build();
@@ -115,6 +132,7 @@ app.MapHealthChecks("/health");
 app.MapHealthChecks("/ready");
 app.MapOpenApi("/api/v1/openapi.json");
 app.MapIdentityEndpoints();
+app.MapLifecycleEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
@@ -135,6 +153,44 @@ static PasswordlessLoginService CreatePasswordlessLogin(
     return new PasswordlessLoginService(
         services.GetRequiredService<IPasswordlessState>(),
         services.GetRequiredService<ILoginCodeSender>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static IdentityLifecycleService CreateIdentityLifecycle(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:InvitationTokenPepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException("Authentication:InvitationTokenPepper must be configured in production.");
+    }
+
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-invitation-token-pepper-do-not-use-in-production"));
+    return new IdentityLifecycleService(
+        services.GetRequiredService<IIdentityLifecycleState>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static EmailChangeService CreateEmailChangeLifecycle(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:LoginCodePepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException("Authentication:LoginCodePepper must be configured in production.");
+    }
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-login-code-pepper-do-not-use-in-production"));
+    return new EmailChangeService(
+        services.GetRequiredService<IEmailChangeState>(),
+        services.GetRequiredService<IEmailChangeCodeSender>(),
         services.GetRequiredService<TimeProvider>(),
         pepper);
 }

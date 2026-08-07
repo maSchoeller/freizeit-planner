@@ -549,6 +549,12 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "freizeitcockpit.testsupport": {
+        "type": "Project",
+        "dependencies": {
+          "Identity.Implementation": "[1.0.0, )"
+        }
+      },
       "freizeitcockpit.web": {
         "type": "Project",
         "dependencies": {

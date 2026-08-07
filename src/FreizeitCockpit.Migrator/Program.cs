@@ -20,22 +20,10 @@ try
     var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await identityDb.Database.MigrateAsync();
 
-    if (builder.Environment.IsDevelopment()
-        && !await identityDb.Users.AnyAsync(user => user.NormalizedEmail == "MIRIAM@EXAMPLE.TEST"))
-    {
-        identityDb.Users.Add(new ApplicationUser
-        {
-            Id = Guid.Parse("10000000-0000-0000-0000-000000000001"),
-            UserName = "miriam@example.test",
-            NormalizedUserName = "MIRIAM@EXAMPLE.TEST",
-            Email = "miriam@example.test",
-            NormalizedEmail = "MIRIAM@EXAMPLE.TEST",
-            EmailConfirmed = true,
-            DisplayName = "Miriam König",
-            SecurityStamp = Guid.NewGuid().ToString("N")
-        });
-        await identityDb.SaveChangesAsync();
-    }
+    await IdentitySeeder.SeedAsync(
+        identityDb,
+        builder.Configuration["Bootstrap:PlatformAdminEmail"],
+        builder.Environment.IsDevelopment());
 }
 finally
 {

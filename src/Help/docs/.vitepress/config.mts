@@ -16,6 +16,11 @@ export default defineConfig({
           { text: "Überblick", link: "/" },
           { text: "Anmeldung", link: "/anmeldung" },
           { text: "Sitzungen", link: "/konto-sitzungen" },
+          { text: "Konto verwalten", link: "/konto-verwalten" },
+          {
+            text: "Organisationen, Camps und Rollen",
+            link: "/organisationen-camps-rollen",
+          },
         ],
       },
     ],

@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
     <ProjectReference Include="../../src/Identity/Identity.Implementation/Identity.Implementation.csproj" />
+    <ProjectReference Include="../FreizeitCockpit.TestSupport/FreizeitCockpit.TestSupport.csproj" />
   </ItemGroup>
 
 </Project>

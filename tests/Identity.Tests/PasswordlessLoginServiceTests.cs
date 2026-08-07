@@ -1,5 +1,6 @@
 using Identity.Contracts;
 using Identity.Implementation;
+using FreizeitCockpit.TestSupport;
 using Xunit;
 
 namespace Identity.Tests;
@@ -116,7 +117,7 @@ public sealed class PasswordlessLoginServiceTests
 
     private static Fixture CreateFixture()
     {
-        var state = new InMemoryPasswordlessState(new[]
+        var state = new PasswordlessTestState(new[]
         {
             new KnownUser(UserId, "TEAM@EXAMPLE.TEST", "Teammitglied")
         });
@@ -127,7 +128,7 @@ public sealed class PasswordlessLoginServiceTests
     }
 
     private sealed record Fixture(
-        InMemoryPasswordlessState State,
+        PasswordlessTestState State,
         CapturingSender Sender,
         ManualTimeProvider Clock,
         PasswordlessLoginService Service);

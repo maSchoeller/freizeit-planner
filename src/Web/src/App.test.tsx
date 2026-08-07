@@ -55,4 +55,32 @@ describe("Dashboard", () => {
       "Sitzungen werden geladen",
     );
   });
+
+  it("explains an incomplete invitation link", () => {
+    render(
+      <MemoryRouter initialEntries={["/einladung"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Einladung annehmen" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Einladungslink ist unvollständig",
+    );
+  });
+
+  it("shows a loading state for account self-service", () => {
+    render(
+      <MemoryRouter initialEntries={["/konto"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Mein Konto" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Kontodaten werden geladen",
+    );
+  });
 });

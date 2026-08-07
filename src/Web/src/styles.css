@@ -533,12 +533,76 @@ h2 {
   border-radius: 0.75rem;
   text-align: center;
 }
+.account-page {
+  width: min(58rem, calc(100% - 2rem));
+  padding-block: clamp(2rem, 5vw, 4rem);
+}
+.settings-section {
+  margin-top: 1.25rem;
+  padding: clamp(1.1rem, 3vw, 1.6rem);
+  border: 1px solid var(--border);
+  border-radius: 0.85rem;
+  background: #fff;
+}
+.settings-section h2 {
+  margin-top: 0;
+}
+.settings-section form {
+  display: grid;
+  gap: 1rem;
+  max-width: 34rem;
+}
+.membership-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.membership-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+}
+.membership-list li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.membership-list span {
+  color: #587270;
+}
+.danger-zone {
+  border-color: #d8aaa6;
+  background: #fffafa;
+}
+.confirmation-panel {
+  padding: 1rem;
+  border-left: 4px solid #9d3a34;
+  background: #fff0ee;
+}
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
 @media (max-width: 600px) {
   .session-list li {
     align-items: stretch;
     flex-direction: column;
   }
   .session-list button {
+    width: 100%;
+  }
+  .membership-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .membership-list button,
+  .settings-section .login-actions > * {
     width: 100%;
   }
 }

@@ -9,6 +9,8 @@ import {
 import { Link, Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./LoginPage";
 import { SessionsPage } from "./SessionsPage";
+import { InvitationPage } from "./InvitationPage";
+import { AccountPage } from "./AccountPage";
 
 const navigation = [
   { label: "Übersicht", icon: ClipboardList },
@@ -23,6 +25,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/anmelden" element={<LoginPage />} />
+      <Route path="/einladung" element={<InvitationPage />} />
+      <Route path="/konto" element={<AccountPage />} />
       <Route path="/konto/sitzungen" element={<SessionsPage />} />
       <Route
         path="/o/:organizationSlug/camps/:campSlug/*"
@@ -54,7 +58,7 @@ function Dashboard() {
         <Link
           className="profile-button"
           aria-label="Kontomenü von Miriam öffnen"
-          to="/konto/sitzungen"
+          to="/konto"
         >
           MK
         </Link>
