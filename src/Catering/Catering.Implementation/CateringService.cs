@@ -283,7 +283,11 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
             request.CampId,
             CampAction.Read,
             cancellationToken);
-        var context = await GetCampContextAsync(request.OrganizationId, request.CampId, cancellationToken);
+        var context = await GetCampContextAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            cancellationToken);
         var meals = await state.ListMealsAsync(request.OrganizationId, request.CampId, cancellationToken);
         var summaries = new List<MealSummary>(meals.Count);
         foreach (var meal in meals)
@@ -311,7 +315,11 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
             request.CampId,
             CampAction.Read,
             cancellationToken);
-        var context = await GetCampContextAsync(request.OrganizationId, request.CampId, cancellationToken);
+        var context = await GetCampContextAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            cancellationToken);
         var meal = await state.FindMealAsync(
             request.OrganizationId,
             request.CampId,
@@ -783,7 +791,7 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
         CancellationToken cancellationToken)
     {
         await EnsureCampAccessAsync(actorId, organizationId, campId, CampAction.WriteContent, cancellationToken);
-        var context = await GetCampContextAsync(organizationId, campId, cancellationToken);
+        var context = await GetCampContextAsync(actorId, organizationId, campId, cancellationToken);
         if (context.IsArchived)
         {
             throw Rule("camp_archived", "Archivierte Freizeiten können nicht mehr bearbeitet werden.");
@@ -793,12 +801,13 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
     }
 
     private async Task<CampCateringContext> GetCampContextAsync(
+        Guid actorId,
         Guid organizationId,
         Guid campId,
         CancellationToken cancellationToken)
     {
         var context = await campContext.GetAsync(
-            new CampCateringContextRequest(organizationId, campId),
+            new CampCateringContextRequest(actorId, organizationId, campId),
             cancellationToken);
         if (context.DefaultPortions <= 0)
         {

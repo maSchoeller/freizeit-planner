@@ -1189,6 +1189,380 @@ export interface paths {
     };
     trace?: never;
   };
+  "/api/v1/organizations/{organizationId}/camps": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampSummary"][];
+          };
+        };
+      };
+    };
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["CreateCampBody"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampView"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/by-slug/{campSlug}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campSlug: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampView"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["UpdateCampBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampView"];
+          };
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeCampStatusBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampView"];
+          };
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/schedule": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query: {
+          fromDate: string;
+          toDateExclusive: string;
+        };
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ScheduleEntryView"][];
+          };
+        };
+      };
+    };
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ScheduleEntryBody"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ScheduleEntryView"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/{scheduleEntryId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          scheduleEntryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ScheduleEntryView"];
+          };
+        };
+      };
+    };
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          scheduleEntryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ScheduleEntryBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ScheduleEntryView"];
+          };
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          scheduleEntryId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1213,6 +1587,8 @@ export interface components {
       deletionScheduledAt: null | string;
       isPlatformAdmin: boolean;
     };
+    /** @default 0 */
+    AmbiguousLocalTimeChoice: number;
     AntiforgeryResponse: {
       token: string;
     };
@@ -1228,6 +1604,50 @@ export interface components {
       isActive: boolean;
       /** Format: int64 */
       version: number | string;
+    };
+    CampPeriod: number;
+    CampStatus: number;
+    CampSummary: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      organizationId: string;
+      name: string;
+      slug: string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      timeZoneId: string;
+      /** Format: int32 */
+      defaultPortions: number | string;
+      status: components["schemas"]["CampStatus"];
+      period: components["schemas"]["CampPeriod"];
+      /** Format: int64 */
+      version: number | string;
+    };
+    CampView: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      organizationId: string;
+      name: string;
+      slug: string;
+      description: null | string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      timeZoneId: string;
+      /** Format: int32 */
+      defaultPortions: number | string;
+      status: components["schemas"]["CampStatus"];
+      period: components["schemas"]["CampPeriod"];
+      /** Format: int64 */
+      version: number | string;
+    };
+    ChangeCampStatusBody: {
+      status: components["schemas"]["CampStatus"];
     };
     ChangeRoleBody: {
       role: components["schemas"]["TenantRole"];
@@ -1249,6 +1669,18 @@ export interface components {
     ConfirmEmailChangeBody: {
       email: null | string;
       code: null | string;
+    };
+    CreateCampBody: {
+      name: string;
+      slug: string;
+      description: null | string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      timeZoneId: null | string;
+      /** Format: int32 */
+      defaultPortions: number | string;
     };
     DeletionSchedule: {
       /** Format: date-time */
@@ -1340,6 +1772,61 @@ export interface components {
     RequestEmailChangeBody: {
       email: null | string;
     };
+    ScheduleEntryBody: {
+      timing: components["schemas"]["ScheduleTimingInput"];
+      title: string;
+      description: null | string;
+      location: null | string;
+      category: string;
+      status: components["schemas"]["ScheduleEntryStatus"];
+      responsibleUserIds: string[];
+      audience: null | string;
+    };
+    ScheduleEntryStatus: number;
+    ScheduleEntryView: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      organizationId: string;
+      /** Format: uuid */
+      campId: string;
+      timing: components["schemas"]["ScheduleTimingView"];
+      title: string;
+      description: null | string;
+      location: null | string;
+      category: string;
+      status: components["schemas"]["ScheduleEntryStatus"];
+      responsibleUserIds: string[];
+      audience: null | string;
+      overlapsAnotherEntry: boolean;
+      /** Format: int64 */
+      version: number | string;
+    };
+    ScheduleTimingInput: {
+      isAllDay: boolean;
+      /** Format: date-time */
+      localStart: null | string;
+      /** Format: date-time */
+      localEnd: null | string;
+      /** Format: date */
+      startDate: null | string;
+      /** Format: date */
+      endDateExclusive: null | string;
+      startChoice?: components["schemas"]["AmbiguousLocalTimeChoice"];
+      endChoice?: components["schemas"]["AmbiguousLocalTimeChoice"];
+    };
+    ScheduleTimingView: {
+      isAllDay: boolean;
+      /** Format: date-time */
+      startsAtUtc: null | string;
+      /** Format: date-time */
+      endsAtUtc: null | string;
+      /** Format: date */
+      startDate: null | string;
+      /** Format: date */
+      endDateExclusive: null | string;
+      timeZoneId: string;
+    };
     SessionView: {
       /** Format: uuid */
       id: string;
@@ -1357,6 +1844,18 @@ export interface components {
       campId: null | string;
     };
     TenantRole: number;
+    UpdateCampBody: {
+      name: string;
+      slug: string;
+      description: null | string;
+      /** Format: date */
+      startsOn: string;
+      /** Format: date */
+      endsOn: string;
+      timeZoneId: string;
+      /** Format: int32 */
+      defaultPortions: number | string;
+    };
     UpdateProfileBody: {
       displayName: null | string;
     };

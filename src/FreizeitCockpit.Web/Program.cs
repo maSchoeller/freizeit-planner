@@ -1,13 +1,26 @@
 using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
+using Camps.Contracts;
+using Camps.Implementation;
+using Catering.Contracts;
+using Catering.Implementation;
+using FreizeitCockpit.ServiceDefaults;
 using Identity.Contracts;
 using Identity.Implementation;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
+using Spiritual.Contracts;
+using Spiritual.Implementation;
 
 var builder = WebApplication.CreateBuilder(args);
+var isOpenApiGeneration = new System.Diagnostics.StackTrace().GetFrames().Any(frame =>
+    frame.GetMethod()?.DeclaringType?.FullName?.Contains(
+        "Microsoft.Extensions.Hosting.HostFactoryResolver+HostingListener",
+        StringComparison.Ordinal) is true);
+builder.AddFreizeitServiceDefaults();
 var configuredConnectionString = builder.Configuration.GetConnectionString("freizeit");
 
 builder.Services.AddProblemDetails();
@@ -60,7 +73,7 @@ builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationSc
     });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton(TimeProvider.System);
-if (builder.Environment.IsEnvironment("Testing"))
+if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
 {
     builder.Services.AddSingleton<IPasswordlessState>(_ =>
         throw new InvalidOperationException("Tests that use authentication must supply IPasswordlessState."));
@@ -84,16 +97,37 @@ if (builder.Environment.IsEnvironment("Testing"))
         throw new InvalidOperationException("Tests that use tenant administration must supply ITenantAdministration."));
     builder.Services.AddScoped<IPlatformAdministration>(_ =>
         throw new InvalidOperationException("Tests that use platform administration must supply IPlatformAdministration."));
+    builder.Services.AddScoped<ICampManagement>(_ =>
+        throw new InvalidOperationException("Tests that use camp management must supply ICampManagement."));
+    builder.Services.AddScoped<ICampPlanningDefaults>(_ =>
+        throw new InvalidOperationException("Tests that use camp defaults must supply ICampPlanningDefaults."));
+    builder.Services.AddScoped<ISchedulePlanning>(_ =>
+        throw new InvalidOperationException("Tests that use schedule planning must supply ISchedulePlanning."));
+    builder.Services.AddScoped<IScheduleReferenceAccess>(_ =>
+        throw new InvalidOperationException("Tests that use schedule references must supply IScheduleReferenceAccess."));
+    builder.Services.AddScoped<IOrganizationCateringLibrary>(_ =>
+        throw new InvalidOperationException("Tests that use the catering library must supply IOrganizationCateringLibrary."));
+    builder.Services.AddScoped<ICampMealPlanning>(_ =>
+        throw new InvalidOperationException("Tests that use meal planning must supply ICampMealPlanning."));
+    builder.Services.AddScoped<IMealShoppingSource>(_ =>
+        throw new InvalidOperationException("Tests that use meal shopping must supply IMealShoppingSource."));
+    builder.Services.AddScoped<IDevotionPlanning>(_ =>
+        throw new InvalidOperationException("Tests that use devotion planning must supply IDevotionPlanning."));
 }
 else
 {
-    var connectionString = configuredConnectionString
-        ?? "Host=configuration-required.invalid;Database=freizeit;Username=invalid";
+    _ = configuredConnectionString
+        ?? throw new InvalidOperationException("ConnectionStrings:freizeit must be configured.");
     var runtimeRole = builder.Configuration["Database:RuntimeRole"] ?? "freizeit_app";
+    builder.Services.AddSingleton(services => FreizeitServiceDefaults.CreatePostgresDataSource(
+        builder.Configuration,
+        builder.Environment));
+    builder.Services.AddScoped(services =>
+        services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
     builder.Services.AddSingleton(new RuntimeRoleConnectionInterceptor(runtimeRole));
     builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
         options
-            .UseNpgsql(connectionString)
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
             .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
     builder.Services.AddIdentityCore<ApplicationUser>()
         .AddRoles<IdentityRole<Guid>>()
@@ -125,6 +159,45 @@ else
         services.GetRequiredService<TenantAuthorizationService>());
     builder.Services.AddScoped<IPlatformAdministration>(services =>
         services.GetRequiredService<TenantAuthorizationService>());
+    builder.Services.AddDbContext<CampsDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<ICampsState, EfCampsState>();
+    builder.Services.AddScoped<CampPlanningService>();
+    builder.Services.AddScoped<ICampManagement>(services =>
+        services.GetRequiredService<CampPlanningService>());
+    builder.Services.AddScoped<ICampPlanningDefaults>(services =>
+        services.GetRequiredService<CampPlanningService>());
+    builder.Services.AddScoped<SchedulePlanningService>();
+    builder.Services.AddScoped<ISchedulePlanning>(services =>
+        services.GetRequiredService<SchedulePlanningService>());
+    builder.Services.AddScoped<IScheduleReferenceAccess>(services =>
+        services.GetRequiredService<SchedulePlanningService>());
+    builder.Services.AddDbContext<CateringDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<ICampCateringContext, CampCateringContextAdapter>();
+    builder.Services.AddScoped<CateringService>();
+    builder.Services.AddScoped<IOrganizationCateringLibrary>(services =>
+        services.GetRequiredService<CateringService>());
+    builder.Services.AddScoped<ICampMealPlanning>(services =>
+        services.GetRequiredService<CateringService>());
+    builder.Services.AddScoped<IMealShoppingSource>(services =>
+        services.GetRequiredService<CateringService>());
+    builder.Services.AddDbContext<SpiritualDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<IDevotionState, EfDevotionState>();
+    builder.Services.AddHttpClient<IBiblePassageProvider, HttpBiblePassageProvider>(client =>
+    {
+        client.BaseAddress = new Uri(
+            builder.Configuration["Bible:BaseUrl"] ?? "https://bible.helloao.org/");
+        client.Timeout = TimeSpan.FromSeconds(10);
+    });
+    builder.Services.AddScoped<IDevotionPlanning, DevotionPlanningService>();
 }
 
 var app = builder.Build();
@@ -156,6 +229,7 @@ app.MapOpenApi("/api/v1/openapi.json");
 app.MapIdentityEndpoints();
 app.MapLifecycleEndpoints();
 app.MapTenantAdministrationEndpoints();
+app.MapCampPlanningEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

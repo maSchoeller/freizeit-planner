@@ -1,15 +1,31 @@
+using Camps.Implementation;
+using Catering.Implementation;
+using FreizeitCockpit.ServiceDefaults;
 using Identity.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Spiritual.Implementation;
 
 const long migrationLock = 7_590_111_001;
 var builder = Host.CreateApplicationBuilder(args);
-var connectionString = builder.Configuration.GetConnectionString("freizeit")
-    ?? throw new InvalidOperationException("ConnectionStrings:freizeit must be configured.");
-builder.Services.AddDbContext<IdentityDbContext>(options => options.UseNpgsql(connectionString));
+builder.AddFreizeitServiceDefaults();
+builder.Services.AddSingleton(services => FreizeitServiceDefaults.CreatePostgresDataSource(
+    builder.Configuration,
+    builder.Environment));
+builder.Services.AddScoped(services =>
+    services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
+builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<CampsDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<CateringDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<SpiritualDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 
 using var host = builder.Build();
-await using var connection = new NpgsqlConnection(connectionString);
+var dataSource = host.Services.GetRequiredService<NpgsqlDataSource>();
+await using var connection = await dataSource.OpenConnectionAsync();
 await connection.OpenAsync();
 await using var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@lock)", connection);
 acquire.Parameters.AddWithValue("lock", migrationLock);
@@ -19,6 +35,9 @@ try
     await using var scope = host.Services.CreateAsyncScope();
     var identityDb = scope.ServiceProvider.GetRequiredService<IdentityDbContext>();
     await identityDb.Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<CampsDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<CateringDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<SpiritualDbContext>().Database.MigrateAsync();
 
     await IdentitySeeder.SeedAsync(
         identityDb,

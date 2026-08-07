@@ -9,5 +9,38 @@ app.MapGet("/api/available_translations.json", () => Results.Ok(new[]
     new { id = "deuelo", name = "Unrevidierte Elberfelder" },
     new { id = "deutkw", name = "Textbibel" }
 }));
+app.MapGet("/api/{translation}/{book}/{chapter:int}.json", (
+    string translation,
+    string book,
+    int chapter) =>
+{
+    var knownTranslations = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "deu_sch",
+        "deu_l12",
+        "deu_elo",
+        "deu_tkw"
+    };
+    if (!knownTranslations.Contains(translation) || chapter < 1 || chapter > 150)
+    {
+        return Results.NotFound();
+    }
+
+    var content = Enumerable.Range(1, 50).Select(verse => new
+    {
+        type = "verse",
+        number = verse,
+        content = new[] { new { text = $"Deterministischer Bibeltext {book} {chapter},{verse}." } }
+    });
+    return Results.Ok(new
+    {
+        translation,
+        chapter = new
+        {
+            id = $"{book}.{chapter}",
+            content
+        }
+    });
+});
 
 app.Run();

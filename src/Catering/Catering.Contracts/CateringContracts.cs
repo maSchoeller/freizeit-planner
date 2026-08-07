@@ -69,7 +69,7 @@ public sealed record OrganizationCateringQuery(Guid ActorId, Guid OrganizationId
 
 public sealed record CampCateringQuery(Guid ActorId, Guid OrganizationId, Guid CampId);
 
-public sealed record CampCateringContextRequest(Guid OrganizationId, Guid CampId);
+public sealed record CampCateringContextRequest(Guid ActorId, Guid OrganizationId, Guid CampId);
 
 public sealed record CampCateringContext(int DefaultPortions, bool IsArchived);
 

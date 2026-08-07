@@ -7,6 +7,10 @@
     <PackageReference Include="Npgsql" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../Camps/Camps.Implementation/Camps.Implementation.csproj" />
+    <ProjectReference Include="../Catering/Catering.Implementation/Catering.Implementation.csproj" />
+    <ProjectReference Include="../FreizeitCockpit.ServiceDefaults/FreizeitCockpit.ServiceDefaults.csproj" />
     <ProjectReference Include="../Identity/Identity.Implementation/Identity.Implementation.csproj" />
+    <ProjectReference Include="../Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
   </ItemGroup>
 </Project>

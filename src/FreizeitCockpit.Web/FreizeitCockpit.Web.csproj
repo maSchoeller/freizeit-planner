@@ -10,8 +10,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Camps/Camps.Contracts/Camps.Contracts.csproj" />
+    <ProjectReference Include="../Camps/Camps.Implementation/Camps.Implementation.csproj" />
+    <ProjectReference Include="../Catering/Catering.Contracts/Catering.Contracts.csproj" />
+    <ProjectReference Include="../Catering/Catering.Implementation/Catering.Implementation.csproj" />
+    <ProjectReference Include="../FreizeitCockpit.ServiceDefaults/FreizeitCockpit.ServiceDefaults.csproj" />
     <ProjectReference Include="../Identity/Identity.Contracts/Identity.Contracts.csproj" />
     <ProjectReference Include="../Identity/Identity.Implementation/Identity.Implementation.csproj" />
+    <ProjectReference Include="../Spiritual/Spiritual.Contracts/Spiritual.Contracts.csproj" />
+    <ProjectReference Include="../Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
   </ItemGroup>
 
   <ItemGroup>
