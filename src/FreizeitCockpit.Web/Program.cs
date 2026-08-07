@@ -8,6 +8,8 @@ using Catering.Implementation;
 using FreizeitCockpit.ServiceDefaults;
 using Identity.Contracts;
 using Identity.Implementation;
+using Knowledge.Contracts;
+using Knowledge.Implementation;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -113,6 +115,8 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use meal shopping must supply IMealShoppingSource."));
     builder.Services.AddScoped<IDevotionPlanning>(_ =>
         throw new InvalidOperationException("Tests that use devotion planning must supply IDevotionPlanning."));
+    builder.Services.AddScoped<ICampNotebook>(_ =>
+        throw new InvalidOperationException("Tests that use the camp notebook must supply ICampNotebook."));
 }
 else
 {
@@ -198,6 +202,15 @@ else
         client.Timeout = TimeSpan.FromSeconds(10);
     });
     builder.Services.AddScoped<IDevotionPlanning, DevotionPlanningService>();
+    builder.Services.AddDbContext<KnowledgeDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<IKnowledgeCampContext, KnowledgeCampContextAdapter>();
+    builder.Services.AddScoped<INoteLinkTargetResolver, NoteLinkTargetResolver>();
+    builder.Services.AddScoped<KnowledgeService>();
+    builder.Services.AddScoped<ICampNotebook>(services => services.GetRequiredService<KnowledgeService>());
+    builder.Services.AddScoped<INotebookRetention>(services => services.GetRequiredService<KnowledgeService>());
 }
 
 var app = builder.Build();
@@ -232,6 +245,7 @@ app.MapTenantAdministrationEndpoints();
 app.MapCampPlanningEndpoints();
 app.MapCateringEndpoints();
 app.MapSpiritualEndpoints();
+app.MapKnowledgeEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

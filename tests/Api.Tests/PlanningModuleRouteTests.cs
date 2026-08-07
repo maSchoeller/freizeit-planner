@@ -10,6 +10,7 @@ public sealed class PlanningModuleRouteTests
     [Theory]
     [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/catering/ingredients?query=reis")]
     [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/devotions")]
+    [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/notes")]
     public async Task PlanningRoutesRequireAuthentication(string path)
     {
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>

@@ -163,6 +163,18 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
       },
+      "knowledge.contracts": {
+        "type": "Project"
+      },
+      "knowledge.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Identity.Contracts": "[1.0.0, )",
+          "Knowledge.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "spiritual.contracts": {
         "type": "Project"
       },

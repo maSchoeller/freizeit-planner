@@ -2,6 +2,7 @@ using System.Security.Claims;
 using Camps.Implementation;
 using Catering.Implementation;
 using Identity.Implementation;
+using Knowledge.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Spiritual.Implementation;
@@ -21,6 +22,7 @@ internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
         await EnlistAsync<CampsDbContext>(context, transaction, context.RequestAborted);
         await EnlistAsync<CateringDbContext>(context, transaction, context.RequestAborted);
         await EnlistAsync<SpiritualDbContext>(context, transaction, context.RequestAborted);
+        await EnlistAsync<KnowledgeDbContext>(context, transaction, context.RequestAborted);
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         var (organizationId, campId) = ReadTenantRoute(context.Request.Path);
         var operation = ReadOperation(context.Request);

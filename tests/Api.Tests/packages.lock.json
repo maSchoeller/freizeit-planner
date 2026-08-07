@@ -688,6 +688,8 @@
           "FreizeitCockpit.ServiceDefaults": "[1.0.0, )",
           "Identity.Contracts": "[1.0.0, )",
           "Identity.Implementation": "[1.0.0, )",
+          "Knowledge.Contracts": "[1.0.0, )",
+          "Knowledge.Implementation": "[1.0.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.10, )",
           "Microsoft.OpenApi": "[2.11.0, )",
           "Spiritual.Contracts": "[1.0.0, )",
@@ -702,6 +704,18 @@
         "dependencies": {
           "Identity.Contracts": "[1.0.0, )",
           "Microsoft.AspNetCore.Identity.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "knowledge.contracts": {
+        "type": "Project"
+      },
+      "knowledge.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Identity.Contracts": "[1.0.0, )",
+          "Knowledge.Contracts": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
