@@ -78,18 +78,32 @@ if (builder.Environment.IsEnvironment("Testing"))
         throw new InvalidOperationException("Tests that use account endpoints must supply IAccountLifecycle."));
     builder.Services.AddScoped<IEmailChangeLifecycle>(_ =>
         throw new InvalidOperationException("Tests that use email-change endpoints must supply IEmailChangeLifecycle."));
+    builder.Services.AddScoped<ITenantAccessControl>(_ =>
+        throw new InvalidOperationException("Tests that use tenant authorization must supply ITenantAccessControl."));
+    builder.Services.AddScoped<ITenantAdministration>(_ =>
+        throw new InvalidOperationException("Tests that use tenant administration must supply ITenantAdministration."));
+    builder.Services.AddScoped<IPlatformAdministration>(_ =>
+        throw new InvalidOperationException("Tests that use platform administration must supply IPlatformAdministration."));
 }
 else
 {
     var connectionString = configuredConnectionString
         ?? "Host=configuration-required.invalid;Database=freizeit;Username=invalid";
-    builder.Services.AddDbContext<IdentityDbContext>(options =>
-        options.UseNpgsql(connectionString, npgsql => npgsql.EnableRetryOnFailure()));
+    var runtimeRole = builder.Configuration["Database:RuntimeRole"] ?? "freizeit_app";
+    builder.Services.AddSingleton(new RuntimeRoleConnectionInterceptor(runtimeRole));
+    builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
+        options
+            .UseNpgsql(connectionString)
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
     builder.Services.AddIdentityCore<ApplicationUser>()
         .AddRoles<IdentityRole<Guid>>()
         .AddEntityFrameworkStores<IdentityDbContext>();
     builder.Services.AddScoped<IPasswordlessState, EfPasswordlessState>();
-    builder.Services.AddScoped<IIdentityLifecycleState, EfIdentityLifecycleState>();
+    builder.Services.AddScoped<EfIdentityLifecycleState>();
+    builder.Services.AddScoped<IIdentityLifecycleState>(services =>
+        services.GetRequiredService<EfIdentityLifecycleState>());
+    builder.Services.AddScoped<ITenantAuthorizationState>(services =>
+        services.GetRequiredService<EfIdentityLifecycleState>());
     builder.Services.AddScoped<IEmailChangeState, EfEmailChangeState>();
     builder.Services.AddSingleton<ILoginCodeSender, SmtpLoginCodeSender>();
     builder.Services.AddSingleton<IEmailChangeCodeSender, SmtpEmailChangeCodeSender>();
@@ -104,6 +118,13 @@ else
         services.GetRequiredService<IdentityLifecycleService>());
     builder.Services.AddScoped<IEmailChangeLifecycle>(services =>
         CreateEmailChangeLifecycle(services, builder.Configuration, builder.Environment));
+    builder.Services.AddScoped<TenantAuthorizationService>();
+    builder.Services.AddScoped<ITenantAccessControl>(services =>
+        services.GetRequiredService<TenantAuthorizationService>());
+    builder.Services.AddScoped<ITenantAdministration>(services =>
+        services.GetRequiredService<TenantAuthorizationService>());
+    builder.Services.AddScoped<IPlatformAdministration>(services =>
+        services.GetRequiredService<TenantAuthorizationService>());
 }
 
 var app = builder.Build();
@@ -120,6 +141,7 @@ app.Use(async (context, next) =>
     await next();
 });
 app.UseAuthentication();
+app.UseMiddleware<TenantDatabaseTransactionMiddleware>();
 app.UseAuthorization();
 
 app.MapGet("/api/v1", () => Results.Ok(new
@@ -133,6 +155,7 @@ app.MapHealthChecks("/ready");
 app.MapOpenApi("/api/v1/openapi.json");
 app.MapIdentityEndpoints();
 app.MapLifecycleEndpoints();
+app.MapTenantAdministrationEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

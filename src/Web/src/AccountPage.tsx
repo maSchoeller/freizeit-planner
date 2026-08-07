@@ -233,6 +233,13 @@ export function AccountPage() {
               <p>
                 <Link to="/konto/sitzungen">Aktive Sitzungen verwalten</Link>
               </p>
+              {account.isPlatformAdmin ? (
+                <p>
+                  <Link to="/plattform/organisationen">
+                    Organizations auf Plattformebene verwalten
+                  </Link>
+                </p>
+              ) : null}
             </section>
             <section
               className="settings-section"
@@ -326,6 +333,13 @@ export function AccountPage() {
                       <div>
                         <strong>{membership.organizationName}</strong>
                         <span>{roleLabel(membership.role)}</span>
+                        {membership.role === 0 || membership.role === 1 ? (
+                          <Link
+                            to={`/o/${membership.organizationSlug}/einstellungen/mitglieder?organizationId=${membership.organizationId}`}
+                          >
+                            Mitglieder verwalten
+                          </Link>
+                        ) : null}
                       </div>
                       <button
                         className="secondary-action"

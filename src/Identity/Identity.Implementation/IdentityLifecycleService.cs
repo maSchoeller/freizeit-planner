@@ -224,13 +224,23 @@ public sealed class IdentityLifecycleService(
         var user = await RequireUserAsync(userId, cancellationToken);
         user.Rename(RequireText(displayName, 160));
         await state.SaveUserAsync(user, cancellationToken);
-        return new AccountView(user.Id, user.Email, user.DisplayName, user.DeletionScheduledAt);
+        return new AccountView(
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            user.DeletionScheduledAt,
+            user.IsPlatformAdmin);
     }
 
     public async Task<AccountView> GetAccountAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await RequireUserAsync(userId, cancellationToken);
-        return new AccountView(user.Id, user.Email, user.DisplayName, user.DeletionScheduledAt);
+        return new AccountView(
+            user.Id,
+            user.Email,
+            user.DisplayName,
+            user.DeletionScheduledAt,
+            user.IsPlatformAdmin);
     }
 
     public async Task<IReadOnlyList<AccountMembershipView>> ListMembershipsAsync(

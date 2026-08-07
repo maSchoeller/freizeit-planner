@@ -59,24 +59,15 @@ public sealed class EfEmailChangeState(IdentityDbContext dbContext) : IEmailChan
         EmailChangeChallenge challenge,
         CancellationToken cancellationToken)
     {
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
+        if (dbContext.Database.CurrentTransaction is not null)
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var entity = await dbContext.Users.SingleAsync(item => item.Id == user.Id, cancellationToken);
-            entity.Email = user.Email;
-            entity.NormalizedEmail = user.NormalizedEmail;
-            entity.UserName = user.Email;
-            entity.NormalizedUserName = user.NormalizedEmail;
-            entity.EmailConfirmed = true;
-            entity.SecurityStamp = Guid.NewGuid().ToString("N");
-            var challengeEntity = await dbContext.EmailChangeChallenges.SingleAsync(
-                item => item.UserId == challenge.UserId,
-                cancellationToken);
-            Apply(challengeEntity, challenge);
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-        });
+            await PersistUserAndChallengeAsync(user, challenge, cancellationToken);
+            return;
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await PersistUserAndChallengeAsync(user, challenge, cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 
     public async ValueTask<int> CountRateEventsAsync(
@@ -107,6 +98,25 @@ public sealed class EfEmailChangeState(IdentityDbContext dbContext) : IEmailChan
         FailedAttempts = challenge.FailedAttempts,
         UsedAt = challenge.UsedAt
     };
+
+    private async Task PersistUserAndChallengeAsync(
+        EmailChangeUser user,
+        EmailChangeChallenge challenge,
+        CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.Users.SingleAsync(item => item.Id == user.Id, cancellationToken);
+        entity.Email = user.Email;
+        entity.NormalizedEmail = user.NormalizedEmail;
+        entity.UserName = user.Email;
+        entity.NormalizedUserName = user.NormalizedEmail;
+        entity.EmailConfirmed = true;
+        entity.SecurityStamp = Guid.NewGuid().ToString("N");
+        var challengeEntity = await dbContext.EmailChangeChallenges.SingleAsync(
+            item => item.UserId == challenge.UserId,
+            cancellationToken);
+        Apply(challengeEntity, challenge);
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
 
     private static void Apply(EmailChangeChallengeEntity entity, EmailChangeChallenge challenge)
     {

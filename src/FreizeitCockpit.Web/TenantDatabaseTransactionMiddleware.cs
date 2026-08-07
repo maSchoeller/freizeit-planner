@@ -1,0 +1,70 @@
+using System.Security.Claims;
+using Identity.Implementation;
+using Microsoft.EntityFrameworkCore;
+
+internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
+{
+    public async Task InvokeAsync(HttpContext context)
+    {
+        var database = context.RequestServices.GetService<IdentityDbContext>();
+        if (database is null || !context.Request.Path.StartsWithSegments("/api"))
+        {
+            await next(context);
+            return;
+        }
+
+        await using var transaction = await database.Database.BeginTransactionAsync(context.RequestAborted);
+        var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
+        var (organizationId, campId) = ReadTenantRoute(context.Request.Path);
+        var operation = ReadOperation(context.Request);
+        await database.Database.ExecuteSqlInterpolatedAsync(
+            $"SELECT set_config('app.user_id', {userId}, true), set_config('app.organization_id', {organizationId}, true), set_config('app.camp_id', {campId}, true), set_config('app.operation', {operation}, true)",
+            context.RequestAborted);
+        try
+        {
+            await next(context);
+            await transaction.CommitAsync(context.RequestAborted);
+        }
+        catch
+        {
+            await transaction.RollbackAsync(CancellationToken.None);
+            throw;
+        }
+    }
+
+    private static string ReadOperation(HttpRequest request)
+    {
+        if (HttpMethods.IsPost(request.Method)
+            && request.Path.Equals("/api/v1/invitations/accept"))
+        {
+            return "invitation_acceptance";
+        }
+        if (HttpMethods.IsPost(request.Method)
+            && request.Path.Equals("/api/v1/invitations/organizations"))
+        {
+            return "platform_create_organization";
+        }
+        return request.Path.StartsWithSegments("/api/v1/platform")
+            ? "platform_admin"
+            : "tenant";
+    }
+
+    private static (string OrganizationId, string CampId) ReadTenantRoute(PathString path)
+    {
+        var segments = path.Value?.Split('/', StringSplitOptions.RemoveEmptyEntries) ?? [];
+        string organizationId = string.Empty;
+        string campId = string.Empty;
+        for (var index = 0; index + 1 < segments.Length; index++)
+        {
+            if (segments[index] == "organizations" && Guid.TryParse(segments[index + 1], out var organization))
+            {
+                organizationId = organization.ToString("D");
+            }
+            if (segments[index] == "camps" && Guid.TryParse(segments[index + 1], out var camp))
+            {
+                campId = camp.ToString("D");
+            }
+        }
+        return (organizationId, campId);
+    }
+}

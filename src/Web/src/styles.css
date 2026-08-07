@@ -589,6 +589,55 @@ h2 {
   justify-content: center;
   text-decoration: none;
 }
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.management-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.management-list li {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) minmax(11rem, auto) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+.management-list li > div {
+  display: grid;
+  min-width: 0;
+}
+.management-list li > div span {
+  color: #587270;
+  overflow-wrap: anywhere;
+}
+.management-list select {
+  min-height: 3rem;
+  max-width: 100%;
+  padding: 0.6rem 2.25rem 0.6rem 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  color: var(--petrol-900);
+  background: #fff;
+  font: inherit;
+}
+.management-list select:focus-visible {
+  outline: 3px solid #f3b61f;
+  outline-offset: 2px;
+}
 @media (max-width: 600px) {
   .session-list li {
     align-items: stretch;
@@ -603,6 +652,14 @@ h2 {
   }
   .membership-list button,
   .settings-section .login-actions > * {
+    width: 100%;
+  }
+  .management-list li {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+  }
+  .management-list select,
+  .management-list button {
     width: 100%;
   }
 }

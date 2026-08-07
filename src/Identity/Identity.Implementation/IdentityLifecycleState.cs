@@ -117,13 +117,33 @@ public sealed class OrganizationRecord(
         DeletionScheduledAt = null;
         Version++;
     }
+
+    public void Suspend() => ChangeStatus(Identity.Contracts.OrganizationStatus.Suspended, Version);
+
+    public void ChangeStatus(Identity.Contracts.OrganizationStatus status, long expectedVersion)
+    {
+        EnsureVersion(expectedVersion);
+        Status = status;
+        Version++;
+    }
+
+    private void EnsureVersion(long expectedVersion)
+    {
+        if (Version != expectedVersion)
+        {
+            throw new Identity.Contracts.IdentityRuleException(
+                "version_conflict",
+                "Die Organization wurde zwischenzeitlich geändert.");
+        }
+    }
 }
 
 public sealed class MembershipRecord(
     Guid organizationId,
     Guid userId,
     Identity.Contracts.TenantRole role,
-    bool isActive = true)
+    bool isActive = true,
+    long version = 1)
 {
     public Guid OrganizationId { get; } = organizationId;
 
@@ -133,14 +153,80 @@ public sealed class MembershipRecord(
 
     public bool IsActive { get; private set; } = isActive;
 
-    public void Leave() => IsActive = false;
+    public long Version { get; private set; } = version;
+
+    public void Leave() => Remove(Version);
+
+    public void ChangeRole(Identity.Contracts.TenantRole role, long expectedVersion)
+    {
+        EnsureVersion(expectedVersion);
+        Role = role;
+        Version++;
+    }
+
+    public void Remove(long expectedVersion)
+    {
+        EnsureVersion(expectedVersion);
+        IsActive = false;
+        Version++;
+    }
+
+    private void EnsureVersion(long expectedVersion)
+    {
+        if (Version != expectedVersion)
+        {
+            throw new Identity.Contracts.IdentityRuleException(
+                "version_conflict",
+                "Die Mitgliedschaft wurde zwischenzeitlich geändert.");
+        }
+    }
 }
 
-public sealed record CampAssignmentRecord(
-    Guid OrganizationId,
-    Guid CampId,
-    Guid UserId,
-    Identity.Contracts.TenantRole Role);
+public sealed class CampAssignmentRecord(
+    Guid organizationId,
+    Guid campId,
+    Guid userId,
+    Identity.Contracts.TenantRole role,
+    bool isActive = true,
+    long version = 1)
+{
+    public Guid OrganizationId { get; } = organizationId;
+
+    public Guid CampId { get; } = campId;
+
+    public Guid UserId { get; } = userId;
+
+    public Identity.Contracts.TenantRole Role { get; private set; } = role;
+
+    public bool IsActive { get; private set; } = isActive;
+
+    public long Version { get; private set; } = version;
+
+    public void Assign(Identity.Contracts.TenantRole role, long expectedVersion)
+    {
+        EnsureVersion(expectedVersion);
+        Role = role;
+        IsActive = true;
+        Version++;
+    }
+
+    public void Remove(long expectedVersion)
+    {
+        EnsureVersion(expectedVersion);
+        IsActive = false;
+        Version++;
+    }
+
+    private void EnsureVersion(long expectedVersion)
+    {
+        if (Version != expectedVersion)
+        {
+            throw new Identity.Contracts.IdentityRuleException(
+                "version_conflict",
+                "Die Camp-Zuweisung wurde zwischenzeitlich geändert.");
+        }
+    }
+}
 
 public sealed class InvitationRecord(
     Guid id,
@@ -154,7 +240,8 @@ public sealed class InvitationRecord(
     bool isPlatformInvitation,
     DateTimeOffset? revokedAt = null,
     DateTimeOffset? usedAt = null,
-    Guid? rotatedFromId = null)
+    Guid? rotatedFromId = null,
+    long version = 1)
 {
     public Guid Id { get; } = id;
 
@@ -180,7 +267,23 @@ public sealed class InvitationRecord(
 
     public Guid? RotatedFromId { get; } = rotatedFromId;
 
-    public void Revoke(DateTimeOffset revokedAt) => RevokedAt ??= revokedAt;
+    public long Version { get; private set; } = version;
 
-    public void MarkUsed(DateTimeOffset usedAt) => UsedAt ??= usedAt;
+    public void Revoke(DateTimeOffset revokedAt)
+    {
+        if (RevokedAt is null)
+        {
+            RevokedAt = revokedAt;
+            Version++;
+        }
+    }
+
+    public void MarkUsed(DateTimeOffset usedAt)
+    {
+        if (UsedAt is null)
+        {
+            UsedAt = usedAt;
+            Version++;
+        }
+    }
 }

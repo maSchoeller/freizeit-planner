@@ -14,4 +14,8 @@
 - Runtime persistence: ASP.NET Core Identity users, hashed challenges, invitations, memberships, assignments, rate
   events and revocable sessions live in PostgreSQL through `IdentityDbContext`; the web host never migrates. The
   migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
+- Authorization: `ITenantAccessControl` answers organization/camp decisions; `ITenantAdministration` owns role and
+  assignment changes; `IPlatformAdministration` exposes only organization metadata and suspension. All mutations
+  use version tokens. The request transaction sets user, organization, camp, and operation context with transaction-
+  local PostgreSQL settings before queries execute under the `freizeit_app` `NOBYPASSRLS` role.
 - Dependencies: may emit metadata-only Activity events. All modules may depend on its Contracts, never implementation.

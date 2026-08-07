@@ -83,4 +83,36 @@ describe("Dashboard", () => {
       "Kontodaten werden geladen",
     );
   });
+
+  it("shows an accessible loading state for member administration", () => {
+    render(
+      <MemoryRouter
+        initialEntries={[
+          "/o/sonnenhoehe/einstellungen/mitglieder?organizationId=20000000-0000-0000-0000-000000000001",
+        ]}
+      >
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Mitglieder verwalten" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Mitglieder werden geladen",
+    );
+  });
+
+  it("explains the platform metadata boundary", () => {
+    render(
+      <MemoryRouter initialEntries={["/plattform/organisationen"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    expect(
+      screen.getByRole("heading", { name: "Organizations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Fachliche Inhalte der Mandanten/),
+    ).toBeInTheDocument();
+  });
 });

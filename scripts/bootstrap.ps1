@@ -15,14 +15,14 @@ try {
     if (-not (Get-Command npm -ErrorAction SilentlyContinue)) { throw 'npm wurde nicht gefunden.' }
 
     Write-Host "Toolchain bereit: .NET $dotnetVersion, Node $(node --version), $(docker --version)."
-    if ($CheckOnly) { exit 0 }
+    if ($CheckOnly) { return }
 
     dotnet tool restore
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -ne 0) { throw "dotnet tool restore failed with exit code $LASTEXITCODE." }
     dotnet restore FreizeitCockpit.slnx --locked-mode
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -ne 0) { throw "dotnet restore failed with exit code $LASTEXITCODE." }
     npm exec --yes pnpm@11.20.0 -- install --frozen-lockfile
-    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    if ($LASTEXITCODE -ne 0) { throw "pnpm install failed with exit code $LASTEXITCODE." }
 }
 finally {
     Pop-Location

@@ -2,7 +2,9 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Identity.Implementation;
 
-public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIdentityLifecycleState
+public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
+    IIdentityLifecycleState,
+    ITenantAuthorizationState
 {
     public async ValueTask<LifecycleUser?> FindUserAsync(
         Guid userId,
@@ -82,6 +84,21 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
             .SingleOrDefaultAsync(cancellationToken);
     }
 
+    public async ValueTask<IReadOnlyList<OrganizationRecord>> ListOrganizationsAsync(
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Organizations
+            .OrderBy(item => item.Name)
+            .Select(item => new OrganizationRecord(
+                item.Id,
+                item.Name,
+                item.Slug,
+                item.Status,
+                item.DeletionScheduledAt,
+                item.Version))
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async ValueTask<MembershipRecord?> FindMembershipAsync(
         Guid organizationId,
         Guid userId,
@@ -89,7 +106,12 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
     {
         return await dbContext.Memberships
             .Where(item => item.OrganizationId == organizationId && item.UserId == userId)
-            .Select(item => new MembershipRecord(item.OrganizationId, item.UserId, item.Role, item.IsActive))
+            .Select(item => new MembershipRecord(
+                item.OrganizationId,
+                item.UserId,
+                item.Role,
+                item.IsActive,
+                item.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -99,8 +121,48 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
     {
         return await dbContext.Memberships
             .Where(item => item.UserId == userId)
-            .Select(item => new MembershipRecord(item.OrganizationId, item.UserId, item.Role, item.IsActive))
+            .Select(item => new MembershipRecord(
+                item.OrganizationId,
+                item.UserId,
+                item.Role,
+                item.IsActive,
+                item.Version))
             .ToArrayAsync(cancellationToken);
+    }
+
+    public async ValueTask<IReadOnlyList<MembershipRecord>> ListOrganizationMembershipsAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Memberships
+            .Where(item => item.OrganizationId == organizationId)
+            .Select(item => new MembershipRecord(
+                item.OrganizationId,
+                item.UserId,
+                item.Role,
+                item.IsActive,
+                item.Version))
+            .ToArrayAsync(cancellationToken);
+    }
+
+    public async ValueTask<CampAssignmentRecord?> FindCampAssignmentAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid userId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.CampAssignments
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.UserId == userId)
+            .Select(item => new CampAssignmentRecord(
+                item.OrganizationId,
+                item.CampId,
+                item.UserId,
+                item.Role,
+                item.IsActive,
+                item.Version))
+            .SingleOrDefaultAsync(cancellationToken);
     }
 
     public async ValueTask<int> CountActiveOwnersAsync(
@@ -129,6 +191,29 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
         {
             entity.Role = membership.Role;
             entity.IsActive = membership.IsActive;
+            dbContext.Entry(entity).Property(item => item.Version).OriginalValue = membership.Version - 1;
+            entity.Version = membership.Version;
+        }
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async ValueTask SaveCampAssignmentAsync(
+        CampAssignmentRecord assignment,
+        CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.CampAssignments.SingleOrDefaultAsync(
+            item => item.CampId == assignment.CampId && item.UserId == assignment.UserId,
+            cancellationToken);
+        if (entity is null)
+        {
+            dbContext.CampAssignments.Add(ToCampAssignment(assignment));
+        }
+        else
+        {
+            entity.Role = assignment.Role;
+            entity.IsActive = assignment.IsActive;
+            dbContext.Entry(entity).Property(item => item.Version).OriginalValue = assignment.Version - 1;
+            entity.Version = assignment.Version;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -151,7 +236,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
                 item.IsPlatformInvitation,
                 item.RevokedAt,
                 item.UsedAt,
-                item.RotatedFromId))
+                item.RotatedFromId,
+                item.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -173,7 +259,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
                 item.IsPlatformInvitation,
                 item.RevokedAt,
                 item.UsedAt,
-                item.RotatedFromId))
+                item.RotatedFromId,
+                item.Version))
             .ToArrayAsync(cancellationToken);
     }
 
@@ -202,6 +289,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
         {
             entity.RevokedAt = invitation.RevokedAt;
             entity.UsedAt = invitation.UsedAt;
+            dbContext.Entry(entity).Property(item => item.Version).OriginalValue = invitation.Version - 1;
+            entity.Version = invitation.Version;
         }
         await dbContext.SaveChangesAsync(cancellationToken);
     }
@@ -213,69 +302,91 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
         CampAssignmentRecord? assignment,
         CancellationToken cancellationToken)
     {
-        var strategy = dbContext.Database.CreateExecutionStrategy();
-        return await strategy.ExecuteAsync(async () =>
+        if (dbContext.Database.CurrentTransaction is not null)
         {
-            await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
-            var accepted = await dbContext.Invitations
-                .Where(item => item.Id == invitation.Id && item.UsedAt == null && item.RevokedAt == null)
-                .ExecuteUpdateAsync(
-                    updates => updates.SetProperty(item => item.UsedAt, invitation.UsedAt),
-                    cancellationToken);
-            if (accepted == 0)
-            {
-                await transaction.RollbackAsync(cancellationToken);
-                return false;
-            }
-
-            var userEntity = await dbContext.Users.SingleOrDefaultAsync(item => item.Id == user.Id, cancellationToken);
-            if (userEntity is null)
-            {
-                dbContext.Users.Add(ToApplicationUser(user));
-            }
-            else
-            {
-                ApplyUser(userEntity, user);
-            }
-
-            var membershipEntity = await dbContext.Memberships.SingleOrDefaultAsync(
-                item => item.OrganizationId == membership.OrganizationId && item.UserId == membership.UserId,
+            return await TryAcceptInvitationCoreAsync(
+                invitation,
+                user,
+                membership,
+                assignment,
                 cancellationToken);
-            if (membershipEntity is null)
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        var accepted = await TryAcceptInvitationCoreAsync(
+            invitation,
+            user,
+            membership,
+            assignment,
+            cancellationToken);
+        if (accepted)
+        {
+            await transaction.CommitAsync(cancellationToken);
+        }
+        return accepted;
+    }
+
+    private async Task<bool> TryAcceptInvitationCoreAsync(
+        InvitationRecord invitation,
+        LifecycleUser user,
+        MembershipRecord membership,
+        CampAssignmentRecord? assignment,
+        CancellationToken cancellationToken)
+    {
+        var accepted = await dbContext.Invitations
+            .Where(item => item.Id == invitation.Id && item.UsedAt == null && item.RevokedAt == null)
+            .ExecuteUpdateAsync(
+                updates => updates
+                    .SetProperty(item => item.UsedAt, invitation.UsedAt)
+                    .SetProperty(item => item.Version, invitation.Version),
+                cancellationToken);
+        if (accepted == 0)
+        {
+            return false;
+        }
+
+        var userEntity = await dbContext.Users.SingleOrDefaultAsync(item => item.Id == user.Id, cancellationToken);
+        if (userEntity is null)
+        {
+            dbContext.Users.Add(ToApplicationUser(user));
+        }
+        else
+        {
+            ApplyUser(userEntity, user);
+        }
+
+        var membershipEntity = await dbContext.Memberships.SingleOrDefaultAsync(
+            item => item.OrganizationId == membership.OrganizationId && item.UserId == membership.UserId,
+            cancellationToken);
+        if (membershipEntity is null)
+        {
+            dbContext.Memberships.Add(ToMembership(membership));
+        }
+        else
+        {
+            membershipEntity.Role = membership.Role;
+            membershipEntity.IsActive = true;
+        }
+
+        if (assignment is not null)
+        {
+            var assignmentEntity = await dbContext.CampAssignments.SingleOrDefaultAsync(
+                item => item.CampId == assignment.CampId && item.UserId == assignment.UserId,
+                cancellationToken);
+            if (assignmentEntity is null)
             {
-                dbContext.Memberships.Add(ToMembership(membership));
+                dbContext.CampAssignments.Add(ToCampAssignment(assignment));
             }
             else
             {
-                membershipEntity.Role = membership.Role;
-                membershipEntity.IsActive = true;
+                assignmentEntity.Role = assignment.Role;
+                assignmentEntity.IsActive = true;
+                assignmentEntity.Version++;
             }
+        }
 
-            if (assignment is not null)
-            {
-                var assignmentEntity = await dbContext.CampAssignments.SingleOrDefaultAsync(
-                    item => item.CampId == assignment.CampId && item.UserId == assignment.UserId,
-                    cancellationToken);
-                if (assignmentEntity is null)
-                {
-                    dbContext.CampAssignments.Add(new CampAssignmentEntity
-                    {
-                        OrganizationId = assignment.OrganizationId,
-                        CampId = assignment.CampId,
-                        UserId = assignment.UserId,
-                        Role = assignment.Role
-                    });
-                }
-                else
-                {
-                    assignmentEntity.Role = assignment.Role;
-                }
-            }
-
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await transaction.CommitAsync(cancellationToken);
-            return true;
-        });
+        await dbContext.SaveChangesAsync(cancellationToken);
+        return true;
     }
 
     public async ValueTask SaveOrganizationAsync(
@@ -348,7 +459,18 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
         OrganizationId = membership.OrganizationId,
         UserId = membership.UserId,
         Role = membership.Role,
-        IsActive = membership.IsActive
+        IsActive = membership.IsActive,
+        Version = membership.Version
+    };
+
+    private static CampAssignmentEntity ToCampAssignment(CampAssignmentRecord assignment) => new()
+    {
+        OrganizationId = assignment.OrganizationId,
+        CampId = assignment.CampId,
+        UserId = assignment.UserId,
+        Role = assignment.Role,
+        IsActive = assignment.IsActive,
+        Version = assignment.Version
     };
 
     private static InvitationEntity ToInvitationEntity(InvitationRecord invitation) => new()
@@ -364,6 +486,7 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) : IIde
         IsPlatformInvitation = invitation.IsPlatformInvitation,
         RevokedAt = invitation.RevokedAt,
         UsedAt = invitation.UsedAt,
-        RotatedFromId = invitation.RotatedFromId
+        RotatedFromId = invitation.RotatedFromId,
+        Version = invitation.Version
     };
 }

@@ -73,6 +73,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasIndex(item => item.Slug).IsUnique();
             entity.Property(item => item.Name).HasMaxLength(160);
             entity.Property(item => item.Slug).HasMaxLength(80);
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
         builder.Entity<MembershipEntity>(entity =>
         {
@@ -81,6 +82,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.OrganizationId).HasColumnName("organization_id");
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.HasIndex(item => new { item.UserId, item.IsActive });
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
         builder.Entity<CampAssignmentEntity>(entity =>
         {
@@ -90,6 +92,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.CampId).HasColumnName("camp_id");
             entity.Property(item => item.UserId).HasColumnName("user_id");
             entity.HasIndex(item => new { item.OrganizationId, item.UserId });
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
         builder.Entity<InvitationEntity>(entity =>
         {
@@ -101,6 +104,7 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.Property(item => item.TokenHash).HasMaxLength(64);
             entity.HasIndex(item => new { item.OrganizationId, item.NormalizedEmail });
             entity.HasIndex(item => item.ExpiresAt);
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
         builder.Entity<EmailChangeChallengeEntity>(entity =>
         {
@@ -128,7 +132,7 @@ internal sealed class OrganizationEntity
 
     public DateTimeOffset? DeletionScheduledAt { get; set; }
 
-    public long Version { get; set; }
+    public long Version { get; set; } = 1;
 }
 
 internal sealed class MembershipEntity
@@ -139,7 +143,9 @@ internal sealed class MembershipEntity
 
     public Identity.Contracts.TenantRole Role { get; set; }
 
-    public bool IsActive { get; set; }
+    public bool IsActive { get; set; } = true;
+
+    public long Version { get; set; } = 1;
 }
 
 internal sealed class CampAssignmentEntity
@@ -151,6 +157,10 @@ internal sealed class CampAssignmentEntity
     public Guid UserId { get; set; }
 
     public Identity.Contracts.TenantRole Role { get; set; }
+
+    public bool IsActive { get; set; } = true;
+
+    public long Version { get; set; } = 1;
 }
 
 internal sealed class InvitationEntity
@@ -178,6 +188,8 @@ internal sealed class InvitationEntity
     public DateTimeOffset? UsedAt { get; set; }
 
     public Guid? RotatedFromId { get; set; }
+
+    public long Version { get; set; } = 1;
 }
 
 internal sealed class LoginChallengeEntity

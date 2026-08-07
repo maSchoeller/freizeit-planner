@@ -120,7 +120,12 @@ public sealed record InvitationSummary(
     bool IsRevoked,
     bool IsUsed);
 
-public sealed record AccountView(Guid Id, string Email, string DisplayName, DateTimeOffset? DeletionScheduledAt);
+public sealed record AccountView(
+    Guid Id,
+    string Email,
+    string DisplayName,
+    DateTimeOffset? DeletionScheduledAt,
+    bool IsPlatformAdmin);
 
 public sealed record AccountMembershipView(
     Guid OrganizationId,
