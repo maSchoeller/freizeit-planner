@@ -6,6 +6,8 @@
 node_modules/
 coverage/
 dist/
+*.tsbuildinfo
+src/Help/docs/.vitepress/.temp/
 playwright-report/
 test-results/
 .DS_Store
