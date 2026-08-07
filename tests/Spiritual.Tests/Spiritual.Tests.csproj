@@ -6,4 +6,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+    <ProjectReference Include="../../src/Spiritual/Spiritual.Contracts/Spiritual.Contracts.csproj" />
+    <ProjectReference Include="../../src/Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
+  </ItemGroup>
+
 </Project>
