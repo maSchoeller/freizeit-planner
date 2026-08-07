@@ -6,4 +6,17 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Knowledge/Knowledge.Contracts/Knowledge.Contracts.csproj" />
+    <ProjectReference Include="../../src/Knowledge/Knowledge.Implementation/Knowledge.Implementation.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
+  </ItemGroup>
+
 </Project>
