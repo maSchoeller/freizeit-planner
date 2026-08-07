@@ -14,7 +14,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | Slice                                 | Status   | Acceptance criteria                                                                        | Red evidence                                | Green/verify evidence        | Docs                                      | Commit    | Blocker / next smallest step |
 | ------------------------------------- | -------- | ------------------------------------------------------------------------------------------ | ------------------------------------------- | ---------------------------- | ----------------------------------------- | --------- | ---------------------------- |
 | F01 foundation                        | verified | Pinned .NET/React/Aspire skeleton; bootstrap, build and test paths work                    | Foundation script failed on 41 absent paths | Full verify passed in 63.3 s | deployment plan, AGENTS, contexts, skills | `f9f4022` | Start I01 with red HTTP test |
-| I01 passwordless identity             | pending  | Hashed six-digit code, expiry, attempts/rates, generic response, sessions and revoke       | pending                                     | pending                      | Identity context, help                    | pending   | after F01                    |
+| I01 passwordless identity             | verified | Hashed six-digit code, expiry, attempts/rates, generic response, sessions and revoke       | Missing-CSRF API test returned HTTP 500     | Full verify passed in 87.0 s | Identity context, login/session help      | `84d5da1` | Start I02 invitation tests   |
 | I02 invitations and account lifecycle | pending  | Invite rotation/revoke; memberships; reauth; 30-day account/tenant deletion                | pending                                     | pending                      | Identity context, help                    | pending   | after I01                    |
 | I03 tenant authorization              | pending  | Role matrix, last owner, suspension, IDOR protection and RLS isolation                     | pending                                     | pending                      | auth/RLS docs                             | pending   | after I01                    |
 | C01 camps                             | pending  | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                             | pending                                     | pending                      | Camps context, help                       | pending   | after I03                    |
@@ -44,3 +44,10 @@ This file is the resumable evidence ledger. Commands are run from the repository
   `pwsh ./scripts/verify.ps1` completed in 63.3 seconds. The Release build reported zero warnings/errors, Vitest
   passed 1/1, and the PWA and VitePress builds completed. The Aspire graph includes PostgreSQL 17, Azurite,
   Mailpit, a deterministic Bible stub, migrator, cleanup job, and web host.
+- 2026-08-07: I01 red evidence included the anonymous login mutation without an antiforgery token returning HTTP
+  500 instead of a stable HTTP 400 Problem Detail. The final `pwsh ./scripts/verify.ps1` completed in 87.0 seconds:
+  OpenAPI/client drift, locked restores, formatting, warning-free Release build, 4 Identity tests, 3 API tests,
+  3 Vitest tests, lint, TypeScript strict checks, PWA and help builds all passed. The real Aspire stack additionally
+  proved PostgreSQL migration and Development seed, SMTP delivery to Mailpit, login `204`, one current session,
+  revoke `204`, and immediate `401` after revocation. Login and dashboard were visually inspected at 320x800,
+  768x1024 and 1440x1000; mobile overflow was corrected and keyboard skip-link focus remained visible.

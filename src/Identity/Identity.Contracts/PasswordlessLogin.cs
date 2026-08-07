@@ -49,4 +49,3 @@ public interface ILoginCodeSender
 {
     Task SendAsync(string email, string code, DateTimeOffset expiresAt, CancellationToken cancellationToken);
 }
-
