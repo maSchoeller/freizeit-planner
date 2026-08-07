@@ -8,3 +8,23 @@
 - Contracts: accept reviewed source lines from Catering or Material; expose camp list summaries.
 - Data/schema: owns `logistics` with organization_id and camp_id on all camp rows.
 - Dependencies: Identity, Camps, Files and Activity; Catering may call its transfer Contract.
+
+## Implemented planning slice
+
+- `IMaterialPlanning` owns camp-wide and optional schedule-linked material requirements, including procurement
+  state, notes and responsible users. Updates and deletes require the current material `Version`.
+- `IShoppingPlanning` owns multiple named lists and one unified item shape for spontaneous, catering and material
+  sources. List `Version` protects structural mutations; `ChangeSequence` changes for every list or item mutation
+  and is the polling/ETag value. Item `Version` protects independent item edits and check actions.
+- `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
+  exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
+- `IShoppingAudit` exposes immutable check/reopen events with server-recorded actor, timestamp and resulting item
+  version. Audit rows have no update/delete runtime policy and are not cascaded from items.
+- `LogisticsQuantity` stores positive `numeric(18,6)` values. Only gram/kilogram and millilitre/litre convert;
+  pieces only combine with pieces, and normalized custom units only with an exact normalized match.
+- The implementation consumes `ICampPlanningDefaults` for archive protection and
+  `IScheduleReferenceAccess` for schedule-link validation. Identity contracts enforce CampLead/Member writes,
+  Viewer reads, and validation of responsible users without granting access through responsibility.
+- The `logistics` schema owns requirements, responsibilities, lists, items and audit events. Every table carries
+  `organization_id` and `camp_id`; PostgreSQL policies force RLS and consult only Identity-owned authorization
+  functions/tables.

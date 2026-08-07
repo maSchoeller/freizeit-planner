@@ -6,4 +6,11 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Logistics/Logistics.Contracts/Logistics.Contracts.csproj" />
+    <ProjectReference Include="../../src/Logistics/Logistics.Implementation/Logistics.Implementation.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+    <ProjectReference Include="../../src/Camps/Camps.Contracts/Camps.Contracts.csproj" />
+  </ItemGroup>
+
 </Project>
