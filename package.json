@@ -1,0 +1,21 @@
+{
+  "name": "freizeit-cockpit",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "pnpm --filter @freizeit-cockpit/web build && pnpm --filter @freizeit-cockpit/help build",
+    "dev": "pnpm --filter @freizeit-cockpit/web dev",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "pnpm --filter @freizeit-cockpit/web lint",
+    "test": "pnpm --filter @freizeit-cockpit/web test",
+    "test:coverage": "pnpm --filter @freizeit-cockpit/web test:coverage",
+    "typecheck": "pnpm --filter @freizeit-cockpit/web typecheck"
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  }
+}

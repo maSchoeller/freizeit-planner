@@ -1,0 +1,14 @@
+.azure/*/.env
+.tools/
+**/bin/
+**/obj/
+**/TestResults/
+node_modules/
+coverage/
+dist/
+playwright-report/
+test-results/
+.DS_Store
+*.user
+*.suo
+src/FreizeitCockpit.Web/wwwroot/

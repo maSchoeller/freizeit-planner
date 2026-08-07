@@ -1,0 +1,52 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/FreizeitCockpit.AppHost/FreizeitCockpit.AppHost.csproj" />
+    <Project Path="src/FreizeitCockpit.BibleStub/FreizeitCockpit.BibleStub.csproj" />
+    <Project Path="src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj" />
+    <Project Path="src/FreizeitCockpit.Migrator/FreizeitCockpit.Migrator.csproj" />
+    <Project Path="src/FreizeitCockpit.ServiceDefaults/FreizeitCockpit.ServiceDefaults.csproj" />
+    <Project Path="src/FreizeitCockpit.Web/FreizeitCockpit.Web.csproj" />
+  </Folder>
+  <Folder Name="/src/Activity/">
+    <Project Path="src/Activity/Activity.Contracts/Activity.Contracts.csproj" />
+    <Project Path="src/Activity/Activity.Implementation/Activity.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Camps/">
+    <Project Path="src/Camps/Camps.Contracts/Camps.Contracts.csproj" />
+    <Project Path="src/Camps/Camps.Implementation/Camps.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Catering/">
+    <Project Path="src/Catering/Catering.Contracts/Catering.Contracts.csproj" />
+    <Project Path="src/Catering/Catering.Implementation/Catering.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Files/">
+    <Project Path="src/Files/Files.Contracts/Files.Contracts.csproj" />
+    <Project Path="src/Files/Files.Implementation/Files.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Identity/">
+    <Project Path="src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+    <Project Path="src/Identity/Identity.Implementation/Identity.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Knowledge/">
+    <Project Path="src/Knowledge/Knowledge.Contracts/Knowledge.Contracts.csproj" />
+    <Project Path="src/Knowledge/Knowledge.Implementation/Knowledge.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Logistics/">
+    <Project Path="src/Logistics/Logistics.Contracts/Logistics.Contracts.csproj" />
+    <Project Path="src/Logistics/Logistics.Implementation/Logistics.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/src/Spiritual/">
+    <Project Path="src/Spiritual/Spiritual.Contracts/Spiritual.Contracts.csproj" />
+    <Project Path="src/Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Activity.Tests/Activity.Tests.csproj" />
+    <Project Path="tests/Camps.Tests/Camps.Tests.csproj" />
+    <Project Path="tests/Catering.Tests/Catering.Tests.csproj" />
+    <Project Path="tests/Files.Tests/Files.Tests.csproj" />
+    <Project Path="tests/Identity.Tests/Identity.Tests.csproj" />
+    <Project Path="tests/Knowledge.Tests/Knowledge.Tests.csproj" />
+    <Project Path="tests/Logistics.Tests/Logistics.Tests.csproj" />
+    <Project Path="tests/Spiritual.Tests/Spiritual.Tests.csproj" />
+  </Folder>
+</Solution>

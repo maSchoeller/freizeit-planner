@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/node_modules/
+**/packages.lock.json
+pnpm-lock.yaml
+src/FreizeitCockpit.Web/wwwroot/
+src/Help/docs/.vitepress/.temp/
+prompt.md

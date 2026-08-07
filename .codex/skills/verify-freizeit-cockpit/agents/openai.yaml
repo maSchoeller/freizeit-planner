@@ -1,0 +1,4 @@
+interface:
+  display_name: "Verify Freizeit-Cockpit"
+  short_description: "Run the complete local quality gate"
+  default_prompt: "Use $verify-freizeit-cockpit to verify the complete application locally."

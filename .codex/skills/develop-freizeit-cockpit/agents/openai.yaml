@@ -1,0 +1,4 @@
+interface:
+  display_name: "Develop Freizeit-Cockpit"
+  short_description: "Implement verified Freizeit-Cockpit slices"
+  default_prompt: "Use $develop-freizeit-cockpit to implement the next verified vertical slice."
