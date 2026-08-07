@@ -9,7 +9,16 @@ export default defineConfig({
   cleanUrls: true,
   themeConfig: {
     nav: [{ text: "Zur Anwendung", link: "/" }],
-    sidebar: [{ text: "Einstieg", items: [{ text: "Überblick", link: "/" }] }],
+    sidebar: [
+      {
+        text: "Einstieg",
+        items: [
+          { text: "Überblick", link: "/" },
+          { text: "Anmeldung", link: "/anmeldung" },
+          { text: "Sitzungen", link: "/konto-sitzungen" },
+        ],
+      },
+    ],
     search: { provider: "local" },
     footer: { message: "Freizeit-Cockpit · Hilfe auf Deutsch" },
   },

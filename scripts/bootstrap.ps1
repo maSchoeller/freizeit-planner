@@ -17,9 +17,11 @@ try {
     Write-Host "Toolchain bereit: .NET $dotnetVersion, Node $(node --version), $(docker --version)."
     if ($CheckOnly) { exit 0 }
 
-    dotnet restore FreizeitCockpit.slnx
+    dotnet tool restore
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-    npm exec --yes pnpm@11.20.0 -- install --frozen-lockfile=false
+    dotnet restore FreizeitCockpit.slnx --locked-mode
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    npm exec --yes pnpm@11.20.0 -- install --frozen-lockfile
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 finally {

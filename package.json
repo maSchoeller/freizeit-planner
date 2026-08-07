@@ -6,11 +6,12 @@
     "node": ">=24"
   },
   "scripts": {
-    "build": "pnpm --filter @freizeit-cockpit/web build && pnpm --filter @freizeit-cockpit/help build",
+    "build": "pwsh ./scripts/clean-web-output.ps1 && pnpm --filter @freizeit-cockpit/web build && pnpm --filter @freizeit-cockpit/help build",
     "dev": "pnpm --filter @freizeit-cockpit/web dev",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "pnpm --filter @freizeit-cockpit/web lint",
+    "openapi:generate": "pnpm --filter @freizeit-cockpit/web exec openapi-typescript ../FreizeitCockpit.Web/openapi/FreizeitCockpit.Web.json -o src/api/schema.ts && pnpm --filter @freizeit-cockpit/web exec prettier --write src/api/schema.ts",
     "test": "pnpm --filter @freizeit-cockpit/web test",
     "test:coverage": "pnpm --filter @freizeit-cockpit/web test:coverage",
     "typecheck": "pnpm --filter @freizeit-cockpit/web typecheck"

@@ -8,6 +8,8 @@ Push-Location $repositoryRoot
 try {
     & "$PSScriptRoot/bootstrap.ps1"
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    & "$PSScriptRoot/verify-generated.ps1"
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     dotnet format FreizeitCockpit.slnx --verify-no-changes --no-restore
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     dotnet build FreizeitCockpit.slnx --no-restore --configuration Release

@@ -6,6 +6,9 @@ import {
   NotebookPen,
   ShoppingCart,
 } from "lucide-react";
+import { Link, Navigate, Route, Routes } from "react-router-dom";
+import { LoginPage } from "./LoginPage";
+import { SessionsPage } from "./SessionsPage";
 
 const navigation = [
   { label: "Übersicht", icon: ClipboardList },
@@ -18,6 +21,25 @@ const navigation = [
 
 export function App() {
   return (
+    <Routes>
+      <Route path="/anmelden" element={<LoginPage />} />
+      <Route path="/konto/sitzungen" element={<SessionsPage />} />
+      <Route
+        path="/o/:organizationSlug/camps/:campSlug/*"
+        element={<Dashboard />}
+      />
+      <Route
+        path="*"
+        element={
+          <Navigate replace to="/o/sonnenhoehe/camps/sommerfreizeit-2026" />
+        }
+      />
+    </Routes>
+  );
+}
+
+function Dashboard() {
+  return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
         Zum Inhalt springen
@@ -29,13 +51,13 @@ export function App() {
           </span>
           <span>Freizeit-Cockpit</span>
         </div>
-        <button
+        <Link
           className="profile-button"
-          type="button"
           aria-label="Kontomenü von Miriam öffnen"
+          to="/konto/sitzungen"
         >
           MK
-        </button>
+        </Link>
       </header>
       <div className="workspace">
         <aside className="sidebar" aria-label="Camp-Navigation">

@@ -3,7 +3,6 @@ var builder = DistributedApplication.CreateBuilder(args);
 var database = builder
     .AddPostgres("postgres")
     .WithImageTag("17")
-    .WithDataVolume()
     .AddDatabase("freizeit");
 
 var storage = builder.AddAzureStorage("storage").RunAsEmulator();
@@ -17,6 +16,7 @@ var mailpit = builder
 var bible = builder.AddProject<Projects.FreizeitCockpit_BibleStub>("bible-stub");
 var migrator = builder
     .AddProject<Projects.FreizeitCockpit_Migrator>("migrator")
+    .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
     .WithReference(database)
     .WaitFor(database);
 
@@ -31,6 +31,7 @@ builder
 
 builder
     .AddProject<Projects.FreizeitCockpit_Cleanup>("cleanup")
+    .WithEnvironment("DOTNET_ENVIRONMENT", builder.Environment.EnvironmentName)
     .WithReference(database)
     .WithReference(blobs)
     .WaitFor(database);

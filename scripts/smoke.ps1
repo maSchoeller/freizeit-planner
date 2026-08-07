@@ -1,5 +1,5 @@
 [CmdletBinding()]
-param([string]$BaseUrl = 'http://localhost:5080')
+param([string]$BaseUrl = 'http://localhost:5041')
 
 $ErrorActionPreference = 'Stop'
 $null = Invoke-RestMethod -Uri "$BaseUrl/health" -TimeoutSec 10

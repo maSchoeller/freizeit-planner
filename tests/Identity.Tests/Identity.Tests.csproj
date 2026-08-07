@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Implementation/Identity.Implementation.csproj" />
+  </ItemGroup>
+
 </Project>

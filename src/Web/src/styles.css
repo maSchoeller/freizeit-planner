@@ -25,7 +25,6 @@
 }
 body {
   margin: 0;
-  min-width: 320px;
   min-height: 100vh;
 }
 button,
@@ -81,6 +80,8 @@ a:focus-visible {
   border-radius: 0.65rem 0.65rem 0.65rem 0.2rem;
 }
 .profile-button {
+  display: grid;
+  place-items: center;
   width: 2.75rem;
   height: 2.75rem;
   border: 1px solid var(--border);
@@ -89,6 +90,7 @@ a:focus-visible {
   color: var(--petrol-900);
   font-weight: 700;
   cursor: pointer;
+  text-decoration: none;
 }
 .workspace {
   display: grid;
@@ -286,7 +288,7 @@ h2 {
     display: block;
   }
   .sidebar {
-    padding: 0.7rem 1rem;
+    padding: 0.7rem 0.5rem;
     position: sticky;
     top: 0;
     z-index: 10;
@@ -303,7 +305,8 @@ h2 {
     scrollbar-width: thin;
   }
   .sidebar nav a {
-    min-width: 3rem;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
     justify-content: center;
     padding: 0.65rem;
   }
@@ -357,4 +360,189 @@ h2 {
   .primary-action {
     border: 1px solid ButtonText;
   }
+}
+
+.login-layout {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background:
+    radial-gradient(circle at 12% 12%, #dff4f1 0, transparent 28rem),
+    radial-gradient(circle at 90% 85%, #e9f6fd 0, transparent 30rem), #f7fbfa;
+}
+.login-card {
+  width: min(31rem, 100%);
+  padding: clamp(1.5rem, 5vw, 3rem);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 1.5rem 4rem rgba(18, 75, 72, 0.1);
+}
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-bottom: 2.5rem;
+  color: var(--petrol-900);
+  font-weight: 800;
+}
+.login-card h1 {
+  font-size: clamp(1.8rem, 6vw, 2.5rem);
+}
+.login-card > p:not(.eyebrow) {
+  color: #496766;
+}
+.login-card form {
+  display: grid;
+  gap: 1.15rem;
+  margin-top: 1.5rem;
+}
+.field {
+  display: grid;
+  gap: 0.4rem;
+}
+.field label {
+  color: var(--petrol-900);
+  font-weight: 750;
+}
+.field input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.65rem 0.8rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  color: #173b3a;
+  background: #fff;
+  font: inherit;
+}
+.field input:focus {
+  outline: 3px solid #f3b61f;
+  outline-offset: 2px;
+  border-color: var(--petrol-700);
+}
+.code-input {
+  max-width: 14rem;
+  letter-spacing: 0.3em;
+  font-size: 1.35rem !important;
+  font-variant-numeric: tabular-nums;
+}
+.checkbox-field {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.7rem;
+  cursor: pointer;
+}
+.checkbox-field input {
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.15rem;
+  accent-color: var(--petrol-700);
+}
+.checkbox-field span {
+  display: grid;
+  color: var(--petrol-900);
+  font-weight: 700;
+}
+.checkbox-field small,
+.muted {
+  color: #587270;
+  font-weight: 400;
+}
+.login-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.secondary-action {
+  min-height: 3rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  color: var(--petrol-900);
+  background: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+.error-message {
+  margin-top: 1rem;
+  padding: 0.8rem 1rem;
+  border-left: 4px solid #a33b35;
+  background: #fff0ee;
+  color: #762b27;
+}
+.account-layout {
+  min-height: 100vh;
+  background: #f4fbfa;
+}
+.account-layout .brand {
+  text-decoration: none;
+}
+.account-page {
+  margin-inline: auto;
+}
+.account-heading {
+  align-items: center;
+  margin-top: 0.5rem;
+}
+.account-heading h1 {
+  font-size: clamp(2rem, 5vw, 3rem);
+}
+.account-heading p {
+  max-width: 45rem;
+  margin-bottom: 0;
+  color: #496766;
+}
+.session-list {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0;
+  list-style: none;
+}
+.session-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+.session-list li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.session-list span {
+  color: #587270;
+  font-size: 0.9rem;
+}
+.danger-action {
+  min-height: 3rem;
+  padding: 0.7rem 1rem;
+  border: 1px solid #9d3a34;
+  border-radius: 0.65rem;
+  color: #852f2a;
+  background: #fff;
+  font-weight: 750;
+  cursor: pointer;
+}
+.empty-state {
+  padding: 2rem;
+  border: 1px dashed #88aaa6;
+  border-radius: 0.75rem;
+  text-align: center;
+}
+@media (max-width: 600px) {
+  .session-list li {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .session-list button {
+    width: 100%;
+  }
+}
+.login-help {
+  margin: 2rem 0 0;
+  font-size: 0.9rem;
 }
