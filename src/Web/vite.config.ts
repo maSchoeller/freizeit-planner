@@ -36,6 +36,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    environmentOptions: { jsdom: { url: "https://localhost/" } },
     setupFiles: "./src/test-setup.ts",
     coverage: {
       provider: "v8",

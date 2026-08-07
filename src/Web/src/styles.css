@@ -92,6 +92,26 @@ a:focus-visible {
   cursor: pointer;
   text-decoration: none;
 }
+.brand {
+  text-decoration: none;
+}
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.connection {
+  padding: 0.3rem 0.65rem;
+  border-radius: 999px;
+  background: var(--petrol-100);
+  color: #25534f;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.connection.offline {
+  background: #fff0cc;
+  color: #6b4d00;
+}
 .workspace {
   display: grid;
   grid-template-columns: 17rem minmax(0, 1fr);
@@ -280,6 +300,140 @@ h2 {
   color: #587270;
   white-space: nowrap;
 }
+.notice {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.7rem;
+  background: var(--sky-100);
+}
+.calendar-card {
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
+  overflow-x: auto;
+}
+.calendar-card .fc {
+  min-width: 42rem;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+.toolbar label,
+.search-field {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--petrol-900);
+  font-weight: 700;
+}
+.toolbar input,
+.toolbar select,
+.search-field input,
+.settings-section select,
+.settings-section input {
+  min-height: 3rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  background: #fff;
+  color: #173b3a;
+  font: inherit;
+}
+.search-field {
+  min-width: min(22rem, 100%);
+}
+.search-wide {
+  width: min(42rem, 100%);
+  margin-block: 1rem;
+}
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 1rem;
+}
+.card-grid > .empty-state {
+  grid-column: 1 / -1;
+}
+.split-view {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.detail-list,
+.agenda-list,
+.check-list {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0 0;
+  display: grid;
+  gap: 0.65rem;
+}
+.detail-list li,
+.agenda-list li,
+.check-list li {
+  padding: 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: #fff;
+}
+.detail-list li,
+.agenda-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.detail-list li > span,
+.agenda-list li div {
+  color: #587270;
+}
+.agenda-list li div {
+  display: grid;
+  flex: 1;
+}
+.check-list li {
+  display: grid;
+  gap: 0.35rem;
+}
+.check-list label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-weight: 700;
+}
+.check-list input {
+  width: 1.35rem;
+  height: 1.35rem;
+  accent-color: var(--petrol-700);
+}
+.check-list small {
+  color: #587270;
+  padding-left: 2.1rem;
+}
+button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+@media print {
+  .topbar,
+  .sidebar,
+  .toolbar,
+  button {
+    display: none !important;
+  }
+  .workspace {
+    display: block;
+  }
+  main {
+    width: 100%;
+    padding: 0;
+  }
+}
 @media (max-width: 760px) {
   .topbar {
     padding-inline: 1rem;
@@ -338,6 +492,22 @@ h2 {
   }
   .dashboard-grid {
     grid-template-columns: 1fr;
+  }
+  .split-view {
+    grid-template-columns: 1fr;
+  }
+  .topbar .connection {
+    display: none;
+  }
+  .calendar-card {
+    margin-inline: -1rem;
+    border-inline: 0;
+    border-radius: 0;
+  }
+  .detail-list li,
+  .agenda-list li {
+    align-items: stretch;
+    flex-direction: column;
   }
   .activity-card {
     grid-column: auto;
