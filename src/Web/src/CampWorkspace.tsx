@@ -559,9 +559,40 @@ type Note = {
 };
 type Devotion = {
   id: string;
+  organizationId?: string;
+  campId?: string;
   topic: string;
   bibleReference: string;
+  translation: number;
+  responsibleUserIds: string[];
+  scheduleEntryId: string | null;
   hasBibleSnapshot: boolean;
+  version: number;
+};
+type BibleSnapshot = {
+  reference: string;
+  textExcerpt: string;
+  technicalTranslationId: string;
+  translationDisplayName: string;
+  license: string;
+  attribution: string;
+  retrievedAt: string;
+  origin: number;
+};
+type DevotionDetail = Omit<Devotion, "hasBibleSnapshot"> & {
+  organizationId: string;
+  campId: string;
+  coreMessage: string;
+  markdownContent: string;
+  materialNotes: string;
+  bibleSnapshot: BibleSnapshot | null;
+  createdAt: string;
+  updatedAt: string;
+  deletedAt: string | null;
+};
+type BibleSnapshotRefreshResult = {
+  status: number;
+  devotion: DevotionDetail;
 };
 type ActivityEvent = {
   id: string;
@@ -6540,8 +6571,60 @@ function LogisticsPage({ offline }: { offline: boolean }) {
 
 function DevotionsPage({ offline }: { offline: boolean }) {
   const { organizationId, campId } = useCampRuntime();
+  const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/devotions`;
   const query = useCampQuery<Devotion[]>("devotions", path);
+  const [selectedDevotionId, setSelectedDevotionId] = useState<string | null>(
+    null,
+  );
+  const [notice, setNotice] = useState("");
+  const detail = useQuery({
+    queryKey: [organizationId, campId, "devotion", selectedDevotionId],
+    queryFn: () => getJson<DevotionDetail>(`${path}/${selectedDevotionId}`),
+    enabled: selectedDevotionId !== null,
+    retry: false,
+  });
+  const refreshSnapshot = useMutation({
+    mutationFn: () => {
+      const current = detail.data;
+      if (!current) throw new Error("Öffne zuerst eine Andacht.");
+      return mutateCateringJson<BibleSnapshotRefreshResult>(
+        `${path}/${current.id}/bible/refresh`,
+        "POST",
+        {},
+        current.version,
+        "Die Andacht wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+    },
+    onSuccess: (result) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "devotion", result.devotion.id],
+        result.devotion,
+      );
+      queryClient.setQueryData<Devotion[]>(
+        [organizationId, campId, "devotions"],
+        (current) =>
+          current?.map((devotion) =>
+            devotion.id === result.devotion.id
+              ? {
+                  ...devotion,
+                  bibleReference: result.devotion.bibleReference,
+                  translation: result.devotion.translation,
+                  hasBibleSnapshot: result.devotion.bibleSnapshot !== null,
+                  version: result.devotion.version,
+                }
+              : devotion,
+          ),
+      );
+      const messages: Record<number, string> = {
+        0: "Bibeltext wurde als neuer Snapshot gespeichert.",
+        1: "Die Bibelstelle wurde beim Provider nicht gefunden. Der bisherige Snapshot bleibt erhalten.",
+        2: "Der Bibel-Provider ist nicht erreichbar. Der bisherige Snapshot bleibt erhalten.",
+        3: "Der Bibel-Provider hat nicht rechtzeitig geantwortet. Der bisherige Snapshot bleibt erhalten.",
+      };
+      setNotice(messages[result.status] ?? "Der Bibeltext wurde geprüft.");
+    },
+  });
   return (
     <>
       <PageHeading eyebrow="Geistliche Planung" title="Andachten">
@@ -6550,6 +6633,11 @@ function DevotionsPage({ offline }: { offline: boolean }) {
           bleiben unveränderte Snapshots.
         </p>
       </PageHeading>
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
       <QueryState loading={query.isLoading} error={query.error} />
       <div className="toolbar">
         <button className="primary-action" disabled={offline}>
@@ -6577,12 +6665,133 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                 ? "Bibeltext als lizenzierter Snapshot gespeichert"
                 : "Referenz kann auch bei Provider-Ausfall manuell bearbeitet werden"}
             </p>
-            <button className="secondary-action" disabled={offline}>
-              Bearbeiten
+            <button
+              type="button"
+              className="secondary-action"
+              aria-label={`${devotion.topic} öffnen`}
+              aria-expanded={selectedDevotionId === devotion.id}
+              onClick={() => {
+                setSelectedDevotionId(devotion.id);
+                setNotice("");
+              }}
+            >
+              Andacht öffnen
             </button>
           </article>
         ))}
       </div>
+      {selectedDevotionId ? (
+        <section
+          className="settings-section devotion-detail"
+          aria-label="Geöffnete Andacht"
+        >
+          <QueryState loading={detail.isLoading} error={detail.error} />
+          {detail.data ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">{detail.data.bibleReference}</p>
+                  <h2>{detail.data.topic}</h2>
+                </div>
+                <div className="toolbar compact-toolbar">
+                  {!offline ? (
+                    <button
+                      type="button"
+                      className="primary-action"
+                      disabled={refreshSnapshot.isPending}
+                      onClick={() => {
+                        setNotice("");
+                        refreshSnapshot.mutate();
+                      }}
+                    >
+                      Bibeltext ausdrücklich aktualisieren
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => setSelectedDevotionId(null)}
+                  >
+                    Andacht schließen
+                  </button>
+                </div>
+              </div>
+              <h3>Kerngedanke</h3>
+              <p>{detail.data.coreMessage}</p>
+              <h3>Entwurf</h3>
+              <pre className="markdown-source">
+                {detail.data.markdownContent}
+              </pre>
+              {detail.data.materialNotes ? (
+                <p>
+                  <strong>Materialhinweise:</strong> {detail.data.materialNotes}
+                </p>
+              ) : null}
+              {detail.data.bibleSnapshot ? (
+                <section
+                  className="bible-snapshot"
+                  aria-label="Gespeicherter Bibeltext"
+                >
+                  <div className="section-heading">
+                    <div>
+                      <p className="eyebrow">Unveränderter Snapshot</p>
+                      <h3>{detail.data.bibleSnapshot.reference}</h3>
+                    </div>
+                    <p className="status">
+                      Snapshot vom{" "}
+                      {new Intl.DateTimeFormat("de-DE", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      }).format(
+                        new Date(detail.data.bibleSnapshot.retrievedAt),
+                      )}
+                    </p>
+                  </div>
+                  <blockquote>
+                    {detail.data.bibleSnapshot.textExcerpt}
+                  </blockquote>
+                  <dl className="definition-grid">
+                    <div>
+                      <dt>Übersetzung</dt>
+                      <dd>
+                        {detail.data.bibleSnapshot.translationDisplayName} ·{" "}
+                        {detail.data.bibleSnapshot.technicalTranslationId}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Lizenz</dt>
+                      <dd>{detail.data.bibleSnapshot.license}</dd>
+                    </div>
+                    <div>
+                      <dt>Attribution</dt>
+                      <dd>{detail.data.bibleSnapshot.attribution}</dd>
+                    </div>
+                    <div>
+                      <dt>Herkunft</dt>
+                      <dd>
+                        {detail.data.bibleSnapshot.origin === 0
+                          ? "Bibel-Provider"
+                          : "Manuell gespeichert"}
+                      </dd>
+                    </div>
+                  </dl>
+                </section>
+              ) : (
+                <p className="empty-state">
+                  Noch kein Bibeltext gespeichert. Referenz und Andachtsentwurf
+                  bleiben auch ohne Provider bearbeitbar.
+                </p>
+              )}
+              {refreshSnapshot.error ? (
+                <p role="alert" className="error-message">
+                  {refreshSnapshot.error.message}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
     </>
   );
 }

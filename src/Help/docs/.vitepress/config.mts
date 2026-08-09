@@ -39,6 +39,10 @@ export default defineConfig({
             link: "/material-einkauf",
           },
           {
+            text: "Andachten und Bibeltexte",
+            link: "/andachten-bibel",
+          },
+          {
             text: "Suche, Aktivität, Druck und CSV",
             link: "/suche-aktivitaet-export",
           },

@@ -596,6 +596,14 @@ button:disabled {
     align-items: stretch;
     flex-direction: column;
   }
+  .devotion-detail > .section-heading,
+  .bible-snapshot > .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .devotion-detail > .section-heading .toolbar {
+    width: 100%;
+  }
   .activity-card {
     grid-column: auto;
   }

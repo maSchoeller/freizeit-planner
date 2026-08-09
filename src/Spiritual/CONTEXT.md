@@ -29,3 +29,8 @@
   `https://ebible.org/Scriptures/details.php?id={stableId}`.
 - Privacy maintenance deletes devotion and snapshot content for a claimed Organization and removes erased users from
   responsibility arrays. Processing is bounded and idempotent, and never calls the external Bible provider.
+- The Camp Andachts page opens real versioned details and renders the current immutable snapshot together with
+  technical translation id, display name, license, attribution, origin and retrieval date. Provider refresh is an
+  explicit online-only action with antiforgery and the current devotion Version through `If-Match`; only a successful
+  server response replaces the cached detail. Reference-not-found, unavailable and timeout statuses explain that the
+  existing snapshot remains usable. No module persistence crosses the HTTP/Contracts boundary.

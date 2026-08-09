@@ -2666,6 +2666,178 @@ describe("camp workspace", () => {
     expect(deleteListCall?.[1]?.headers).toMatchObject({ "If-Match": '"7"' });
   });
 
+  it("opens an attributed Bible snapshot and refreshes it only explicitly", async () => {
+    const devotionId = "51000000-0000-0000-0000-000000000001";
+    const existingSnapshot = {
+      reference: "Johannes 3,16",
+      textExcerpt: "Denn also hat Gott die Welt geliebt.",
+      technicalTranslationId: "deu1951",
+      translationDisplayName: "Schlachter 1951",
+      license: "CC BY 4.0",
+      attribution: "Genfer Bibelgesellschaft",
+      retrievedAt: "2026-08-08T10:00:00Z",
+      origin: 0,
+    };
+    const devotion = {
+      id: devotionId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      topic: "Gottes Liebe",
+      bibleReference: "Johannes 3,16",
+      translation: 0,
+      coreMessage: "Gottes Liebe gilt allen.",
+      markdownContent: "## Einstieg\nEine kurze Geschichte.",
+      responsibleUserIds: [],
+      materialNotes: "Kerze",
+      scheduleEntryId: null,
+      bibleSnapshot: existingSnapshot,
+      createdAt: "2026-08-08T09:00:00Z",
+      updatedAt: "2026-08-08T10:00:00Z",
+      deletedAt: null,
+      version: 3,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.endsWith(`/devotions/${devotionId}/bible/refresh`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                status: 0,
+                devotion: {
+                  ...devotion,
+                  bibleSnapshot: {
+                    ...existingSnapshot,
+                    textExcerpt: "Denn so sehr hat Gott die Welt geliebt.",
+                    retrievedAt: "2026-08-09T20:00:00Z",
+                  },
+                  updatedAt: "2026-08-09T20:00:00Z",
+                  version: 4,
+                },
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json", ETag: '"4"' },
+              },
+            ),
+          );
+        if (path.endsWith(`/devotions/${devotionId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(devotion), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"3"' },
+            }),
+          );
+        if (path.endsWith("/devotions/translations"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  translation: 0,
+                  technicalId: "deu1951",
+                  displayName: "Schlachter 1951",
+                  license: "CC BY 4.0",
+                  attribution: "Genfer Bibelgesellschaft",
+                  isDefault: true,
+                },
+                {
+                  translation: 1,
+                  technicalId: "deu1912",
+                  displayName: "Luther 1912",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+                {
+                  translation: 2,
+                  technicalId: "deuelo",
+                  displayName: "Unrevidierte Elberfelder",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+                {
+                  translation: 3,
+                  technicalId: "deutkw",
+                  displayName: "Textbibel",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/devotions"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: devotionId,
+                  topic: "Gottes Liebe",
+                  bibleReference: "Johannes 3,16",
+                  translation: 0,
+                  responsibleUserIds: [],
+                  scheduleEntryId: null,
+                  hasBibleSnapshot: true,
+                  version: 3,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Gottes Liebe öffnen" }),
+    );
+    expect(await screen.findByText(existingSnapshot.textExcerpt)).toBeVisible();
+    expect(screen.getByText("CC BY 4.0")).toBeVisible();
+    expect(screen.getByText("Genfer Bibelgesellschaft")).toBeVisible();
+    expect(screen.getByText("Snapshot vom 08.08.2026")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Bibeltext ausdrücklich aktualisieren",
+      }),
+    );
+    expect(
+      await screen.findByText("Denn so sehr hat Gott die Welt geliebt."),
+    ).toBeVisible();
+    expect(
+      screen.getByText("Bibeltext wurde als neuer Snapshot gespeichert."),
+    ).toHaveAttribute("role", "status");
+    const refreshCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(
+          `/devotions/${devotionId}/bible/refresh`,
+        ) && init?.method === "POST",
+    );
+    expect(refreshCall?.[1]?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"3"',
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(
