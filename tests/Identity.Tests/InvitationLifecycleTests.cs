@@ -184,6 +184,38 @@ public sealed class InvitationLifecycleTests
     }
 
     [Fact]
+    public async Task ClaimedAccountAndOrganizationErasureCannotBeCancelled()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var user = Assert.Single(fixture.State.Users, item => item.Id == fixture.OwnerId);
+        fixture.State.Users.Remove(user);
+        fixture.State.Users.Add(new LifecycleUser(
+            user.Id,
+            user.Email,
+            user.NormalizedEmail,
+            user.DisplayName,
+            user.IsPlatformAdmin,
+            fixture.Clock.GetUtcNow().AddDays(-30),
+            fixture.Clock.GetUtcNow()));
+        var organization = Assert.Single(
+            fixture.State.Organizations,
+            item => item.Id == fixture.OrganizationId);
+        organization.ChangeStatus(OrganizationStatus.Erasing, organization.Version);
+
+        var accountError = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CancelAccountDeletionAsync(fixture.OwnerId, cancellationToken));
+        var organizationError = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CancelOrganizationDeletionAsync(
+                fixture.OwnerId,
+                fixture.OrganizationId,
+                cancellationToken));
+
+        Assert.Equal("account_erasure_started", accountError.ErrorCode);
+        Assert.Equal("organization_erasure_started", organizationError.ErrorCode);
+    }
+
+    [Fact]
     public async Task InvitationRateLimitAppliesPerEmailAndIpWithoutStoringAddresses()
     {
         var fixture = LifecycleFixture.CreateWithOrganization();

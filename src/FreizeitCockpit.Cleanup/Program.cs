@@ -1,5 +1,8 @@
 using Azure.Identity;
 using Azure.Storage.Blobs;
+using Activity.Implementation;
+using Camps.Implementation;
+using Catering.Implementation;
 using Files.Contracts;
 using Files.Implementation;
 using FreizeitCockpit.Cleanup;
@@ -8,11 +11,13 @@ using Identity.Contracts;
 using Identity.Implementation;
 using Knowledge.Contracts;
 using Knowledge.Implementation;
+using Logistics.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
+using Spiritual.Implementation;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddFreizeitServiceDefaults();
@@ -26,9 +31,19 @@ builder.Services.AddScoped(services =>
     services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
 builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<CampsDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<CateringDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 builder.Services.AddDbContext<KnowledgeDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<LogisticsDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<SpiritualDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 builder.Services.AddDbContext<FilesDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 
 builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
@@ -53,6 +68,13 @@ builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
 builder.Services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
 builder.Services.AddScoped<INotebookRetention, KnowledgeRetentionService>();
 builder.Services.AddScoped<IAttachmentMaintenance, AttachmentMaintenanceService>();
+builder.Services.AddScoped<IDataErasure, ActivityDataErasure>();
+builder.Services.AddScoped<IDataErasure, CampsDataErasure>();
+builder.Services.AddScoped<IDataErasure, CateringDataErasure>();
+builder.Services.AddScoped<IDataErasure, FilesDataErasure>();
+builder.Services.AddScoped<IDataErasure, KnowledgeDataErasure>();
+builder.Services.AddScoped<IDataErasure, LogisticsDataErasure>();
+builder.Services.AddScoped<IDataErasure, SpiritualDataErasure>();
 builder.Services.AddSingleton(new CleanupOptions
 {
     BatchSize = builder.Configuration.GetValue<int?>("Cleanup:BatchSize") ?? 100

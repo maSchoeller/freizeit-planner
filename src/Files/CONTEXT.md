@@ -28,3 +28,6 @@
 - Dependencies: Files reads Identity tables only from its RLS security-definer function. Domain access remains behind the
   contracts callback; Files never reads another module's schema or domain content.
 - Explicit exclusion: malware scanning is not part of this slice; format validation is not a malware scanner.
+- Privacy maintenance deletes every private blob before its Organization-owned metadata. Any storage failure keeps
+  the record and fails the scheduled job for retry. Account erasure removes actor-bound grants and pseudonymizes the
+  required creator audit identifier without changing file ownership or content.

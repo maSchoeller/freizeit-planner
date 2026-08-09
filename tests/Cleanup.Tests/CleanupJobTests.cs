@@ -19,8 +19,9 @@ public sealed class CleanupJobTests
             identity,
             notes,
             attachments,
+            [],
             NullLogger<CleanupJob>.Instance,
-            new CleanupOptions { BatchSize = 37 });
+            new CleanupOptions { BatchSize = 37, RequiredErasureAreas = [] });
 
         var result = await job.RunAsync(TestContext.Current.CancellationToken);
 
@@ -41,8 +42,9 @@ public sealed class CleanupJobTests
             new RecordingIdentityMaintenance(),
             new RecordingNotebookRetention(),
             new RecordingAttachmentMaintenance(retryableFailures: 1),
+            [],
             NullLogger<CleanupJob>.Instance,
-            new CleanupOptions());
+            new CleanupOptions { RequiredErasureAreas = [] });
 
         var exception = await Assert.ThrowsAsync<CleanupRetryableException>(
             () => job.RunAsync(TestContext.Current.CancellationToken));
@@ -50,7 +52,51 @@ public sealed class CleanupJobTests
         Assert.Equal(1, exception.RetryableFailures);
     }
 
-    private sealed class RecordingIdentityMaintenance : IIdentityMaintenance
+    [Fact]
+    public async Task RunErasesClaimedScopesBeforeFinalizingIdentityRecords()
+    {
+        var organizationId = Guid.NewGuid();
+        var userId = Guid.NewGuid();
+        var identity = new RecordingIdentityMaintenance(
+            new ErasureCandidates([organizationId], [userId]));
+        var area = new RecordingDataErasure();
+        var job = new CleanupJob(
+            identity,
+            new RecordingNotebookRetention(),
+            new RecordingAttachmentMaintenance(),
+            [area],
+            NullLogger<CleanupJob>.Instance,
+            new CleanupOptions { RequiredErasureAreas = ["test"] });
+
+        _ = await job.RunAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal([organizationId], area.Organizations);
+        Assert.Equal([userId], area.Users);
+        Assert.Equal([organizationId], identity.CompletedOrganizations);
+        Assert.Equal([userId], identity.CompletedUsers);
+    }
+
+    [Fact]
+    public async Task RunRefusesToClaimErasuresWhenAModuleIsMissing()
+    {
+        var identity = new RecordingIdentityMaintenance();
+        var job = new CleanupJob(
+            identity,
+            new RecordingNotebookRetention(),
+            new RecordingAttachmentMaintenance(),
+            [],
+            NullLogger<CleanupJob>.Instance,
+            new CleanupOptions());
+
+        var error = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => job.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("module set", error.Message, StringComparison.Ordinal);
+        Assert.False(identity.ErasuresClaimed);
+    }
+
+    private sealed class RecordingIdentityMaintenance(
+        ErasureCandidates? candidates = null) : IIdentityMaintenance
     {
         public int BatchSize { get; private set; }
 
@@ -60,6 +106,62 @@ public sealed class CleanupJobTests
         {
             BatchSize = batchSize;
             return Task.FromResult(new IdentityCleanupResult(2, 0, 0, 0, 0));
+        }
+
+        public List<Guid> CompletedOrganizations { get; } = [];
+
+        public List<Guid> CompletedUsers { get; } = [];
+
+        public bool ErasuresClaimed { get; private set; }
+
+        public Task<ErasureCandidates> ClaimDueErasuresAsync(
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            ErasuresClaimed = true;
+            return Task.FromResult(candidates ?? new ErasureCandidates([], []));
+        }
+
+        public Task CompleteOrganizationErasureAsync(
+            Guid organizationId,
+            CancellationToken cancellationToken)
+        {
+            CompletedOrganizations.Add(organizationId);
+            return Task.CompletedTask;
+        }
+
+        public Task CompleteAccountErasureAsync(Guid userId, CancellationToken cancellationToken)
+        {
+            CompletedUsers.Add(userId);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDataErasure : IDataErasure
+    {
+        public string Area => "test";
+
+        public List<Guid> Organizations { get; } = [];
+
+        public List<Guid> Users { get; } = [];
+
+        public Task<DataErasureResult> EraseOrganizationAsync(
+            Guid organizationId,
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            Organizations.Add(organizationId);
+            return Task.FromResult(new DataErasureResult(1, 0, false));
+        }
+
+        public Task<DataErasureResult> PseudonymizeUserAsync(
+            Guid userId,
+            Guid pseudonymousUserId,
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            Users.Add(userId);
+            return Task.FromResult(new DataErasureResult(1, 0, false));
         }
     }
 

@@ -11,6 +11,8 @@ public sealed class ApplicationUser : IdentityUser<Guid>
     public bool IsPlatformAdmin { get; set; }
 
     public DateTimeOffset? DeletionScheduledAt { get; set; }
+
+    public DateTimeOffset? ErasureStartedAt { get; set; }
 }
 
 public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options)

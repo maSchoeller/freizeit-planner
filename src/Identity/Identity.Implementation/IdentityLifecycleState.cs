@@ -65,7 +65,8 @@ public sealed class LifecycleUser(
     string normalizedEmail,
     string displayName,
     bool isPlatformAdmin = false,
-    DateTimeOffset? deletionScheduledAt = null)
+    DateTimeOffset? deletionScheduledAt = null,
+    DateTimeOffset? erasureStartedAt = null)
 {
     public Guid Id { get; } = id;
 
@@ -78,6 +79,8 @@ public sealed class LifecycleUser(
     public bool IsPlatformAdmin { get; } = isPlatformAdmin;
 
     public DateTimeOffset? DeletionScheduledAt { get; private set; } = deletionScheduledAt;
+
+    public DateTimeOffset? ErasureStartedAt { get; } = erasureStartedAt;
 
     public void Rename(string displayName) => DisplayName = displayName;
 

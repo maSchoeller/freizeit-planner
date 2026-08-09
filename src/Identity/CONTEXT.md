@@ -16,7 +16,10 @@
   migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
 - Retention: `IIdentityMaintenance` is available only to the cleanup composition root. Each bounded run deletes
   expired or consumed login/email challenges and invitations, expired or revoked sessions, and rate-limit events
-  older than one day. It never logs token values, email addresses, IP addresses, or other identity payloads.
+  older than one day. After 30 days it atomically claims due account and Organization erasures. Claimed Organizations
+  enter `Erasing` and become inaccessible; cancellation and status changes are then rejected. Identity records are
+  finalized only after every registered Fachmodule reports its own deletion/pseudonymization complete. The job never
+  logs token values, email addresses, IP addresses, identifiers, or other identity payloads.
 - Authorization: `ITenantAccessControl` answers organization/camp decisions; `ITenantAdministration` owns role and
   assignment changes; `IPlatformAdministration` exposes only organization metadata and suspension. All mutations
   use version tokens. The request transaction sets user, organization, camp, and operation context with transaction-

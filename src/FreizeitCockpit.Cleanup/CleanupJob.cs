@@ -8,6 +8,9 @@ namespace FreizeitCockpit.Cleanup;
 public sealed class CleanupOptions
 {
     public int BatchSize { get; init; } = 100;
+
+    public IReadOnlyList<string> RequiredErasureAreas { get; init; } =
+        ["activity", "camps", "catering", "files", "knowledge", "logistics", "spiritual"];
 }
 
 public sealed record CleanupResult(
@@ -26,9 +29,12 @@ public sealed class CleanupJob(
     IIdentityMaintenance identityMaintenance,
     INotebookRetention notebookRetention,
     IAttachmentMaintenance attachmentMaintenance,
+    IEnumerable<IDataErasure> dataErasures,
     ILogger<CleanupJob> logger,
     CleanupOptions options)
 {
+    private static readonly Guid PseudonymousUserId = Guid.Empty;
+
     private static readonly Action<ILogger, int, int, int, int, int, Exception?> LogCompleted =
         LoggerMessage.Define<int, int, int, int, int>(
             LogLevel.Information,
@@ -56,6 +62,7 @@ public sealed class CleanupJob(
         var attachments = await attachmentMaintenance.PurgeDueAsync(
             options.BatchSize,
             cancellationToken);
+        var erasureFailures = await EraseDueDataAsync(cancellationToken);
 
         LogCompleted(
             logger,
@@ -70,11 +77,74 @@ public sealed class CleanupJob(
             expiredReadGrants,
             null);
 
-        if (attachments.RetryableFailures > 0)
+        var retryableFailures = attachments.RetryableFailures + erasureFailures;
+        if (retryableFailures > 0)
         {
-            throw new CleanupRetryableException(attachments.RetryableFailures);
+            throw new CleanupRetryableException(retryableFailures);
         }
 
         return new CleanupResult(identity, notes, attachments, expiredReadGrants);
+    }
+
+    private async Task<int> EraseDueDataAsync(CancellationToken cancellationToken)
+    {
+        var areas = dataErasures.OrderBy(item => item.Area, StringComparer.Ordinal).ToArray();
+        var actualAreas = areas.Select(item => item.Area).ToArray();
+        var requiredAreas = options.RequiredErasureAreas
+            .OrderBy(item => item, StringComparer.Ordinal)
+            .ToArray();
+        if (!actualAreas.SequenceEqual(requiredAreas, StringComparer.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "The configured data-erasure areas do not match the required module set.");
+        }
+
+        var candidates = await identityMaintenance.ClaimDueErasuresAsync(
+            options.BatchSize,
+            cancellationToken);
+        var failures = 0;
+
+        foreach (var organizationId in candidates.OrganizationIds)
+        {
+            var complete = true;
+            foreach (var area in areas)
+            {
+                var result = await area.EraseOrganizationAsync(
+                    organizationId,
+                    options.BatchSize,
+                    cancellationToken);
+                failures += result.RetryableFailures;
+                complete &= !result.HasRemaining && result.RetryableFailures == 0;
+            }
+
+            if (complete)
+            {
+                await identityMaintenance.CompleteOrganizationErasureAsync(
+                    organizationId,
+                    cancellationToken);
+            }
+        }
+
+        foreach (var userId in candidates.UserIds)
+        {
+            var complete = true;
+            foreach (var area in areas)
+            {
+                var result = await area.PseudonymizeUserAsync(
+                    userId,
+                    PseudonymousUserId,
+                    options.BatchSize,
+                    cancellationToken);
+                failures += result.RetryableFailures;
+                complete &= !result.HasRemaining && result.RetryableFailures == 0;
+            }
+
+            if (complete)
+            {
+                await identityMaintenance.CompleteAccountErasureAsync(userId, cancellationToken);
+            }
+        }
+
+        return failures;
     }
 }

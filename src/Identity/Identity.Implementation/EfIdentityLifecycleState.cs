@@ -18,7 +18,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.NormalizedEmail!,
                 item.DisplayName,
                 item.IsPlatformAdmin,
-                item.DeletionScheduledAt))
+                item.DeletionScheduledAt,
+                item.ErasureStartedAt))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -34,7 +35,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.NormalizedEmail!,
                 item.DisplayName,
                 item.IsPlatformAdmin,
-                item.DeletionScheduledAt))
+                item.DeletionScheduledAt,
+                item.ErasureStartedAt))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -435,6 +437,7 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
         DisplayName = user.DisplayName,
         IsPlatformAdmin = user.IsPlatformAdmin,
         DeletionScheduledAt = user.DeletionScheduledAt,
+        ErasureStartedAt = user.ErasureStartedAt,
         SecurityStamp = Guid.NewGuid().ToString("N")
     };
 

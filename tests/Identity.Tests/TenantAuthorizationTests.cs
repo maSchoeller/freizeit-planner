@@ -51,7 +51,7 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task PlatformAdminAndSuspendedOrganizationCannotReadTenantContent()
+    public async Task PlatformAdminAndUnavailableOrganizationCannotReadTenantContent()
     {
         var fixture = AuthorizationFixture.Create(TenantRole.Owner);
         fixture.State.Users[0] = new LifecycleUser(
@@ -79,11 +79,22 @@ public sealed class TenantAuthorizationTests
                 fixture.OrganizationId,
                 OrganizationAction.Read),
             TestContext.Current.CancellationToken);
+        fixture.State.Organizations[0].ChangeStatus(
+            OrganizationStatus.Erasing,
+            fixture.State.Organizations[0].Version);
+        var erasingDecision = await fixture.Service.AuthorizeOrganizationAsync(
+            new OrganizationAccessRequest(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                OrganizationAction.Read),
+            TestContext.Current.CancellationToken);
 
         Assert.False(platformDecision.Allowed);
         Assert.Equal(TenantAccessDenial.PlatformScopeOnly, platformDecision.Denial);
         Assert.False(suspendedDecision.Allowed);
         Assert.Equal(TenantAccessDenial.OrganizationSuspended, suspendedDecision.Denial);
+        Assert.False(erasingDecision.Allowed);
+        Assert.Equal(TenantAccessDenial.OrganizationSuspended, erasingDecision.Denial);
     }
 
     [Fact]

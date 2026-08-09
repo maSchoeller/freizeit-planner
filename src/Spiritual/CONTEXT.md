@@ -19,3 +19,5 @@
   Schlachter 1951 is CC BY 4.0 with copyright attribution to Genfer Bibelgesellschaft; the other three eBible
   metadata pages mark the texts Public Domain. Sources: `https://bible.helloao.org/docs/reference/` and
   `https://ebible.org/Scriptures/details.php?id={stableId}`.
+- Privacy maintenance deletes devotion and snapshot content for a claimed Organization and removes erased users from
+  responsibility arrays. Processing is bounded and idempotent, and never calls the external Bible provider.

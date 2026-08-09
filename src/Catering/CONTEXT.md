@@ -35,3 +35,5 @@
   version for `If-Match` composition in the Web host.
 - Dietary tags and manually maintained allergen/kitchen notes are planning information, never a medical guarantee.
   Attachments and the cross-module atomic schedule workflow are composed later through the Files and host seams.
+- Privacy maintenance deletes meals/snapshots, recipes/versions and ingredients for a claimed Organization in bounded,
+  idempotent batches. Catering stores no user audit identifiers that require account pseudonymization.

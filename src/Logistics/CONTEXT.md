@@ -28,3 +28,5 @@
 - The `logistics` schema owns requirements, responsibilities, lists, items and audit events. Every table carries
   `organization_id` and `camp_id`; PostgreSQL policies force RLS and consult only Identity-owned authorization
   functions/tables.
+- Privacy maintenance deletes all Organization-owned logistics aggregates and check events. Account erasure removes
+  responsibility rows and replaces required check/audit actor identifiers with the shared pseudonymous UUID.

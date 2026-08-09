@@ -84,6 +84,32 @@ public interface IIdentityMaintenance
     Task<IdentityCleanupResult> CleanupExpiredAsync(
         int batchSize,
         CancellationToken cancellationToken);
+
+    Task<ErasureCandidates> ClaimDueErasuresAsync(
+        int batchSize,
+        CancellationToken cancellationToken);
+
+    Task CompleteOrganizationErasureAsync(
+        Guid organizationId,
+        CancellationToken cancellationToken);
+
+    Task CompleteAccountErasureAsync(Guid userId, CancellationToken cancellationToken);
+}
+
+public interface IDataErasure
+{
+    string Area { get; }
+
+    Task<DataErasureResult> EraseOrganizationAsync(
+        Guid organizationId,
+        int batchSize,
+        CancellationToken cancellationToken);
+
+    Task<DataErasureResult> PseudonymizeUserAsync(
+        Guid userId,
+        Guid pseudonymousUserId,
+        int batchSize,
+        CancellationToken cancellationToken);
 }
 
 public sealed record IdentityCleanupResult(
@@ -92,6 +118,15 @@ public sealed record IdentityCleanupResult(
     int ExpiredInvitations,
     int StaleSessions,
     int StaleRateEvents);
+
+public sealed record ErasureCandidates(
+    IReadOnlyList<Guid> OrganizationIds,
+    IReadOnlyList<Guid> UserIds);
+
+public sealed record DataErasureResult(
+    int ChangedRecords,
+    int RetryableFailures,
+    bool HasRemaining);
 
 public sealed record OrganizationInvitationRequest(
     Guid ActorId,
@@ -173,7 +208,8 @@ public enum TenantRole
 public enum OrganizationStatus
 {
     Active,
-    Suspended
+    Suspended,
+    Erasing
 }
 
 public enum InvitationAcceptanceOutcome

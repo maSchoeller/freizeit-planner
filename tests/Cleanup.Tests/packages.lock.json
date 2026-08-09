@@ -487,6 +487,43 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "activity.contracts": {
+        "type": "Project"
+      },
+      "activity.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Activity.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "camps.contracts": {
+        "type": "Project"
+      },
+      "camps.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Camps.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "catering.contracts": {
+        "type": "Project"
+      },
+      "catering.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Catering.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "files.contracts": {
         "type": "Project"
       },
@@ -504,13 +541,18 @@
       "freizeitcockpit.cleanup": {
         "type": "Project",
         "dependencies": {
+          "Activity.Implementation": "[1.0.0, )",
+          "Camps.Implementation": "[1.0.0, )",
+          "Catering.Implementation": "[1.0.0, )",
           "Files.Contracts": "[1.0.0, )",
           "Files.Implementation": "[1.0.0, )",
           "FreizeitCockpit.ServiceDefaults": "[1.0.0, )",
           "Identity.Contracts": "[1.0.0, )",
           "Identity.Implementation": "[1.0.0, )",
           "Knowledge.Contracts": "[1.0.0, )",
-          "Knowledge.Implementation": "[1.0.0, )"
+          "Knowledge.Implementation": "[1.0.0, )",
+          "Logistics.Implementation": "[1.0.0, )",
+          "Spiritual.Implementation": "[1.0.0, )"
         }
       },
       "freizeitcockpit.servicedefaults": {
@@ -550,6 +592,33 @@
           "Knowledge.Contracts": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "logistics.contracts": {
+        "type": "Project"
+      },
+      "logistics.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Camps.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Logistics.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "spiritual.contracts": {
+        "type": "Project"
+      },
+      "spiritual.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )",
+          "Spiritual.Contracts": "[1.0.0, )"
         }
       },
       "Azure.Identity": {

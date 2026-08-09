@@ -45,3 +45,5 @@
   purge timestamp, while restore clears deletion metadata and increments Version.
 - Activity/Search receive metadata or bounded summaries only. Markdown is never written to activity or diagnostic
   logs. Files attachments remain a later host/Files composition seam.
+- Privacy maintenance deletes an Organization's complete notebook and pseudonymizes required creator/updater/trash
+  audit fields with the non-identifying empty UUID before Identity finalizes an erased account.

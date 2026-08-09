@@ -8,6 +8,9 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Activity/Activity.Implementation/Activity.Implementation.csproj" />
+    <ProjectReference Include="../Camps/Camps.Implementation/Camps.Implementation.csproj" />
+    <ProjectReference Include="../Catering/Catering.Implementation/Catering.Implementation.csproj" />
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
@@ -19,6 +22,8 @@
     <ProjectReference Include="../Identity/Identity.Implementation/Identity.Implementation.csproj" />
     <ProjectReference Include="../Knowledge/Knowledge.Contracts/Knowledge.Contracts.csproj" />
     <ProjectReference Include="../Knowledge/Knowledge.Implementation/Knowledge.Implementation.csproj" />
+    <ProjectReference Include="../Logistics/Logistics.Implementation/Logistics.Implementation.csproj" />
+    <ProjectReference Include="../Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
   </ItemGroup>
 
 </Project>

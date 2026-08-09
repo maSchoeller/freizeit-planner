@@ -66,7 +66,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         {
             return TenantAccessDecision.Deny(TenantAccessDenial.OrganizationNotFound);
         }
-        if (organization.Status == OrganizationStatus.Suspended)
+        if (organization.Status != OrganizationStatus.Active)
         {
             return TenantAccessDecision.Deny(TenantAccessDenial.OrganizationSuspended);
         }
@@ -248,6 +248,10 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         await RequirePlatformAdminAsync(change.ActorId, cancellationToken);
         var organization = await state.FindOrganizationAsync(change.OrganizationId, cancellationToken)
             ?? throw Rule("organization_not_found", "Die Organization wurde nicht gefunden.");
+        if (change.Status == OrganizationStatus.Erasing || organization.Status == OrganizationStatus.Erasing)
+        {
+            throw Rule("organization_erasure_started", "Die endgültige Löschung kann nicht geändert werden.");
+        }
         organization.ChangeStatus(change.Status, change.ExpectedVersion);
         await state.SaveOrganizationAsync(organization, cancellationToken);
         return new OrganizationStatusView(organization.Id, organization.Status, organization.Version);

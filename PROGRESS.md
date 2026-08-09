@@ -29,7 +29,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | A01 activity/trash                    | in_progress | Metadata-only feed, soft delete/restore and deterministic 30-day purge                      | Schedule HTTP test found no Activity event             | 13 Activity + 18 API + 12 React tests green          | Activity context, search/activity help    | pending   | complete aggregate trash UI  |
 | A02 search/export/print               | in_progress | Tenant-safe filtered search, CSV formula protection, German print views                     | React search test saw static local result              | filtered search and four CSV routes green            | search/activity/export help               | pending   | verify print and real RLS    |
 | P01 PWA/offline                       | pending     | Install/update; read-only four-area snapshot; purge on logout/org switch                    | pending                                                | pending                                              | PWA docs/help                             | pending   | after CRUD                   |
-| O01 operations                        | in_progress | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Cleanup test first failed because the host was a stub  | 2 Cleanup coordinator tests green                    | cleanup runbook and module contexts        | pending   | add tenant/account purge     |
+| O01 operations                        | in_progress | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Cleanup test exposed the stub and Migrator double-open | 4 Cleanup + 29 Identity + PostgreSQL erasure green   | cleanup runbook and module contexts        | pending   | provision least-privilege DB jobs role |
 | Z01 Azure/CI                          | pending     | azd/Bicep/containers/workflows locally validate; no cloud mutation                          | pending                                                | pending                                              | deployment docs                           | pending   | after F01/O01                |
 | V01 full verification                 | pending     | Format/lint/build/tests, coverage, three browsers/viewports, axe, visual inspection, smoke  | pending                                                | pending                                              | all docs/screenshots                      | pending   | after all slices             |
 
@@ -84,3 +84,10 @@ This file is the resumable evidence ledger. Commands are run from the repository
   public maintenance contracts. Blob failures leave metadata retryable and fail the job for scheduler retry; logs
   expose aggregate counts only. Cleanup coordinator tests passed 2/2. Organization/account hard deletion and the
   dedicated production database-principal bootstrap remain before O01 can be marked verified.
+- 2026-08-09: Due account and Organization erasure now uses a resumable two-phase protocol. Identity atomically
+  claims cases after 30 days; claimed Organizations are inaccessible and non-cancellable. Seven module-owned
+  `IDataErasure` implementations delete their own tenant data, delete blobs before metadata, remove responsibilities,
+  and pseudonymize retained actor fields with the empty UUID. Identity finalizes only after the exact required module
+  set reports completion. The new PostgreSQL 17 smoke test initially exposed and then verified the fix for a Migrator
+  double-open bug; it proves real Organization deletion and cross-module account pseudonymization. Cleanup tests pass
+  4/4 and Identity tests 29/29. Production jobs-role provisioning remains before O01 is verified.

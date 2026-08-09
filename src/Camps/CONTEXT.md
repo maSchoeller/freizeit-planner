@@ -27,3 +27,5 @@
   `ScheduleEntryReference` to Catering or Spiritual. Linked deletion is composed outside Camps: the user must choose
   unlink or common trash first; Camps never cascades into another module.
 - Dependencies: Identity authorization; Files/Activity; Catering and Spiritual call narrow schedule contracts.
+- Privacy maintenance: the cleanup-only `IDataErasure` implementation deletes Organization-owned Camp aggregates in
+  bounded batches and removes responsibility rows for an erased account. It has no interactive authorization seam.

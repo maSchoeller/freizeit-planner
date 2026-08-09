@@ -291,6 +291,10 @@ public sealed class IdentityLifecycleService(
     public async Task CancelAccountDeletionAsync(Guid userId, CancellationToken cancellationToken)
     {
         var user = await RequireUserAsync(userId, cancellationToken);
+        if (user.ErasureStartedAt is not null)
+        {
+            throw Rule("account_erasure_started", "Die endgültige Kontolöschung hat bereits begonnen.");
+        }
         user.CancelDeletion();
         await state.SaveUserAsync(user, cancellationToken);
     }
@@ -348,6 +352,10 @@ public sealed class IdentityLifecycleService(
     {
         var organization = await state.FindOrganizationAsync(organizationId, cancellationToken)
             ?? throw Rule("organization_not_found", "Die Organization wurde nicht gefunden.");
+        if (organization.Status == OrganizationStatus.Erasing)
+        {
+            throw Rule("organization_erasure_started", "Die endgültige Löschung hat bereits begonnen.");
+        }
         var membership = await RequireActiveMembershipAsync(organizationId, actorId, cancellationToken);
         if (membership.Role != TenantRole.Owner)
         {
@@ -370,7 +378,7 @@ public sealed class IdentityLifecycleService(
     {
         var organization = await state.FindOrganizationAsync(organizationId, cancellationToken)
             ?? throw Rule("organization_not_found", "Die Organization wurde nicht gefunden.");
-        if (organization.Status == OrganizationStatus.Suspended)
+        if (organization.Status != OrganizationStatus.Active)
         {
             throw Rule("organization_suspended", "Die Organization ist gesperrt.");
         }
