@@ -70,6 +70,54 @@ VALUES ('20000000-0000-0000-0000-000000000002', 'Fremder Veranstalter', 'fremd',
 INSERT INTO identity.memberships (organization_id, user_id, "Role", "IsActive", "Version")
 VALUES ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000006', 4, true, 1)
 ON CONFLICT DO NOTHING;
+
+INSERT INTO activity.activity_events
+    ("Id", actor_id, organization_id, camp_id, "Kind", "ObjectType", object_id, "Title", "Timestamp", "Version")
+VALUES
+    ('71000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000005',
+     '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000001',
+     'Created', 'Note', '72000000-0000-0000-0000-000000000001', 'Eigene Aktivität', now(), 1),
+    ('71000000-0000-0000-0000-000000000099', '10000000-0000-0000-0000-000000000005',
+     '20000000-0000-0000-0000-000000000001', '30000000-0000-0000-0000-000000000099',
+     'Created', 'Note', '72000000-0000-0000-0000-000000000099', 'Fremde Aktivität', now(), 1);
+
+INSERT INTO activity.search_documents
+    ("Id", organization_id, camp_id, "ObjectType", object_id, "Title", "SearchText", "MetadataJson",
+     "SourceVersion", "IsRemoved", "UpdatedAt", "Version")
+VALUES
+    ('73000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001',
+     '30000000-0000-0000-0000-000000000001', 'Note',
+     '72000000-0000-0000-0000-000000000001', 'Eigener Suchtreffer', 'eigener text', '{}', 1, false, now(), 1),
+    ('73000000-0000-0000-0000-000000000099', '20000000-0000-0000-0000-000000000001',
+     '30000000-0000-0000-0000-000000000099', 'Note',
+     '72000000-0000-0000-0000-000000000099', 'Fremder Suchtreffer', 'fremder text', '{}', 1, false, now(), 1);
+'@ | Out-Null
+
+    Invoke-Psql -Sql @'
+BEGIN;
+SET LOCAL ROLE freizeit_app;
+SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000005', true);
+SELECT set_config('app.organization_id', '20000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.camp_id', '30000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.operation', 'tenant', true);
+DO $assert$
+DECLARE changed integer;
+BEGIN
+    IF (SELECT count(*) FROM activity.activity_events) <> 1 THEN
+        RAISE EXCEPTION 'activity feed leaked another camp';
+    END IF;
+    IF (SELECT count(*) FROM activity.search_documents) <> 1 THEN
+        RAISE EXCEPTION 'search index leaked another camp';
+    END IF;
+    UPDATE activity.search_documents SET "Title" = 'Unzulässig'
+    WHERE "Id" = '73000000-0000-0000-0000-000000000099';
+    GET DIAGNOSTICS changed = ROW_COUNT;
+    IF changed <> 0 THEN
+        RAISE EXCEPTION 'foreign search document was writable';
+    END IF;
+END
+$assert$;
+COMMIT;
 '@ | Out-Null
 
     Invoke-Psql -Sql @'

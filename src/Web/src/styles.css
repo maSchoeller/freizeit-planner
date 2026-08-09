@@ -501,10 +501,19 @@ button:disabled {
   cursor: not-allowed;
 }
 @media print {
+  @page {
+    margin: 14mm;
+  }
   .topbar,
   .sidebar,
   .toolbar,
-  button {
+  button,
+  form,
+  .recipe-attachments,
+  .calendar-card,
+  .notice,
+  .form-feedback,
+  .error-message {
     display: none !important;
   }
   .workspace {
@@ -513,6 +522,45 @@ button:disabled {
   main {
     width: 100%;
     padding: 0;
+  }
+  .page-heading {
+    margin-bottom: 1rem;
+  }
+  .page-heading h1 {
+    font-size: 22pt;
+  }
+  .settings-section,
+  .card,
+  .detail-list > li,
+  .agenda-list > li {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  html[data-print-scope] main > :not(.page-heading) {
+    display: none !important;
+  }
+  html[data-print-scope="schedule"] main > [data-print-section="schedule"],
+  html[data-print-scope="meals"] main > [data-print-section="meals"],
+  html[data-print-scope="material"] main > [data-print-section="material"],
+  html[data-print-scope="shopping"] main > [data-print-section="shopping"] {
+    display: block !important;
+  }
+  html[data-print-scope="material"] main > [data-print-container="logistics"],
+  html[data-print-scope="shopping"] main > [data-print-container="logistics"] {
+    display: block !important;
+  }
+  html[data-print-scope]
+    [data-print-container="logistics"]
+    > [data-print-section] {
+    display: none !important;
+  }
+  html[data-print-scope="material"]
+    [data-print-container="logistics"]
+    > [data-print-section="material"],
+  html[data-print-scope="shopping"]
+    [data-print-container="logistics"]
+    > [data-print-section="shopping"] {
+    display: block !important;
   }
 }
 @media (max-width: 760px) {

@@ -4325,18 +4325,68 @@ describe("camp workspace", () => {
       screen.getByRole("searchbox", { name: "Camp durchsuchen" }),
       "Kartoffel",
     );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Inhaltstyp" }),
+      "Meal",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Merkmal" }),
+      "linked:True",
+    );
 
     expect(
       await screen.findByText("Kartoffelsuppe aus der API"),
     ).toBeInTheDocument();
-    expect(fetchMock).toHaveBeenCalledWith(
-      expect.stringContaining("/search?query=Kartoffel"),
-      expect.objectContaining({ credentials: "same-origin" }),
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining(
+          "/search?query=Kartoffel&objectTypes=Meal&metadata=linked%3ATrue",
+        ),
+        expect.objectContaining({ credentials: "same-origin" }),
+      ),
     );
+    expect(
+      screen.getByRole("option", { name: "Einkaufspositionen" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Zeitplan als CSV" }),
     ).toHaveAttribute("href", expect.stringContaining("/exports/schedule.csv"));
   });
+
+  it.each([
+    ["/tagesplan", "Zeitplan drucken", "schedule"],
+    ["/essen", "Mahlzeiten drucken", "meals"],
+    ["/logistik", "Material drucken", "material"],
+    ["/logistik", "Einkauf drucken", "shopping"],
+  ])(
+    "offers a scoped print view at %s",
+    async (path, buttonName, expectedScope) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(() =>
+          Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          ),
+        ),
+      );
+      const print = vi.spyOn(window, "print").mockImplementation(() => {});
+      const user = userEvent.setup();
+      renderRoute(`/o/sonnenhoehe/camps/sommerfreizeit-2026${path}`);
+
+      await user.click(await screen.findByRole("button", { name: buttonName }));
+
+      expect(document.documentElement).toHaveAttribute(
+        "data-print-scope",
+        expectedScope,
+      );
+      expect(print).toHaveBeenCalledOnce();
+      window.dispatchEvent(new Event("afterprint"));
+      expect(document.documentElement).not.toHaveAttribute("data-print-scope");
+    },
+  );
 
   it("loads the camp trash and restores an item with antiforgery and version", async () => {
     let restored = false;

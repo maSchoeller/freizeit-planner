@@ -2,8 +2,9 @@
 
 Die campweite Suche findest du unter **Suche & Papierkorb**. Gib mindestens zwei Zeichen ein. Die Suche bleibt
 immer auf das geöffnete Camp begrenzt und berücksichtigt Titel sowie geeignete Textfelder aus Tagesplan,
-Mahlzeiten, Material, Einkaufslisten, Andachten, Notizen und Dateien. Mit **Inhaltstyp** kannst du das Ergebnis
-weiter eingrenzen.
+Mahlzeiten, Material, Einkaufslisten und Einkaufspositionen, Andachten, Notizen und Dateien. Mit **Inhaltstyp**
+kannst du das Ergebnis weiter eingrenzen. Sobald du einen Typ gewählt hast, bietet **Merkmal** dazu passende exakte
+Filter an, beispielsweise Planungsstatus, Zeitplan-Verknüpfung, Quelle, Erledigt-Status oder Dateityp.
 
 Auf der Camp-Übersicht zeigt **Jüngste Aktivitäten**, welche Planungsobjekte erstellt, geändert, in den Papierkorb
 verschoben oder wiederhergestellt wurden. Zu jedem Eintrag siehst du Akteur, Zeitpunkt, Inhaltstyp und Titel. Ist ein
@@ -16,9 +17,11 @@ Unterhalb der Suche kannst du Tagesplan, Mahlzeiten, Material und alle Einkaufsl
 Dateien verwenden deutsche Spaltenüberschriften und UTF-8. Inhalte, die Tabellenprogramme als Formel ausführen
 könnten, werden beim Export automatisch entschärft.
 
-**Druckansicht** öffnet den Druckdialog des Browsers. Navigation und Bedienelemente werden in der Druckdarstellung
-reduziert. Archivierte Camps bleiben les- und exportierbar, können aber erst nach einer Reaktivierung wieder
-bearbeitet werden.
+Die zweckmäßigen Druckansichten liegen direkt beim **Tagesplan**, bei **Essen & Rezepte** sowie bei **Material &
+Einkauf**. Dort kannst du Zeitplan, Mahlzeiten, Material oder Einkauf getrennt drucken. Der Browserdruck behält nur
+den jeweiligen lesbaren Planungsbereich und die Camp-Überschrift; Navigation, Formulare und Bedienelemente werden
+ausgeblendet. Es werden keine serverseitigen PDF-, Word- oder Excel-Dateien erzeugt. Archivierte Camps bleiben les-
+und exportierbar, können aber erst nach einer Reaktivierung wieder bearbeitet werden.
 
 ## Papierkorb
 

@@ -1119,6 +1119,31 @@ function PageHeading({
   );
 }
 
+type PrintScope = "schedule" | "meals" | "material" | "shopping";
+
+function PrintButton({
+  scope,
+  children,
+}: {
+  scope: PrintScope;
+  children: ReactNode;
+}) {
+  const print = () => {
+    const root = document.documentElement;
+    root.dataset.printScope = scope;
+    const clearScope = () => {
+      delete root.dataset.printScope;
+    };
+    window.addEventListener("afterprint", clearScope, { once: true });
+    window.print();
+  };
+  return (
+    <button type="button" className="secondary-action" onClick={print}>
+      {children}
+    </button>
+  );
+}
+
 function QueryState({
   loading,
   error,
@@ -1641,6 +1666,9 @@ function SchedulePage({ offline }: { offline: boolean }) {
           gelten für {camp.timeZoneId}.
         </p>
       </PageHeading>
+      <div className="toolbar print-actions">
+        <PrintButton scope="schedule">Zeitplan drucken</PrintButton>
+      </div>
       <QueryState
         loading={query.isLoading && !offline}
         error={
@@ -1728,7 +1756,11 @@ function SchedulePage({ offline }: { offline: boolean }) {
           }}
         />
       </section>
-      <section className="settings-section" aria-labelledby="agenda-title">
+      <section
+        className="settings-section"
+        aria-labelledby="agenda-title"
+        data-print-section="schedule"
+      >
         <div className="section-heading">
           <h2 id="agenda-title">Barrierearme Agenda</h2>
           <button
@@ -4466,6 +4498,9 @@ function MealsPage({ offline }: { offline: boolean }) {
           skaliert. Allergenhinweise sind keine medizinische Garantie.
         </p>
       </PageHeading>
+      <div className="toolbar print-actions">
+        <PrintButton scope="meals">Mahlzeiten drucken</PrintButton>
+      </div>
       <QueryState loading={query.isLoading && !offline} error={query.error} />
       <div className="toolbar">
         <button
@@ -4981,7 +5016,7 @@ function MealsPage({ offline }: { offline: boolean }) {
           ) : null}
         </div>
       </section>
-      <section aria-labelledby="meal-list-heading">
+      <section aria-labelledby="meal-list-heading" data-print-section="meals">
         <div className="section-heading">
           <h2 id="meal-list-heading">Geplante Mahlzeiten</h2>
         </div>
@@ -5871,13 +5906,17 @@ function LogisticsPage({ offline }: { offline: boolean }) {
           nachvollziehbaren Listen.
         </p>
       </PageHeading>
+      <div className="toolbar print-actions">
+        <PrintButton scope="material">Material drucken</PrintButton>
+        <PrintButton scope="shopping">Einkauf drucken</PrintButton>
+      </div>
       {notice ? (
         <p className="form-feedback" role="status">
           {notice}
         </p>
       ) : null}
-      <div className="split-view">
-        <section className="settings-section">
+      <div className="split-view" data-print-container="logistics">
+        <section className="settings-section" data-print-section="material">
           <div className="section-heading">
             <h2>Materialbedarf</h2>
             {!offline ? (
@@ -5941,7 +5980,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
             <p className="empty-state">Noch kein Materialbedarf geplant.</p>
           ) : null}
         </section>
-        <section className="settings-section">
+        <section className="settings-section" data-print-section="shopping">
           <div className="section-heading">
             <h2>Einkaufslisten</h2>
             <span className="status">Aktualisierung alle 15 Sekunden</span>
@@ -6012,6 +6051,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         <section
           className="settings-section material-detail"
           aria-label="Geöffneter Materialbedarf"
+          data-print-section="material"
         >
           <QueryState
             loading={selectedMaterial.isLoading}
@@ -6369,6 +6409,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         <section
           className="settings-section shopping-list-detail"
           aria-label="Geöffnete Einkaufsliste"
+          data-print-section="shopping"
         >
           <QueryState
             loading={selectedList.isLoading}
@@ -8288,14 +8329,22 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
   const { organizationId, campId, camp } = useCampRuntime();
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState("");
+  const [metadataFilter, setMetadataFilter] = useState("");
   const [restoreNotice, setRestoreNotice] = useState("");
   const queryClient = useQueryClient();
   const normalizedQuery = query.trim();
   const search = useQuery({
-    queryKey: [organizationId, campId, "search", normalizedQuery, objectType],
+    queryKey: [
+      organizationId,
+      campId,
+      "search",
+      normalizedQuery,
+      objectType,
+      metadataFilter,
+    ],
     queryFn: () =>
       getJson<SearchResult[]>(
-        `/api/v1/organizations/${organizationId}/camps/${campId}/search?query=${encodeURIComponent(normalizedQuery)}${objectType ? `&objectTypes=${encodeURIComponent(objectType)}` : ""}`,
+        `/api/v1/organizations/${organizationId}/camps/${campId}/search?query=${encodeURIComponent(normalizedQuery)}${objectType ? `&objectTypes=${encodeURIComponent(objectType)}` : ""}${metadataFilter ? `&metadata=${encodeURIComponent(metadataFilter)}` : ""}`,
       ),
     enabled: normalizedQuery.length >= 2,
     retry: false,
@@ -8382,18 +8431,38 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
           Inhaltstyp
           <select
             value={objectType}
-            onChange={(event) => setObjectType(event.target.value)}
+            onChange={(event) => {
+              setObjectType(event.target.value);
+              setMetadataFilter("");
+            }}
           >
             <option value="">Alle Inhalte</option>
             <option value="ScheduleEntry">Zeitplan</option>
             <option value="Meal">Mahlzeiten</option>
             <option value="MaterialRequirement">Material</option>
             <option value="ShoppingList">Einkaufslisten</option>
+            <option value="ShoppingItem">Einkaufspositionen</option>
             <option value="Devotion">Andachten</option>
             <option value="Note">Notizen</option>
             <option value="Attachment">Dateien</option>
           </select>
         </label>
+        {searchMetadataFilters[objectType]?.length ? (
+          <label>
+            Merkmal
+            <select
+              value={metadataFilter}
+              onChange={(event) => setMetadataFilter(event.target.value)}
+            >
+              <option value="">Alle Merkmale</option>
+              {searchMetadataFilters[objectType].map((filter) => (
+                <option key={filter.value} value={filter.value}>
+                  {filter.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
       </div>
       <section className="settings-section">
         <h2>Suchergebnisse</h2>
@@ -8472,9 +8541,6 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
         <a className="secondary-action" href={`${exportBase}/shopping.csv`}>
           Einkauf als CSV
         </a>
-        <button className="secondary-action" onClick={() => window.print()}>
-          Druckansicht
-        </button>
       </div>
     </>
   );
@@ -8490,6 +8556,66 @@ const searchTypeLabel: Record<string, string> = {
   Devotion: "Andacht",
   Note: "Notiz",
   Attachment: "Datei",
+};
+
+const searchMetadataFilters: Record<
+  string,
+  { value: string; label: string }[]
+> = {
+  ScheduleEntry: [
+    { value: "status:Planned", label: "Status: geplant" },
+    { value: "status:Confirmed", label: "Status: bestätigt" },
+    { value: "status:Cancelled", label: "Status: abgesagt" },
+  ],
+  Meal: [
+    { value: "linked:True", label: "Mit Zeitplan" },
+    { value: "linked:False", label: "Ohne Zeitplan" },
+  ],
+  MaterialRequirement: [
+    { value: "status:Open", label: "Status: offen" },
+    { value: "status:Planned", label: "Status: geplant" },
+    { value: "status:Procured", label: "Status: beschafft" },
+    { value: "status:NotRequired", label: "Status: nicht benötigt" },
+    { value: "linked:True", label: "Mit Zeitplan" },
+    { value: "linked:False", label: "Ohne Zeitplan" },
+  ],
+  ShoppingList: [
+    { value: "open:0", label: "Keine offenen Positionen" },
+    { value: "checked:0", label: "Keine erledigten Positionen" },
+  ],
+  ShoppingItem: [
+    { value: "checked:False", label: "Offen" },
+    { value: "checked:True", label: "Erledigt" },
+    { value: "source:Spontaneous", label: "Quelle: spontan" },
+    { value: "source:Catering", label: "Quelle: Mahlzeit" },
+    { value: "source:MaterialRequirement", label: "Quelle: Material" },
+  ],
+  Devotion: [
+    { value: "hasSnapshot:True", label: "Mit Bibeltext-Snapshot" },
+    { value: "hasSnapshot:False", label: "Ohne Bibeltext-Snapshot" },
+    { value: "translation:Schlachter1951", label: "Schlachter 1951" },
+    { value: "translation:Luther1912", label: "Luther 1912" },
+    {
+      value: "translation:ElberfelderUnrevised",
+      label: "Elberfelder (unrevidiert)",
+    },
+    { value: "translation:Textbibel", label: "Textbibel" },
+  ],
+  Note: [
+    { value: "pinned:True", label: "Angeheftet" },
+    { value: "pinned:False", label: "Nicht angeheftet" },
+  ],
+  Attachment: [
+    { value: "mediaType:Pdf", label: "Dateityp: PDF" },
+    { value: "mediaType:Jpeg", label: "Dateityp: JPEG" },
+    { value: "mediaType:Png", label: "Dateityp: PNG" },
+    { value: "mediaType:WebP", label: "Dateityp: WebP" },
+    { value: "ownerType:ScheduleEntry", label: "Zu Zeitplaneinträgen" },
+    { value: "ownerType:Meal", label: "Zu Mahlzeiten" },
+    { value: "ownerType:MaterialRequirement", label: "Zu Material" },
+    { value: "ownerType:Devotion", label: "Zu Andachten" },
+    { value: "ownerType:Note", label: "Zu Notizen" },
+  ],
 };
 
 const restoredObjectQueryScope: Record<string, string> = {
