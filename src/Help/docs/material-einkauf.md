@@ -18,6 +18,17 @@ Material-Version geprüft; bei einem Konflikt öffnest du den neuen Stand erneut
 verschoben und bleibt dort 30 Tage wiederherstellbar. In einem archivierten Camp bleiben die Daten lesbar, während
 Anlage, Bearbeitung und Löschen ausgeblendet sind.
 
+## Dateien am Material
+
+Im geöffneten Materialdetail kannst du PDF-, JPEG-, PNG- und WebP-Dateien bis höchstens 10 MiB hochladen. Die
+angezeigte Camp-Quote gilt gemeinsam für alle Camp-Anhänge. Dateien bleiben privat: **öffnen** fordert erst eine
+kurzlebige Einmalberechtigung an und lädt den Inhalt danach über dieselbe Anwendung. Eine Malware-Prüfung ist nicht
+enthalten; lade nur vertrauenswürdige Dateien hoch.
+
+**Datei löschen** verlangt eine eigene Bestätigung und prüft die aktuelle Datei-Version. Anschließend bleibt der
+Anhang 30 Tage im Camp-Papierkorb wiederherstellbar. In archivierten Camps sind vorhandene Dateimetadaten und Inhalte
+weiter lesbar, Upload und Löschen jedoch nicht verfügbar.
+
 **In Einkaufsliste übernehmen** öffnet vor dem Speichern eine Prüfung. Wähle eine beliebige aktuelle Liste und passe
 bei Bedarf Bezeichnung, positive Dezimalmenge, Einheit, Geschäft, Notiz oder Verantwortliche an. Die Anwendung rundet
 nicht auf Verpackungsgrößen. Die Quellenreferenz auf genau diese Material-Version bleibt in der Einkaufsposition

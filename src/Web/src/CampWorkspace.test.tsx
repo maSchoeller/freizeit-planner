@@ -2066,6 +2066,169 @@ describe("camp workspace", () => {
     expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
   });
 
+  it("uploads and moves a material attachment to the camp trash", async () => {
+    const materialId = "48000000-0000-0000-0000-000000000001";
+    const attachmentId = "4f000000-0000-0000-0000-000000000001";
+    const material = {
+      id: materialId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      name: "Turnierbälle",
+      description: null,
+      quantity: { value: 4, unit: 4, customUnitName: null },
+      responsibleUserIds: [],
+      procurementSource: null,
+      note: null,
+      status: 0,
+      scheduleEntryId: null,
+      version: 1,
+    };
+    const attachment = {
+      id: attachmentId,
+      originalFileName: "Aufbauplan.pdf",
+      mediaType: 0,
+      contentType: "application/pdf",
+      sizeBytes: 204800,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.includes(
+            `/files?ownerType=MaterialRequirement&ownerId=${materialId}`,
+          )
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...attachment,
+                id: "4f000000-0000-0000-0000-000000000002",
+                originalFileName: "Materialliste.png",
+                mediaType: 3,
+                contentType: "image/png",
+                sizeBytes: 8,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/files/${attachmentId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                limitBytes: 1073741824,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 1072693248,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          path.includes(
+            `/files?ownerType=MaterialRequirement&ownerId=${materialId}`,
+          )
+        )
+          return Promise.resolve(
+            new Response(JSON.stringify([attachment]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith(`/logistics/material/${materialId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(material), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith("/logistics/material"))
+          return Promise.resolve(
+            new Response(JSON.stringify([material]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Turnierbälle öffnen" }),
+    );
+    const files = await screen.findByRole("region", {
+      name: "Dateien zu Turnierbälle",
+    });
+    expect(await within(files).findByText("Aufbauplan.pdf")).toBeVisible();
+    expect(within(files).getByText("1 MiB von 1.024 MiB belegt")).toBeVisible();
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Materialliste.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(files).getByLabelText("Datei für das Material"),
+      upload,
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Materialliste.png hochladen",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Materialliste.png wurde sicher hochgeladen.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      within(files).getByRole("button", { name: "Aufbauplan.pdf löschen" }),
+    );
+    await user.click(
+      within(files).getByRole("checkbox", {
+        name: "Aufbauplan.pdf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Datei in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Aufbauplan.pdf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/files/${attachmentId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("adds and checks live shopping items with independent versions", async () => {
     const listId = "49000000-0000-0000-0000-000000000001";
     const potatoId = "4a000000-0000-0000-0000-000000000001";

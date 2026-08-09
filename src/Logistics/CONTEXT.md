@@ -43,6 +43,11 @@
   quantity/unit, store, note and responsibilities before submission. The request carries antiforgery, the target
   list Version as `If-Match` and body precondition, plus the independently loaded material Version; archived Camps
   hide the transfer mutation. The resulting shopping item retains that exact material id/version provenance.
+- Material details compose the Files-owned attachment contract through public HTTP endpoints. The shared owner panel
+  lists private Camp attachments and quota, uploads only allowed PDF/JPEG/PNG/WebP files up to ten MiB with
+  antiforgery, and issues short-lived read grants without exposing blob URLs. A separately confirmed delete consumes
+  the attachment Version through `If-Match` and moves the file into the common 30-day Camp trash; archived Camps keep
+  read access but hide upload/delete. Logistics does not access Files persistence or internals.
 - The host-composed meal transfer UI reads Catering-owned draft lines without exposing module internals, offers any
   current Camp list as the target, limits the unit selector to the draft's compatible units and never performs
   package rounding. The reviewed batch reaches `IShoppingTransfer` with antiforgery and the selected list Version;

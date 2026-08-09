@@ -21,7 +21,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
 | T02 meals and snapshots               | verified    | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Reviewed shopping transfer was unreachable             | 14 Catering, 32 React + full gate/browser            | Catering/Logistics contexts, recipe help  | pending   | Start live Logistics UI                |
-| L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Live UI had no material creation action                | 16 Logistics, 36 React + full gate/browser           | Logistics context, help                   | pending   | add material attachments and audit     |
+| L01 material                          | verified    | Camp/schedule material, responsibilities, procurement status and private attachments        | Material details exposed no reachable attachment area  | 16 Logistics, 28 Files, 37 React + full gate/browser | Logistics/Files contexts, material help   | pending   | Start next incomplete product slice    |
 | L02 shopping                          | verified    | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Material summaries had no reviewed transfer action     | 19 Logistics, 35 React + full gate/browser           | Logistics context, shopping help          | pending   | Start complete L01 material UI         |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
 | K01 notebook                          | pending     | Safe Markdown notes, tags, pins and typed links                                             | pending                                                | pending                                              | Knowledge context, help                   | pending   | after I03                              |
@@ -295,3 +295,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   schedule selector and responsibility checkbox were exercised. The full gate passed in 236.8 seconds with 16
   Logistics plus build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green. L01 remains open for
   reachable material attachments and its final audit.
+- 2026-08-09: L01 closes with private attachments on the loaded material detail. The shared owner panel uses only
+  Files HTTP contracts: it lists the Camp quota and allowed PDF/JPEG/PNG/WebP metadata, validates the ten-MiB client
+  limit, uploads with antiforgery and `ownerType=MaterialRequirement`, and opens content only through a short-lived
+  read grant. Camp attachments add an independent 30-day trash confirmation; deletion consumes file Version 2 via
+  `If-Match` and removes the active row. Archived Camps keep read access while upload/delete disappear. The red
+  journey first failed because the material detail had no file region, then proved upload and trash while the
+  existing recipe-file journey stayed green. All 37 React tests pass. At 610 px the 595 px document, 562.8 px detail,
+  524.6 px file region and 465.4 px confirmation remained within the viewport, including a long filename. The full
+  gate passed in 229.6 seconds with 16 Logistics, 28 Files plus build, format, lint, PostgreSQL RLS/privacy, cleanup,
+  PWA and Help green; L01 is verified.

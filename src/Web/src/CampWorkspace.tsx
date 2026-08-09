@@ -2514,25 +2514,48 @@ function formatFileSize(bytes: number) {
   return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(bytes / 1024)} KiB`;
 }
 
-function RecipeAttachmentsPanel({
+function OwnerAttachmentsPanel({
   organizationId,
-  recipeId,
-  recipeName,
+  campId,
+  ownerType,
+  ownerId,
+  ownerName,
+  ownerNoun,
   canUpload,
+  canDelete = false,
 }: {
   organizationId: string;
-  recipeId: string;
-  recipeName: string;
+  campId?: string;
+  ownerType: "Recipe" | "MaterialRequirement";
+  ownerId: string;
+  ownerName: string;
+  ownerNoun: "das Rezept" | "das Material";
   canUpload: boolean;
+  canDelete?: boolean;
 }) {
   const queryClient = useQueryClient();
-  const basePath = `/api/v1/organizations/${organizationId}/recipe-files`;
-  const attachmentQueryKey = [organizationId, "recipe-files", recipeId];
-  const quotaQueryKey = [organizationId, "recipe-files", "quota"];
+  const basePath = campId
+    ? `/api/v1/organizations/${organizationId}/camps/${campId}/files`
+    : `/api/v1/organizations/${organizationId}/recipe-files`;
+  const ownerQuery = campId
+    ? `ownerType=${ownerType}&ownerId=${ownerId}`
+    : `ownerId=${ownerId}`;
+  const attachmentQueryKey = [
+    organizationId,
+    campId ?? "organization",
+    "files",
+    ownerType,
+    ownerId,
+  ];
+  const quotaQueryKey = [
+    organizationId,
+    campId ?? "organization",
+    "files",
+    "quota",
+  ];
   const attachments = useQuery({
     queryKey: attachmentQueryKey,
-    queryFn: () =>
-      getJson<RecipeAttachment[]>(`${basePath}?ownerId=${recipeId}`),
+    queryFn: () => getJson<RecipeAttachment[]>(`${basePath}?${ownerQuery}`),
     retry: false,
   });
   const quota = useQuery({
@@ -2543,6 +2566,11 @@ function RecipeAttachmentsPanel({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [inputKey, setInputKey] = useState(0);
   const [notice, setNotice] = useState("");
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<
+    string | null
+  >(null);
+  const [deleteAttachmentConfirmed, setDeleteAttachmentConfirmed] =
+    useState(false);
   const uploadAttachment = useMutation({
     mutationFn: async () => {
       if (!selectedFile) throw new Error("Wähle zuerst eine Datei aus.");
@@ -2551,7 +2579,7 @@ function RecipeAttachmentsPanel({
       const token = await getAntiforgeryToken();
       const body = new FormData();
       body.append("file", selectedFile);
-      const response = await fetch(`${basePath}?ownerId=${recipeId}`, {
+      const response = await fetch(`${basePath}?${ownerQuery}`, {
         method: "POST",
         credentials: "same-origin",
         headers: { "X-CSRF-TOKEN": token },
@@ -2611,11 +2639,36 @@ function RecipeAttachmentsPanel({
       }
     },
   });
+  const deleteAttachment = useMutation({
+    mutationFn: async (attachment: RecipeAttachment) => {
+      await mutateCateringJson<void>(
+        `${basePath}/${attachment.id}`,
+        "DELETE",
+        {},
+        attachment.version,
+        "Die Datei wurde zwischenzeitlich geändert. Lade den aktuellen Stand erneut.",
+      );
+      return attachment;
+    },
+    onSuccess: (deleted) => {
+      queryClient.setQueryData<RecipeAttachment[]>(
+        attachmentQueryKey,
+        (current) =>
+          current?.filter((attachment) => attachment.id !== deleted.id),
+      );
+      void queryClient.invalidateQueries({ queryKey: quotaQueryKey });
+      setDeletingAttachmentId(null);
+      setDeleteAttachmentConfirmed(false);
+      setNotice(
+        `${deleted.originalFileName} wurde in den Papierkorb verschoben.`,
+      );
+    },
+  });
 
   return (
     <section
       className="recipe-attachments"
-      aria-label={`Dateien zu ${recipeName}`}
+      aria-label={`Dateien zu ${ownerName}`}
     >
       <div className="section-heading">
         <div>
@@ -2645,22 +2698,85 @@ function RecipeAttachmentsPanel({
                 <strong>{attachment.originalFileName}</strong>
                 <small>{formatFileSize(attachment.sizeBytes)}</small>
               </span>
-              <button
-                type="button"
-                className="secondary-action"
-                disabled={
-                  openAttachment.isPending &&
-                  openAttachment.variables?.id === attachment.id
-                }
-                onClick={() => openAttachment.mutate(attachment)}
-              >
-                {attachment.originalFileName} öffnen
-              </button>
+              <div className="toolbar compact-toolbar">
+                <button
+                  type="button"
+                  className="secondary-action"
+                  disabled={
+                    openAttachment.isPending &&
+                    openAttachment.variables?.id === attachment.id
+                  }
+                  onClick={() => openAttachment.mutate(attachment)}
+                >
+                  {attachment.originalFileName} öffnen
+                </button>
+                {canDelete ? (
+                  <button
+                    type="button"
+                    className="danger-action"
+                    onClick={() => {
+                      deleteAttachment.reset();
+                      setDeletingAttachmentId(attachment.id);
+                      setDeleteAttachmentConfirmed(false);
+                      setNotice("");
+                    }}
+                  >
+                    {attachment.originalFileName} löschen
+                  </button>
+                ) : null}
+              </div>
+              {deletingAttachmentId === attachment.id ? (
+                <section
+                  className="confirmation-panel full-row"
+                  aria-label={`${attachment.originalFileName} löschen`}
+                >
+                  <p>
+                    Die Datei bleibt 30 Tage im Camp-Papierkorb und kann dort
+                    wiederhergestellt werden.
+                  </p>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={deleteAttachmentConfirmed}
+                      onChange={(event) =>
+                        setDeleteAttachmentConfirmed(event.target.checked)
+                      }
+                    />
+                    {attachment.originalFileName} wirklich in den Papierkorb
+                    verschieben
+                  </label>
+                  {deleteAttachment.error ? (
+                    <p role="alert" className="error-message">
+                      {deleteAttachment.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={
+                        !deleteAttachmentConfirmed || deleteAttachment.isPending
+                      }
+                      onClick={() => deleteAttachment.mutate(attachment)}
+                    >
+                      Datei in Papierkorb verschieben
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={deleteAttachment.isPending}
+                      onClick={() => setDeletingAttachmentId(null)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </section>
+              ) : null}
             </li>
           ))}
         </ul>
       ) : !attachments.isLoading && !attachments.error ? (
-        <p className="empty-state">Noch keine Datei am Rezept.</p>
+        <p className="empty-state">Noch keine Datei für {ownerNoun}.</p>
       ) : null}
       {openAttachment.error ? (
         <p role="alert" className="error-message">
@@ -2677,7 +2793,7 @@ function RecipeAttachmentsPanel({
           }}
         >
           <label>
-            Datei für das Rezept
+            Datei für {ownerNoun}
             <input
               key={inputKey}
               type="file"
@@ -3177,10 +3293,12 @@ function RecipeDetailPanel({
         </form>
       ) : null}
       {current ? (
-        <RecipeAttachmentsPanel
+        <OwnerAttachmentsPanel
           organizationId={organizationId}
-          recipeId={recipeId}
-          recipeName={current.name}
+          ownerType="Recipe"
+          ownerId={recipeId}
+          ownerName={current.name}
+          ownerNoun="das Rezept"
           canUpload={canManage && !readOnly}
         />
       ) : null}
@@ -6026,6 +6144,16 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   </div>
                 </form>
               ) : null}
+              <OwnerAttachmentsPanel
+                organizationId={organizationId}
+                campId={campId}
+                ownerType="MaterialRequirement"
+                ownerId={selectedMaterial.data.id}
+                ownerName={selectedMaterial.data.name}
+                ownerNoun="das Material"
+                canUpload={!offline}
+                canDelete={!offline}
+              />
             </>
           ) : null}
         </section>
