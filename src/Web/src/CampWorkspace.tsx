@@ -454,6 +454,15 @@ type RecipeIngredientDraft = {
   countUnitName: string;
   note: string;
 };
+type IngredientMergePreview = {
+  source: Ingredient;
+  target: Ingredient;
+  affectedRecipes: RecipeSummary[];
+};
+type IngredientMergeResult = {
+  target: Ingredient;
+  revisedRecipeIds: string[];
+};
 type Note = {
   id: string;
   title: string;
@@ -520,6 +529,35 @@ async function getJson<T>(path: string): Promise<T> {
         ? "Bitte melde dich erneut an."
         : "Daten konnten nicht geladen werden.",
     );
+  return (await response.json()) as T;
+}
+
+async function mutateCateringJson<T>(
+  path: string,
+  method: "POST" | "PUT",
+  body: unknown,
+  version?: number,
+) {
+  const token = await getAntiforgeryToken();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-CSRF-TOKEN": token,
+  };
+  if (version !== undefined) headers["If-Match"] = `"${version}"`;
+  const response = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const problem = (await response.json().catch(() => null)) as {
+      detail?: string;
+    } | null;
+    throw new Error(
+      problem?.detail ?? "Die Änderung konnte nicht gespeichert werden.",
+    );
+  }
   return (await response.json()) as T;
 }
 
@@ -1923,6 +1961,356 @@ function SchedulePage({ offline }: { offline: boolean }) {
   );
 }
 
+function IngredientLibraryPanel({
+  organizationId,
+  onClose,
+}: {
+  organizationId: string;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const queryKey = [organizationId, "catering", "ingredient-management"];
+  const ingredients = useQuery({
+    queryKey,
+    queryFn: () =>
+      getJson<Ingredient[]>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients?query=&limit=100`,
+      ),
+    retry: false,
+  });
+  const [newIngredientName, setNewIngredientName] = useState("");
+  const [renameIngredient, setRenameIngredient] = useState<Ingredient | null>(
+    null,
+  );
+  const [renameName, setRenameName] = useState("");
+  const [sourceIngredientId, setSourceIngredientId] = useState("");
+  const [targetIngredientId, setTargetIngredientId] = useState("");
+  const [mergeConfirmed, setMergeConfirmed] = useState(false);
+  const [notice, setNotice] = useState("");
+  const createIngredient = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<Ingredient>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients`,
+        "POST",
+        { name: newIngredientName },
+      ),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({ queryKey });
+      setNewIngredientName("");
+      setNotice(`${created.name} wurde angelegt.`);
+    },
+  });
+  const renameMutation = useMutation({
+    mutationFn: () => {
+      if (!renameIngredient) throw new Error("Wähle zuerst eine Zutat aus.");
+      return mutateCateringJson<Ingredient>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients/${renameIngredient.id}`,
+        "PUT",
+        { name: renameName },
+        renameIngredient.version,
+      );
+    },
+    onSuccess: async (renamed) => {
+      await queryClient.invalidateQueries({ queryKey });
+      setRenameIngredient(null);
+      setRenameName("");
+      setNotice(`${renamed.name} wurde gespeichert.`);
+    },
+  });
+  const previewMerge = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<IngredientMergePreview>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients/merge-preview`,
+        "POST",
+        {
+          sourceIngredientId,
+          targetIngredientId,
+          expectedSourceVersion: 0,
+          expectedTargetVersion: 0,
+        },
+      ),
+    onSuccess: () => {
+      setMergeConfirmed(false);
+      setNotice("");
+    },
+  });
+  const mergeIngredients = useMutation({
+    mutationFn: () => {
+      const preview = previewMerge.data;
+      if (!preview) throw new Error("Prüfe die Zusammenführung zuerst erneut.");
+      return mutateCateringJson<IngredientMergeResult>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients/merge`,
+        "POST",
+        {
+          sourceIngredientId: preview.source.id,
+          targetIngredientId: preview.target.id,
+          expectedSourceVersion: preview.source.version,
+          expectedTargetVersion: preview.target.version,
+        },
+      );
+    },
+    onSuccess: async () => {
+      const preview = previewMerge.data;
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, "catering", "recipes"],
+        }),
+      ]);
+      setNotice(
+        `${preview?.source.name ?? "Die Zutat"} wurde kontrolliert in ${preview?.target.name ?? "die Zielzutat"} zusammengeführt.`,
+      );
+      setSourceIngredientId("");
+      setTargetIngredientId("");
+      setMergeConfirmed(false);
+      previewMerge.reset();
+    },
+  });
+  const mutationError =
+    createIngredient.error ??
+    renameMutation.error ??
+    previewMerge.error ??
+    mergeIngredients.error;
+
+  return (
+    <section
+      className="settings-section ingredient-management"
+      aria-labelledby="ingredient-management-heading"
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Organisationsbibliothek</p>
+          <h2 id="ingredient-management-heading">
+            Zutatenbibliothek verwalten
+          </h2>
+        </div>
+        <button className="secondary-action" type="button" onClick={onClose}>
+          Verwaltung schließen
+        </button>
+      </div>
+      <p>
+        Namen werden normalisiert und sind innerhalb der Organisation eindeutig.
+        Eine Zusammenführung ändert aktuelle Bibliotheksrezepte, aber keine
+        vorhandenen Mahlzeiten-Snapshots.
+      </p>
+      {notice ? (
+        <p role="status" className="form-feedback">
+          {notice}
+        </p>
+      ) : null}
+      {mutationError ? (
+        <p role="alert" className="error-message">
+          {mutationError.message}
+        </p>
+      ) : null}
+      <form
+        className="toolbar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          setNotice("");
+          createIngredient.mutate();
+        }}
+      >
+        <label>
+          Neue Zutat
+          <input
+            required
+            value={newIngredientName}
+            onChange={(event) => setNewIngredientName(event.target.value)}
+          />
+        </label>
+        <button
+          className="primary-action"
+          type="submit"
+          disabled={createIngredient.isPending}
+        >
+          {createIngredient.isPending
+            ? "Zutat wird angelegt …"
+            : "Zutat anlegen"}
+        </button>
+      </form>
+      <QueryState loading={ingredients.isLoading} error={ingredients.error} />
+      {ingredients.data?.length ? (
+        <ul className="ingredient-list">
+          {ingredients.data.map((ingredient) => (
+            <li key={ingredient.id}>
+              <span>
+                <strong>{ingredient.name}</strong>
+                <small>Version {ingredient.version}</small>
+              </span>
+              <button
+                className="text-action"
+                type="button"
+                onClick={() => {
+                  setRenameIngredient(ingredient);
+                  setRenameName(ingredient.name);
+                  setNotice("");
+                }}
+              >
+                {ingredient.name} umbenennen
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        !ingredients.isLoading && (
+          <p className="empty-state">Noch keine Zutat vorhanden.</p>
+        )
+      )}
+      {renameIngredient ? (
+        <form
+          className="schedule-create-form compact-form"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNotice("");
+            renameMutation.mutate();
+          }}
+        >
+          <h3>{renameIngredient.name} umbenennen</h3>
+          <label>
+            Neuer Name für {renameIngredient.name}
+            <input
+              required
+              value={renameName}
+              onChange={(event) => setRenameName(event.target.value)}
+            />
+          </label>
+          <div className="toolbar">
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={renameMutation.isPending}
+            >
+              Neuen Namen speichern
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => setRenameIngredient(null)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
+      <form
+        className="schedule-create-form ingredient-merge-form"
+        aria-labelledby="ingredient-merge-heading"
+        onSubmit={(event) => {
+          event.preventDefault();
+          previewMerge.mutate();
+        }}
+      >
+        <h3 id="ingredient-merge-heading">Doppelte Zutaten zusammenführen</h3>
+        <p className="form-hint">
+          Die doppelte Zutat wird nach der Bestätigung nicht mehr angeboten. Die
+          Zielzutat bleibt erhalten.
+        </p>
+        <div className="schedule-create-grid schedule-all-day-grid">
+          <label>
+            Doppelte Zutat
+            <select
+              required
+              value={sourceIngredientId}
+              onChange={(event) => {
+                setSourceIngredientId(event.target.value);
+                previewMerge.reset();
+                setMergeConfirmed(false);
+              }}
+            >
+              <option value="">Bitte wählen</option>
+              {ingredients.data?.map((ingredient) => (
+                <option key={ingredient.id} value={ingredient.id}>
+                  {ingredient.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Zielzutat
+            <select
+              required
+              value={targetIngredientId}
+              onChange={(event) => {
+                setTargetIngredientId(event.target.value);
+                previewMerge.reset();
+                setMergeConfirmed(false);
+              }}
+            >
+              <option value="">Bitte wählen</option>
+              {ingredients.data?.map((ingredient) => (
+                <option key={ingredient.id} value={ingredient.id}>
+                  {ingredient.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <button
+          className="secondary-action"
+          type="submit"
+          disabled={
+            previewMerge.isPending ||
+            !sourceIngredientId ||
+            !targetIngredientId ||
+            sourceIngredientId === targetIngredientId
+          }
+        >
+          {previewMerge.isPending
+            ? "Zusammenführung wird geprüft …"
+            : "Zusammenführung prüfen"}
+        </button>
+        {previewMerge.data ? (
+          <section
+            className="merge-preview"
+            aria-labelledby="merge-preview-heading"
+          >
+            <h4 id="merge-preview-heading">
+              Auswirkung: {previewMerge.data.source.name} →{" "}
+              {previewMerge.data.target.name}
+            </h4>
+            {previewMerge.data.affectedRecipes.length ? (
+              <>
+                <p>Folgende aktuelle Rezepte erhalten eine neue Version:</p>
+                <ul>
+                  {previewMerge.data.affectedRecipes.map((recipe) => (
+                    <li key={recipe.id}>
+                      {recipe.name} · Version {recipe.currentVersionNumber}
+                    </li>
+                  ))}
+                </ul>
+              </>
+            ) : (
+              <p>Kein aktuelles Rezept ist betroffen.</p>
+            )}
+            <p>
+              Bereits gespeicherte Mahlzeiten-Snapshots bleiben unverändert.
+            </p>
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={mergeConfirmed}
+                onChange={(event) => setMergeConfirmed(event.target.checked)}
+              />
+              Ich habe die betroffenen Rezepte geprüft.
+            </label>
+            <button
+              className="danger-action"
+              type="button"
+              disabled={!mergeConfirmed || mergeIngredients.isPending}
+              onClick={() => mergeIngredients.mutate()}
+            >
+              {mergeIngredients.isPending
+                ? "Zutaten werden zusammengeführt …"
+                : "Zusammenführung bestätigen"}
+            </button>
+          </section>
+        ) : null}
+      </form>
+    </section>
+  );
+}
+
 function MealsPage({ offline }: { offline: boolean }) {
   const { organizationId, organizationRole, campId } = useCampRuntime();
   const canManageLibrary = organizationRole === 0 || organizationRole === 1;
@@ -1938,6 +2326,7 @@ function MealsPage({ offline }: { offline: boolean }) {
     retry: false,
   });
   const [showRecipeForm, setShowRecipeForm] = useState(false);
+  const [showIngredientLibrary, setShowIngredientLibrary] = useState(false);
   const [recipeName, setRecipeName] = useState("");
   const [recipeDescription, setRecipeDescription] = useState("");
   const [recipePreparation, setRecipePreparation] = useState("");
@@ -2079,10 +2468,31 @@ function MealsPage({ offline }: { offline: boolean }) {
           }
           onClick={() => {
             setShowRecipeForm((current) => !current);
+            setShowIngredientLibrary(false);
             setRecipeNotice("");
           }}
         >
           {showRecipeForm ? "Rezeptformular schließen" : "Rezept anlegen"}
+        </button>
+        <button
+          type="button"
+          className="secondary-action"
+          disabled={offline || !canManageLibrary}
+          aria-expanded={showIngredientLibrary}
+          title={
+            canManageLibrary
+              ? undefined
+              : "Nur Owner und Organisations-Admins verwalten Zutaten."
+          }
+          onClick={() => {
+            setShowIngredientLibrary((current) => !current);
+            setShowRecipeForm(false);
+            setRecipeNotice("");
+          }}
+        >
+          {showIngredientLibrary
+            ? "Zutatenverwaltung schließen"
+            : "Zutaten verwalten"}
         </button>
         <label className="search-field">
           Rezepte suchen
@@ -2094,6 +2504,12 @@ function MealsPage({ offline }: { offline: boolean }) {
           />
         </label>
       </div>
+      {showIngredientLibrary ? (
+        <IngredientLibraryPanel
+          organizationId={organizationId}
+          onClose={() => setShowIngredientLibrary(false)}
+        />
+      ) : null}
       {recipeNotice ? (
         <p className="form-feedback" role="status">
           {recipeNotice}

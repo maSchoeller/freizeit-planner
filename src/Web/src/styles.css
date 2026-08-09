@@ -888,6 +888,55 @@ button:disabled {
 .recipe-ingredient-row .text-action {
   grid-column: 1 / -1;
 }
+.ingredient-management {
+  margin-bottom: 1.25rem;
+  background: var(--sky-100);
+}
+.ingredient-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 1rem 0;
+  padding: 0;
+  list-style: none;
+}
+.ingredient-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--white);
+}
+.ingredient-list li > span {
+  display: grid;
+  gap: 0.2rem;
+}
+.ingredient-list small {
+  color: #587270;
+}
+.text-action {
+  border: 0;
+  color: var(--petrol-700);
+  background: transparent;
+  text-decoration: underline;
+  text-underline-offset: 0.18rem;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.merge-preview {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 2px solid #d6a349;
+  border-radius: 0.65rem;
+  background: #fffaf0;
+}
+.merge-preview > * {
+  margin-block: 0;
+}
 .schedule-create-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -913,6 +962,10 @@ button:disabled {
   .recipe-ingredient-row h3,
   .recipe-ingredient-row .text-action {
     grid-column: auto;
+  }
+  .ingredient-list li {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }
 .membership-list {

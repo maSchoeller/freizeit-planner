@@ -445,6 +445,182 @@ describe("camp workspace", () => {
     });
   });
 
+  it("manages ingredients through previewed version-safe mutations", async () => {
+    const sourceId = "41000000-0000-0000-0000-000000000001";
+    const targetId = "41000000-0000-0000-0000-000000000002";
+    const source = {
+      id: sourceId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      name: "Tomatenstücke",
+      isMerged: false,
+      mergedIntoIngredientId: null,
+      version: 3,
+    };
+    const target = {
+      ...source,
+      id: targetId,
+      name: "Tomaten",
+      version: 5,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.includes("/catering/ingredients?query=&limit=100"))
+          return Promise.resolve(
+            new Response(JSON.stringify([source, target]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/catering/ingredients"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...source,
+                id: "41000000-0000-0000-0000-000000000003",
+                name: "Paprika",
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (init?.method === "PUT" && path.endsWith(`/ingredients/${sourceId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ ...source, name: "Tomatenwürfel", version: 4 }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/ingredients/merge-preview"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                source,
+                target,
+                affectedRecipes: [
+                  {
+                    id: "42000000-0000-0000-0000-000000000001",
+                    organizationId: source.organizationId,
+                    name: "Tomatensuppe",
+                    basePortions: 8,
+                    currentVersionNumber: 2,
+                    version: 2,
+                  },
+                ],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/ingredients/merge"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                target: { ...target, version: 6 },
+                revisedRecipeIds: [],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(screen.getByRole("button", { name: "Zutaten verwalten" }));
+    expect(
+      await screen.findByRole("heading", {
+        name: "Zutatenbibliothek verwalten",
+      }),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Neue Zutat" }),
+      "Paprika",
+    );
+    await user.click(screen.getByRole("button", { name: "Zutat anlegen" }));
+    expect(await screen.findByText("Paprika wurde angelegt.")).toHaveAttribute(
+      "role",
+      "status",
+    );
+
+    await user.click(
+      screen.getByRole("button", { name: "Tomatenstücke umbenennen" }),
+    );
+    const rename = screen.getByRole("textbox", {
+      name: "Neuer Name für Tomatenstücke",
+    });
+    await user.clear(rename);
+    await user.type(rename, "Tomatenwürfel");
+    await user.click(
+      screen.getByRole("button", { name: "Neuen Namen speichern" }),
+    );
+    expect(
+      await screen.findByText("Tomatenwürfel wurde gespeichert."),
+    ).toBeInTheDocument();
+
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Doppelte Zutat" }),
+      sourceId,
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Zielzutat" }),
+      targetId,
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Zusammenführung prüfen" }),
+    );
+    expect(
+      await screen.findByText("Tomatensuppe · Version 2"),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Ich habe die betroffenen Rezepte geprüft.",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Zusammenführung bestätigen" }),
+    );
+    expect(
+      await screen.findByText(
+        "Tomatenstücke wurde kontrolliert in Tomaten zusammengeführt.",
+      ),
+    ).toBeInTheDocument();
+
+    const renameCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/ingredients/${sourceId}`) &&
+        init?.method === "PUT",
+    );
+    expect(renameCall?.[1]?.headers).toMatchObject({
+      "If-Match": '"3"',
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    const mergeCall = fetchMock.mock.calls.find(([request]) =>
+      requestPath(request).endsWith("/ingredients/merge"),
+    );
+    expect(typeof mergeCall?.[1]?.body).toBe("string");
+    expect(JSON.parse(mergeCall?.[1]?.body as string)).toMatchObject({
+      sourceIngredientId: sourceId,
+      targetIngredientId: targetId,
+      expectedSourceVersion: 3,
+      expectedTargetVersion: 5,
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

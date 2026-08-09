@@ -19,6 +19,18 @@ Mehrere Ernährungs-Tags werden mit Komma oder Semikolon getrennt. Allergen- und
 gepflegte Planungshinweise und keine medizinische Garantie. **Rezept speichern** legt eine neue unveränderliche
 Rezeptversion an.
 
+## Zutaten verwalten
+
+Owner und Organisations-Admins öffnen **Zutaten verwalten**. Neue Namen werden vereinheitlicht; Schreibweise,
+Unicode-Varianten oder mehrfach gesetzte Leerzeichen erzeugen deshalb keine unbemerkten Duplikate. Beim Umbenennen
+wird die angezeigte Version geprüft. Ist die Zutat inzwischen geändert worden, lade den aktuellen Stand und prüfe
+deine Änderung erneut.
+
+Für ein kontrolliertes Zusammenführen wählst du zuerst die doppelte Zutat und danach die Zielzutat. Mit
+**Zusammenführung prüfen** siehst du alle aktuellen Rezepte, die eine neue Version erhalten würden. Bereits
+gespeicherte Mahlzeiten-Snapshots bleiben unverändert. Erst nach der ausdrücklichen Bestätigung kann die doppelte
+Zutat in die Zielzutat überführt werden.
+
 ## Bibliothek und Camp-Snapshots
 
 Die Suche oberhalb der Bibliothek filtert Rezepte nach ihrem Namen. Wird ein Bibliotheksrezept einer Mahlzeit

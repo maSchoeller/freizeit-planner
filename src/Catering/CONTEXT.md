@@ -18,6 +18,10 @@
 - The Camp workspace exposes the Organization recipe list and an Owner/Admin creation form. Ingredient search uses
   the library autocomplete endpoint; submitted rows carry positive decimal values, one of the six supported unit
   variants, optional named-count labels and notes. Every create sends antiforgery to the resolved Organization route.
+- Owner/Admin ingredient management lists active normalized names, creates and renames through antiforgery, and sends
+  the current numeric Version as `If-Match` for rename. Merge remains a two-step workflow: preview returns current
+  source/target versions and affected recipes; the destructive confirmation uses exactly those CAS versions and
+  reiterates that existing meal snapshots remain unchanged.
 - `ICampMealPlanning` owns meal CRUD, nullable portion overrides, copied recipe snapshots and the only explicit
   snapshot refresh operation. Meal deletion is a versioned 30-day soft delete; manager-only trash browsing and
   restore recheck Camp archive state, deadline and optimistic concurrency. `ICampCateringContext` is the inbound
