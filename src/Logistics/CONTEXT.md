@@ -19,6 +19,12 @@
   and is the polling/ETag value. List deletion is a 30-day soft delete that retains every item. Individual item
   deletion also preserves the full item and its check audit for 30 days. Only managers can browse or restore either
   lifecycle. Item `Version` protects independent item edits, check actions, deletion and restore.
+- The Camp Logistics page reads real material summaries and shopping lists, creates named lists and opens one list
+  with its unified source-aware items. Writers can add positive-decimal spontaneous items with standard or named
+  custom units, optional store/note and the current list Version as `If-Match`. Check/reopen sends the independent
+  item Version, updates the local list and counters immediately, and displays the checking Camp member plus server
+  timestamp. List summaries and the selected detail poll every 15 seconds and refetch on window focus; archived Camp
+  workspaces remain read-only.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
 - The host-composed meal transfer UI reads Catering-owned draft lines without exposing module internals, offers any

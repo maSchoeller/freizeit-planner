@@ -584,6 +584,40 @@ type ShoppingListSummary = {
   version: number;
   changeSequence: number;
 };
+type LogisticsQuantity = {
+  value: number;
+  unit: number;
+  customUnitName: string | null;
+};
+type ShoppingItem = {
+  id: string;
+  shoppingListId: string;
+  name: string;
+  quantity: LogisticsQuantity;
+  responsibleUserIds: string[];
+  store: string | null;
+  note: string | null;
+  source: { kind: number; label: string };
+  isChecked: boolean;
+  checkedByUserId: string | null;
+  checkedAt: string | null;
+  version: number;
+};
+type ShoppingList = {
+  id: string;
+  organizationId: string;
+  campId: string;
+  name: string;
+  items: ShoppingItem[];
+  version: number;
+  changeSequence: number;
+};
+type ShoppingListChange = {
+  shoppingListId: string;
+  listVersion: number;
+  changeSequence: number;
+  item: ShoppingItem | null;
+};
 type MealShoppingLine = {
   recipeSnapshotId: string;
   snapshotIngredientId: string;
@@ -646,7 +680,7 @@ async function getJson<T>(path: string): Promise<T> {
 
 async function mutateCateringJson<T>(
   path: string,
-  method: "POST" | "PUT" | "DELETE",
+  method: "POST" | "PUT" | "PATCH" | "DELETE",
   body: unknown,
   version?: number,
   conflictMessage?: string,
@@ -3133,8 +3167,33 @@ const shoppingUnitLabels: Record<number, string> = {
   2: "Milliliter",
   3: "Liter",
   4: "Stück",
-  5: "Benannte Zähleinheit",
+  5: "Benutzerdefinierte Einheit",
 };
+
+const materialStatusLabels: Record<number, string> = {
+  0: "Offen",
+  1: "Geplant",
+  2: "Beschafft",
+  3: "Nicht benötigt",
+};
+
+function formatLogisticsQuantity(quantity: LogisticsQuantity) {
+  const value = new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 6,
+  }).format(quantity.value);
+  const unit =
+    quantity.unit === 5
+      ? (quantity.customUnitName ?? shoppingUnitLabels[quantity.unit])
+      : shoppingUnitLabels[quantity.unit];
+  return `${value} ${unit}`;
+}
+
+function formatGermanDateTime(value: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
 
 function MealShoppingTransferPanel({
   organizationId,
@@ -4612,24 +4671,191 @@ function MealsPage({ offline }: { offline: boolean }) {
 }
 
 function LogisticsPage({ offline }: { offline: boolean }) {
-  const [checked, setChecked] = useState(() => new Set<string>());
-  const items = [
-    "12 kg Kartoffeln",
-    "6 Kisten Mineralwasser",
-    "20 Holzlatten",
-    "4 Rollen Gewebeband",
-  ];
-  useEffect(() => {
-    const refresh = () => {
-      /* focus-triggered polling refreshes server data in the connected view */
-    };
-    window.addEventListener("focus", refresh);
-    const timer = window.setInterval(refresh, 15_000);
-    return () => {
-      window.removeEventListener("focus", refresh);
-      window.clearInterval(timer);
-    };
-  }, []);
+  const { organizationId, campId } = useCampRuntime();
+  const queryClient = useQueryClient();
+  const basePath = `/api/v1/organizations/${organizationId}/camps/${campId}/logistics`;
+  const [selectedListId, setSelectedListId] = useState<string | null>(null);
+  const [listName, setListName] = useState("");
+  const [itemName, setItemName] = useState("");
+  const [itemQuantity, setItemQuantity] = useState("1");
+  const [itemUnit, setItemUnit] = useState("4");
+  const [itemCustomUnit, setItemCustomUnit] = useState("");
+  const [itemStore, setItemStore] = useState("");
+  const [itemNote, setItemNote] = useState("");
+  const [notice, setNotice] = useState("");
+  const material = useQuery({
+    queryKey: [organizationId, campId, "material"],
+    queryFn: () =>
+      getJson<MaterialRequirementSummary[]>(`${basePath}/material`),
+    retry: false,
+  });
+  const members = useQuery({
+    queryKey: [organizationId, campId, "responsibility-candidates"],
+    queryFn: () =>
+      getJson<CampMemberSummary[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/responsibility-candidates`,
+      ),
+    retry: false,
+  });
+  const shoppingLists = useQuery({
+    queryKey: [organizationId, campId, "shopping-lists"],
+    queryFn: () => getJson<ShoppingListSummary[]>(`${basePath}/shopping-lists`),
+    retry: false,
+    refetchInterval: offline ? false : 15_000,
+    refetchOnWindowFocus: !offline,
+  });
+  const selectedList = useQuery({
+    queryKey: [organizationId, campId, "shopping-list", selectedListId],
+    queryFn: () =>
+      getJson<ShoppingList>(`${basePath}/shopping-lists/${selectedListId}`),
+    enabled: selectedListId !== null,
+    retry: false,
+    refetchInterval: offline ? false : 15_000,
+    refetchOnWindowFocus: !offline,
+  });
+  const updateListSummary = (
+    listId: string,
+    update: (summary: ShoppingListSummary) => ShoppingListSummary,
+  ) =>
+    queryClient.setQueryData<ShoppingListSummary[]>(
+      [organizationId, campId, "shopping-lists"],
+      (current) =>
+        current?.map((summary) =>
+          summary.id === listId ? update(summary) : summary,
+        ),
+    );
+  const applyChange = (change: ShoppingListChange) => {
+    queryClient.setQueryData<ShoppingList>(
+      [organizationId, campId, "shopping-list", change.shoppingListId],
+      (current) => {
+        if (!current || !change.item) return current;
+        const exists = current.items.some(
+          (item) => item.id === change.item?.id,
+        );
+        return {
+          ...current,
+          version: change.listVersion,
+          changeSequence: change.changeSequence,
+          items: exists
+            ? current.items.map((item) =>
+                item.id === change.item?.id ? change.item : item,
+              )
+            : [...current.items, change.item],
+        };
+      },
+    );
+  };
+  const createList = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<ShoppingList>(`${basePath}/shopping-lists`, "POST", {
+        name: listName,
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData<ShoppingListSummary[]>(
+        [organizationId, campId, "shopping-lists"],
+        (current) => [
+          ...(current ?? []),
+          {
+            id: created.id,
+            name: created.name,
+            openItemCount: 0,
+            checkedItemCount: 0,
+            version: created.version,
+            changeSequence: created.changeSequence,
+          },
+        ],
+      );
+      queryClient.setQueryData(
+        [organizationId, campId, "shopping-list", created.id],
+        created,
+      );
+      setSelectedListId(created.id);
+      setListName("");
+      setNotice(`${created.name} wurde angelegt.`);
+    },
+  });
+  const addItem = useMutation({
+    mutationFn: () => {
+      const current = selectedList.data;
+      if (!current) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      return mutateCateringJson<ShoppingListChange>(
+        `${basePath}/shopping-lists/${current.id}/items`,
+        "POST",
+        {
+          name: itemName,
+          quantity: {
+            value: Number(itemQuantity),
+            unit: Number(itemUnit),
+            customUnitName: itemUnit === "5" ? itemCustomUnit : null,
+          },
+          responsibleUserIds: [],
+          store: itemStore || null,
+          note: itemNote || null,
+        },
+        current.version,
+        "Die Einkaufsliste wurde zwischenzeitlich geändert. Prüfe die aktuelle Liste und versuche es erneut.",
+      );
+    },
+    onSuccess: (change) => {
+      applyChange(change);
+      updateListSummary(change.shoppingListId, (summary) => ({
+        ...summary,
+        openItemCount: summary.openItemCount + 1,
+        version: change.listVersion,
+        changeSequence: change.changeSequence,
+      }));
+      setNotice(`${change.item?.name ?? itemName} wurde hinzugefügt.`);
+      setItemName("");
+      setItemQuantity("1");
+      setItemUnit("4");
+      setItemCustomUnit("");
+      setItemStore("");
+      setItemNote("");
+    },
+  });
+  const checkItem = useMutation({
+    mutationFn: ({
+      item,
+      isChecked,
+    }: {
+      item: ShoppingItem;
+      isChecked: boolean;
+    }) => {
+      if (!selectedListId) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      return mutateCateringJson<ShoppingListChange>(
+        `${basePath}/shopping-lists/${selectedListId}/items/${item.id}/checked`,
+        "PATCH",
+        { isChecked },
+        item.version,
+        "Die Position wurde zwischenzeitlich geändert. Die aktuelle Liste wird erneut geladen.",
+      );
+    },
+    onSuccess: (change, variables) => {
+      applyChange(change);
+      updateListSummary(change.shoppingListId, (summary) => ({
+        ...summary,
+        openItemCount: Math.max(
+          0,
+          summary.openItemCount + (variables.isChecked ? -1 : 1),
+        ),
+        checkedItemCount: Math.max(
+          0,
+          summary.checkedItemCount + (variables.isChecked ? 1 : -1),
+        ),
+        version: change.listVersion,
+        changeSequence: change.changeSequence,
+      }));
+      setNotice(
+        `${change.item?.name ?? variables.item.name} wurde ${variables.isChecked ? "abgehakt" : "wieder geöffnet"}.`,
+      );
+    },
+    onError: async () => {
+      await selectedList.refetch();
+    },
+  });
+  const memberNames = new Map(
+    (members.data ?? []).map((member) => [member.userId, member.displayName]),
+  );
   return (
     <>
       <PageHeading eyebrow="Logistik" title="Material & Einkaufslisten">
@@ -4638,59 +4864,268 @@ function LogisticsPage({ offline }: { offline: boolean }) {
           nachvollziehbaren Listen.
         </p>
       </PageHeading>
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
       <div className="split-view">
         <section className="settings-section">
           <div className="section-heading">
             <h2>Materialbedarf</h2>
-            <button className="primary-action" disabled={offline}>
-              Material hinzufügen
-            </button>
           </div>
+          <QueryState loading={material.isLoading} error={material.error} />
           <ul className="detail-list">
-            <li>
-              <strong>Beamer und Leinwand</strong>
-              <span>Andachtsraum · Jonas · Vorhanden</span>
-            </li>
-            <li>
-              <strong>Holzlatten</strong>
-              <span>Geländespiel · Miriam · Einkaufen</span>
-            </li>
-          </ul>
-        </section>
-        <section className="settings-section">
-          <div className="section-heading">
-            <h2>Einkauf „Großeinkauf Dienstag“</h2>
-            <span className="status">{items.length - checked.size} offen</span>
-          </div>
-          <ul className="check-list">
-            {items.map((item) => (
-              <li key={item}>
-                <label>
-                  <input
-                    type="checkbox"
-                    checked={checked.has(item)}
-                    disabled={offline}
-                    onChange={() =>
-                      setChecked((previous) => {
-                        const next = new Set(previous);
-                        if (next.has(item)) next.delete(item);
-                        else next.add(item);
-                        return next;
-                      })
-                    }
-                  />
-                  <span>{item}</span>
-                </label>
-                <small>
-                  {checked.has(item)
-                    ? "Abgehakt von Miriam · gerade eben"
-                    : "Quelle nachvollziehbar"}
-                </small>
+            {material.data?.map((requirement) => (
+              <li key={requirement.id}>
+                <strong>{requirement.name}</strong>
+                <span>
+                  {materialStatusLabels[requirement.status] ?? "Offen"}
+                </span>
               </li>
             ))}
           </ul>
+          {!material.isLoading && material.data?.length === 0 ? (
+            <p className="empty-state">Noch kein Materialbedarf geplant.</p>
+          ) : null}
+        </section>
+        <section className="settings-section">
+          <div className="section-heading">
+            <h2>Einkaufslisten</h2>
+            <span className="status">Aktualisierung alle 15 Sekunden</span>
+          </div>
+          <QueryState
+            loading={shoppingLists.isLoading}
+            error={shoppingLists.error}
+          />
+          {!offline ? (
+            <form
+              className="shopping-list-create"
+              onSubmit={(event) => {
+                event.preventDefault();
+                setNotice("");
+                createList.mutate();
+              }}
+            >
+              <label>
+                Name der neuen Einkaufsliste
+                <input
+                  required
+                  value={listName}
+                  onChange={(event) => setListName(event.target.value)}
+                />
+              </label>
+              <button
+                type="submit"
+                className="primary-action"
+                disabled={createList.isPending}
+              >
+                Einkaufsliste anlegen
+              </button>
+            </form>
+          ) : null}
+          {createList.error ? (
+            <p role="alert" className="error-message">
+              {createList.error.message}
+            </p>
+          ) : null}
+          <div className="shopping-list-summaries">
+            {shoppingLists.data?.map((list) => (
+              <article className="card" key={list.id}>
+                <p className="eyebrow">
+                  {list.openItemCount} offen · {list.checkedItemCount} erledigt
+                </p>
+                <h3>{list.name}</h3>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  aria-label={`${list.name} öffnen`}
+                  aria-expanded={selectedListId === list.id}
+                  onClick={() => {
+                    setSelectedListId(list.id);
+                    setNotice("");
+                  }}
+                >
+                  Liste öffnen
+                </button>
+              </article>
+            ))}
+          </div>
+          {!shoppingLists.isLoading && shoppingLists.data?.length === 0 ? (
+            <p className="empty-state">Noch keine Einkaufsliste vorhanden.</p>
+          ) : null}
         </section>
       </div>
+      {selectedListId ? (
+        <section
+          className="settings-section shopping-list-detail"
+          aria-label="Geöffnete Einkaufsliste"
+        >
+          <QueryState
+            loading={selectedList.isLoading}
+            error={selectedList.error}
+          />
+          {selectedList.data ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">
+                    {
+                      selectedList.data.items.filter((item) => !item.isChecked)
+                        .length
+                    }{" "}
+                    offen
+                  </p>
+                  <h2>{selectedList.data.name}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setSelectedListId(null)}
+                >
+                  Liste schließen
+                </button>
+              </div>
+              {!offline ? (
+                <form
+                  className="schedule-create-form shopping-item-create"
+                  aria-label="Spontane Einkaufsposition"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    addItem.mutate();
+                  }}
+                >
+                  <h3>Spontane Position</h3>
+                  <div className="camp-form-grid">
+                    <label>
+                      Bezeichnung der spontanen Position
+                      <input
+                        required
+                        value={itemName}
+                        onChange={(event) => setItemName(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Menge der spontanen Position
+                      <input
+                        required
+                        type="number"
+                        min="0.000001"
+                        step="any"
+                        inputMode="decimal"
+                        value={itemQuantity}
+                        onChange={(event) =>
+                          setItemQuantity(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Einheit der spontanen Position
+                      <select
+                        value={itemUnit}
+                        onChange={(event) => setItemUnit(event.target.value)}
+                      >
+                        {Object.entries(shoppingUnitLabels).map(
+                          ([unit, label]) => (
+                            <option key={unit} value={unit}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    {itemUnit === "5" ? (
+                      <label>
+                        Name der benutzerdefinierten Einheit
+                        <input
+                          required
+                          value={itemCustomUnit}
+                          onChange={(event) =>
+                            setItemCustomUnit(event.target.value)
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label>
+                      Geschäft (optional)
+                      <input
+                        value={itemStore}
+                        onChange={(event) => setItemStore(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Notiz (optional)
+                      <input
+                        value={itemNote}
+                        onChange={(event) => setItemNote(event.target.value)}
+                      />
+                    </label>
+                  </div>
+                  {addItem.error ? (
+                    <p role="alert" className="error-message">
+                      {addItem.error.message}
+                    </p>
+                  ) : null}
+                  <button
+                    type="submit"
+                    className="primary-action"
+                    disabled={addItem.isPending}
+                  >
+                    Spontane Position hinzufügen
+                  </button>
+                </form>
+              ) : null}
+              <ul className="check-list shopping-items">
+                {selectedList.data.items.map((item) => (
+                  <li key={item.id}>
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={item.isChecked}
+                        disabled={offline || checkItem.isPending}
+                        aria-label={`${item.name} ${item.isChecked ? "wieder öffnen" : "abhaken"}`}
+                        onChange={(event) =>
+                          checkItem.mutate({
+                            item,
+                            isChecked: event.target.checked,
+                          })
+                        }
+                      />
+                      <span>
+                        {formatLogisticsQuantity(item.quantity)} {item.name}
+                      </span>
+                    </label>
+                    <small>Quelle: {item.source.label}</small>
+                    {item.store ? <small>Geschäft: {item.store}</small> : null}
+                    {item.note ? <small>Notiz: {item.note}</small> : null}
+                    {item.checkedAt ? (
+                      <small>
+                        Abgehakt von{" "}
+                        {item.checkedByUserId
+                          ? (memberNames.get(item.checkedByUserId) ??
+                            "einem Camp-Mitglied")
+                          : "einem Camp-Mitglied"}{" "}
+                        am {formatGermanDateTime(item.checkedAt)}
+                      </small>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+              {selectedList.data.items.length === 0 ? (
+                <p className="empty-state">
+                  Diese Einkaufsliste enthält noch keine Position.
+                </p>
+              ) : null}
+              {checkItem.error ? (
+                <p role="alert" className="error-message">
+                  {checkItem.error.message}
+                </p>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
     </>
   );
 }

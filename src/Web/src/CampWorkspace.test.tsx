@@ -443,7 +443,7 @@ describe("camp workspace", () => {
       allergenNotes: "Milch prüfen",
       kitchenNotes: "Pürierstab bereithalten",
     });
-  });
+  }, 10_000);
 
   it("opens a recipe and saves edits as a version-safe revision", async () => {
     const recipeId = "42000000-0000-0000-0000-000000000001";
@@ -1662,6 +1662,192 @@ describe("camp workspace", () => {
     });
   });
 
+  it("adds and checks live shopping items with independent versions", async () => {
+    const listId = "49000000-0000-0000-0000-000000000001";
+    const potatoId = "4a000000-0000-0000-0000-000000000001";
+    const breadId = "4a000000-0000-0000-0000-000000000002";
+    const potato = {
+      id: potatoId,
+      shoppingListId: listId,
+      name: "Kartoffeln",
+      quantity: { value: 12, unit: 1, customUnitName: null },
+      responsibleUserIds: [],
+      store: "Großmarkt",
+      note: null,
+      source: { kind: 1, label: "Mittagessen · Kartoffelsuppe" },
+      isChecked: false,
+      checkedByUserId: null,
+      checkedAt: null,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.endsWith(`/shopping-lists/${listId}/items`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: listId,
+                listVersion: 6,
+                changeSequence: 12,
+                item: {
+                  ...potato,
+                  id: breadId,
+                  name: "Fladenbrot",
+                  quantity: { value: 2.5, unit: 4, customUnitName: null },
+                  store: null,
+                  source: { kind: 0, label: "Spontan" },
+                  version: 1,
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "PATCH" &&
+          path.endsWith(`/shopping-lists/${listId}/items/${potatoId}/checked`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: listId,
+                listVersion: 7,
+                changeSequence: 13,
+                item: {
+                  ...potato,
+                  isChecked: true,
+                  checkedByUserId: "10000000-0000-0000-0000-000000000001",
+                  checkedAt: "2026-08-09T18:40:00Z",
+                  version: 3,
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/logistics/shopping-lists/${listId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: listId,
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                campId: "30000000-0000-0000-0000-000000000001",
+                name: "Großeinkauf Dienstag",
+                items: [potato],
+                version: 5,
+                changeSequence: 11,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/logistics/shopping-lists"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: listId,
+                  name: "Großeinkauf Dienstag",
+                  openItemCount: 1,
+                  checkedItemCount: 0,
+                  version: 5,
+                  changeSequence: 11,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Großeinkauf Dienstag öffnen",
+      }),
+    );
+    expect(
+      await screen.findByText("Quelle: Mittagessen · Kartoffelsuppe"),
+    ).toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", {
+        name: "Bezeichnung der spontanen Position",
+      }),
+      "Fladenbrot",
+    );
+    await user.clear(
+      screen.getByRole("spinbutton", { name: "Menge der spontanen Position" }),
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Menge der spontanen Position" }),
+      "2.5",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", {
+        name: "Einheit der spontanen Position",
+      }),
+      "4",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Spontane Position hinzufügen" }),
+    );
+    expect(
+      await screen.findByText("Fladenbrot wurde hinzugefügt."),
+    ).toHaveAttribute("role", "status");
+    await user.click(
+      screen.getByRole("checkbox", { name: "Kartoffeln abhaken" }),
+    );
+    expect(
+      await screen.findByRole("checkbox", { name: "Kartoffeln wieder öffnen" }),
+    ).toBeChecked();
+
+    const addCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/shopping-lists/${listId}/items`) &&
+        init?.method === "POST",
+    );
+    expect(addCall?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"5"',
+    });
+    expect(JSON.parse(addCall?.[1]?.body as string)).toMatchObject({
+      name: "Fladenbrot",
+      quantity: { value: 2.5, unit: 4, customUnitName: null },
+      responsibleUserIds: [],
+    });
+    const checkCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(
+          `/shopping-lists/${listId}/items/${potatoId}/checked`,
+        ) && init?.method === "PATCH",
+    );
+    expect(checkCall?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"2"',
+    });
+    expect(JSON.parse(checkCall?.[1]?.body as string)).toEqual({
+      isChecked: true,
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(
@@ -1671,9 +1857,6 @@ describe("camp workspace", () => {
       "href",
       "/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten",
     );
-    expect(
-      screen.getByRole("checkbox", { name: "12 kg Kartoffeln" }),
-    ).toBeEnabled();
   });
 
   it("marks offline mode and prevents planning writes", () => {

@@ -35,6 +35,10 @@ export default defineConfig({
             link: "/essen-rezepte",
           },
           {
+            text: "Material und Einkauf",
+            link: "/material-einkauf",
+          },
+          {
             text: "Suche, Aktivität, Druck und CSV",
             link: "/suche-aktivitaet-export",
           },
