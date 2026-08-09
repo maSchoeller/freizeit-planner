@@ -19,6 +19,18 @@ Mehrere Ernährungs-Tags werden mit Komma oder Semikolon getrennt. Allergen- und
 gepflegte Planungshinweise und keine medizinische Garantie. **Rezept speichern** legt eine neue unveränderliche
 Rezeptversion an.
 
+## Rezept öffnen und überarbeiten
+
+Mit **Rezept öffnen** siehst du die vollständige aktuelle Version: Beschreibung, Zubereitung, Basisportionen,
+Zutatenmengen, Ernährungs-Tags sowie Allergen- und Küchenhinweise. Owner und Organisations-Admins können anschließend
+**Rezept bearbeiten** wählen. Alle bisherigen Angaben werden in das Formular übernommen; Zutaten lassen sich dort
+ergänzen, ändern oder entfernen.
+
+**Neue Rezeptversion speichern** überschreibt keinen alten Stand, sondern legt eine weitere unveränderliche Version
+an. Bereits in Mahlzeiten verwendete Rezept-Snapshots bleiben unverändert. Wurde das Rezept während deiner
+Bearbeitung bereits von jemand anderem geändert, schließe die Bearbeitung, öffne den aktuellen Stand erneut und
+prüfe deine Änderungen, bevor du sie noch einmal speicherst.
+
 ## Zutaten verwalten
 
 Owner und Organisations-Admins öffnen **Zutaten verwalten**. Neue Namen werden vereinheitlicht; Schreibweise,

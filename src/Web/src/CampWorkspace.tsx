@@ -448,11 +448,41 @@ type RecipeCreateResult = {
   version: number;
 };
 type RecipeIngredientDraft = {
-  ingredient: Ingredient;
+  ingredient: { id: string; name: string };
   quantity: string;
   unit: string;
   countUnitName: string;
   note: string;
+};
+type RecipeQuantity = {
+  value: number;
+  unit: number;
+  countUnitName: string | null;
+};
+type RecipeIngredient = {
+  id: string;
+  ingredientId: string;
+  ingredientName: string;
+  quantity: RecipeQuantity;
+  note: string | null;
+};
+type RecipeDetail = {
+  id: string;
+  organizationId: string;
+  currentVersion: {
+    id: string;
+    number: number;
+    name: string;
+    description: string;
+    preparation: string;
+    basePortions: number;
+    ingredients: RecipeIngredient[];
+    dietaryTags: string[];
+    allergenNotes: string | null;
+    kitchenNotes: string | null;
+    createdAt: string;
+  };
+  version: number;
 };
 type IngredientMergePreview = {
   source: Ingredient;
@@ -537,6 +567,7 @@ async function mutateCateringJson<T>(
   method: "POST" | "PUT",
   body: unknown,
   version?: number,
+  conflictMessage?: string,
 ) {
   const token = await getAntiforgeryToken();
   const headers: Record<string, string> = {
@@ -555,7 +586,9 @@ async function mutateCateringJson<T>(
       detail?: string;
     } | null;
     throw new Error(
-      problem?.detail ?? "Die Änderung konnte nicht gespeichert werden.",
+      problem?.detail ??
+        (response.status === 412 ? conflictMessage : undefined) ??
+        "Die Änderung konnte nicht gespeichert werden.",
     );
   }
   return (await response.json()) as T;
@@ -2311,6 +2344,486 @@ function IngredientLibraryPanel({
   );
 }
 
+const measurementUnitLabels = [
+  "Gramm",
+  "Kilogramm",
+  "Milliliter",
+  "Liter",
+  "Stück",
+] as const;
+
+function formatRecipeQuantity(quantity: RecipeQuantity) {
+  const value = new Intl.NumberFormat("de-DE", {
+    maximumFractionDigits: 3,
+  }).format(quantity.value);
+  const unit =
+    quantity.unit === 5
+      ? quantity.countUnitName || "Zähleinheit"
+      : measurementUnitLabels[quantity.unit] || "Einheit";
+  return `${value} ${unit}`;
+}
+
+function RecipeDetailPanel({
+  organizationId,
+  recipeId,
+  canManage,
+  readOnly,
+  onClose,
+}: {
+  organizationId: string;
+  recipeId: string;
+  canManage: boolean;
+  readOnly: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const detailQueryKey = [organizationId, "catering", "recipes", recipeId];
+  const recipe = useQuery({
+    queryKey: detailQueryKey,
+    queryFn: () =>
+      getJson<RecipeDetail>(
+        `/api/v1/organizations/${organizationId}/catering/recipes/${recipeId}`,
+      ),
+    retry: false,
+  });
+  const [editing, setEditing] = useState(false);
+  const [name, setName] = useState("");
+  const [description, setDescription] = useState("");
+  const [preparation, setPreparation] = useState("");
+  const [basePortions, setBasePortions] = useState("4");
+  const [dietaryTags, setDietaryTags] = useState("");
+  const [allergenNotes, setAllergenNotes] = useState("");
+  const [kitchenNotes, setKitchenNotes] = useState("");
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [ingredients, setIngredients] = useState<RecipeIngredientDraft[]>([]);
+  const [notice, setNotice] = useState("");
+  const ingredientSuggestions = useQuery({
+    queryKey: [
+      organizationId,
+      "catering",
+      "ingredients",
+      "recipe-edit",
+      ingredientSearch.trim(),
+    ],
+    queryFn: () =>
+      getJson<Ingredient[]>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients?query=${encodeURIComponent(ingredientSearch.trim())}&limit=10`,
+      ),
+    enabled: editing && ingredientSearch.trim().length >= 2,
+    retry: false,
+  });
+  const reviseRecipe = useMutation({
+    mutationFn: () => {
+      const current = recipe.data;
+      if (!current) throw new Error("Das Rezept ist noch nicht geladen.");
+      return mutateCateringJson<RecipeDetail>(
+        `/api/v1/organizations/${organizationId}/catering/recipes/${recipeId}`,
+        "PUT",
+        {
+          name,
+          description,
+          preparation,
+          basePortions: Number(basePortions),
+          ingredients: ingredients.map((row) => ({
+            ingredientId: row.ingredient.id,
+            quantity: {
+              value: Number(row.quantity),
+              unit: Number(row.unit),
+              countUnitName:
+                row.unit === "5" ? row.countUnitName || null : null,
+            },
+            note: row.note || null,
+          })),
+          dietaryTags: Array.from(
+            new Set(
+              dietaryTags
+                .split(/[,;\n]/)
+                .map((tag) => tag.trim())
+                .filter(Boolean),
+            ),
+          ),
+          allergenNotes: allergenNotes || null,
+          kitchenNotes: kitchenNotes || null,
+        },
+        current.version,
+        "Das Rezept wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne das Rezept erneut.",
+      );
+    },
+    onSuccess: async (revised) => {
+      queryClient.setQueryData(detailQueryKey, revised);
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, "catering", "recipes"],
+      });
+      setEditing(false);
+      setIngredientSearch("");
+      setNotice(
+        `${revised.currentVersion.name} wurde als Rezeptversion ${revised.currentVersion.number} gespeichert.`,
+      );
+    },
+  });
+  const beginEditing = () => {
+    const current = recipe.data?.currentVersion;
+    if (!current) return;
+    setName(current.name);
+    setDescription(current.description);
+    setPreparation(current.preparation);
+    setBasePortions(String(current.basePortions));
+    setDietaryTags(current.dietaryTags.join(", "));
+    setAllergenNotes(current.allergenNotes ?? "");
+    setKitchenNotes(current.kitchenNotes ?? "");
+    setIngredients(
+      current.ingredients.map((row) => ({
+        ingredient: { id: row.ingredientId, name: row.ingredientName },
+        quantity: String(row.quantity.value),
+        unit: String(row.quantity.unit),
+        countUnitName: row.quantity.countUnitName ?? "",
+        note: row.note ?? "",
+      })),
+    );
+    setIngredientSearch("");
+    setNotice("");
+    reviseRecipe.reset();
+    setEditing(true);
+  };
+  const updateIngredient = (
+    ingredientId: string,
+    changes: Partial<RecipeIngredientDraft>,
+  ) =>
+    setIngredients((current) =>
+      current.map((row) =>
+        row.ingredient.id === ingredientId ? { ...row, ...changes } : row,
+      ),
+    );
+  const current = recipe.data?.currentVersion;
+
+  return (
+    <section className="recipe-detail-panel" aria-label="Rezeptdetails">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">
+            {current ? `Aktuelle Version ${current.number}` : "Rezept"}
+          </p>
+          <h2>
+            {current ? `Rezeptdetails: ${current.name}` : "Rezept wird geladen"}
+          </h2>
+        </div>
+        <button type="button" className="secondary-action" onClick={onClose}>
+          Rezept schließen
+        </button>
+      </div>
+      <QueryState loading={recipe.isLoading} error={recipe.error} />
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {current && !editing ? (
+        <div className="recipe-detail-content">
+          <div className="recipe-detail-grid">
+            <section>
+              <h3>Beschreibung</h3>
+              <p>{current.description}</p>
+            </section>
+            <section>
+              <h3>Zubereitung</h3>
+              <p className="long-text">{current.preparation}</p>
+            </section>
+          </div>
+          <section>
+            <h3>Zutaten für {current.basePortions} Basisportionen</h3>
+            <ul className="recipe-detail-ingredients">
+              {current.ingredients.map((row) => (
+                <li key={row.id}>
+                  <span>
+                    {formatRecipeQuantity(row.quantity)} {row.ingredientName}
+                  </span>
+                  {row.note ? <small>{row.note}</small> : null}
+                </li>
+              ))}
+            </ul>
+          </section>
+          <div className="recipe-detail-grid">
+            <section>
+              <h3>Ernährungs-Tags</h3>
+              <p>
+                {current.dietaryTags.length
+                  ? current.dietaryTags.join(", ")
+                  : "Keine Tags hinterlegt"}
+              </p>
+            </section>
+            <section>
+              <h3>Allergenhinweise</h3>
+              <p>{current.allergenNotes || "Keine Hinweise hinterlegt"}</p>
+            </section>
+            <section>
+              <h3>Küchenhinweise</h3>
+              <p>{current.kitchenNotes || "Keine Hinweise hinterlegt"}</p>
+            </section>
+          </div>
+          <p className="form-hint">
+            Gespeichert am{" "}
+            {new Intl.DateTimeFormat("de-DE", {
+              dateStyle: "medium",
+              timeStyle: "short",
+            }).format(new Date(current.createdAt))}
+            . Bereits geplante Mahlzeiten behalten ihren unveränderten
+            Rezept-Snapshot.
+          </p>
+          {canManage && !readOnly ? (
+            <button
+              type="button"
+              className="primary-action"
+              onClick={beginEditing}
+            >
+              Rezept bearbeiten
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+      {current && editing ? (
+        <form
+          className="schedule-create-form recipe-form recipe-edit-form"
+          aria-label={`${current.name} bearbeiten`}
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNotice("");
+            reviseRecipe.mutate();
+          }}
+        >
+          <p className="form-hint">
+            Änderungen erzeugen eine neue Version. Bestehende
+            Mahlzeiten-Snapshots werden nicht still verändert.
+          </p>
+          <div className="camp-form-grid">
+            <label>
+              Rezeptname bearbeiten
+              <input
+                required
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <label>
+              Basisportionen bearbeiten
+              <input
+                required
+                type="number"
+                min="1"
+                step="1"
+                value={basePortions}
+                onChange={(event) => setBasePortions(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Beschreibung bearbeiten
+              <textarea
+                required
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Zubereitung bearbeiten
+              <textarea
+                required
+                value={preparation}
+                onChange={(event) => setPreparation(event.target.value)}
+              />
+            </label>
+          </div>
+          <fieldset>
+            <legend>Zutatenpositionen bearbeiten</legend>
+            <label>
+              Weitere Zutat suchen
+              <input
+                type="search"
+                value={ingredientSearch}
+                placeholder="Mindestens zwei Zeichen"
+                onChange={(event) => setIngredientSearch(event.target.value)}
+              />
+            </label>
+            {ingredientSuggestions.isLoading ? (
+              <p role="status">Zutaten werden gesucht …</p>
+            ) : null}
+            {ingredientSuggestions.error ? (
+              <p role="alert" className="error-message">
+                {ingredientSuggestions.error.message}
+              </p>
+            ) : null}
+            {ingredientSuggestions.data?.length ? (
+              <ul className="autocomplete-results">
+                {ingredientSuggestions.data
+                  .filter(
+                    (ingredient) =>
+                      !ingredients.some(
+                        (row) => row.ingredient.id === ingredient.id,
+                      ),
+                  )
+                  .map((ingredient) => (
+                    <li key={ingredient.id}>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        aria-label={`${ingredient.name} zum Rezept hinzufügen`}
+                        onClick={() => {
+                          setIngredients((rows) => [
+                            ...rows,
+                            {
+                              ingredient,
+                              quantity: "1",
+                              unit: "0",
+                              countUnitName: "",
+                              note: "",
+                            },
+                          ]);
+                          setIngredientSearch("");
+                        }}
+                      >
+                        {ingredient.name}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+            <div className="recipe-ingredient-list">
+              {ingredients.map((row) => (
+                <section
+                  className="recipe-ingredient-row"
+                  aria-label={`${row.ingredient.name} bearbeiten`}
+                  key={row.ingredient.id}
+                >
+                  <h3>{row.ingredient.name}</h3>
+                  <label>
+                    Menge für {row.ingredient.name} bearbeiten
+                    <input
+                      required
+                      type="number"
+                      min="0.001"
+                      step="0.001"
+                      value={row.quantity}
+                      onChange={(event) =>
+                        updateIngredient(row.ingredient.id, {
+                          quantity: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <label>
+                    Einheit für {row.ingredient.name} bearbeiten
+                    <select
+                      value={row.unit}
+                      onChange={(event) =>
+                        updateIngredient(row.ingredient.id, {
+                          unit: event.target.value,
+                        })
+                      }
+                    >
+                      <option value="0">Gramm</option>
+                      <option value="1">Kilogramm</option>
+                      <option value="2">Milliliter</option>
+                      <option value="3">Liter</option>
+                      <option value="4">Stück</option>
+                      <option value="5">Benannte Zähleinheit</option>
+                    </select>
+                  </label>
+                  {row.unit === "5" ? (
+                    <label>
+                      Name der Zähleinheit für {row.ingredient.name} bearbeiten
+                      <input
+                        required
+                        value={row.countUnitName}
+                        onChange={(event) =>
+                          updateIngredient(row.ingredient.id, {
+                            countUnitName: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                  ) : null}
+                  <label>
+                    Hinweis für {row.ingredient.name} bearbeiten
+                    <input
+                      value={row.note}
+                      onChange={(event) =>
+                        updateIngredient(row.ingredient.id, {
+                          note: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="text-action"
+                    onClick={() =>
+                      setIngredients((rows) =>
+                        rows.filter(
+                          (item) => item.ingredient.id !== row.ingredient.id,
+                        ),
+                      )
+                    }
+                  >
+                    {row.ingredient.name} entfernen
+                  </button>
+                </section>
+              ))}
+            </div>
+          </fieldset>
+          <div className="camp-form-grid">
+            <label className="full-row">
+              Ernährungs-Tags bearbeiten
+              <input
+                value={dietaryTags}
+                onChange={(event) => setDietaryTags(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Allergenhinweise bearbeiten
+              <textarea
+                value={allergenNotes}
+                onChange={(event) => setAllergenNotes(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Küchenhinweise bearbeiten
+              <textarea
+                value={kitchenNotes}
+                onChange={(event) => setKitchenNotes(event.target.value)}
+              />
+            </label>
+          </div>
+          {reviseRecipe.error ? (
+            <p role="alert" className="error-message">
+              {reviseRecipe.error.message}
+            </p>
+          ) : null}
+          <div className="toolbar">
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={reviseRecipe.isPending || ingredients.length === 0}
+            >
+              {reviseRecipe.isPending
+                ? "Neue Rezeptversion wird gespeichert …"
+                : "Neue Rezeptversion speichern"}
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={reviseRecipe.isPending}
+              onClick={() => {
+                setEditing(false);
+                reviseRecipe.reset();
+              }}
+            >
+              Bearbeitung abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
+    </section>
+  );
+}
+
 function MealsPage({ offline }: { offline: boolean }) {
   const { organizationId, organizationRole, campId } = useCampRuntime();
   const canManageLibrary = organizationRole === 0 || organizationRole === 1;
@@ -2327,6 +2840,7 @@ function MealsPage({ offline }: { offline: boolean }) {
   });
   const [showRecipeForm, setShowRecipeForm] = useState(false);
   const [showIngredientLibrary, setShowIngredientLibrary] = useState(false);
+  const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
   const [recipeName, setRecipeName] = useState("");
   const [recipeDescription, setRecipeDescription] = useState("");
   const [recipePreparation, setRecipePreparation] = useState("");
@@ -2469,6 +2983,7 @@ function MealsPage({ offline }: { offline: boolean }) {
           onClick={() => {
             setShowRecipeForm((current) => !current);
             setShowIngredientLibrary(false);
+            setSelectedRecipeId(null);
             setRecipeNotice("");
           }}
         >
@@ -2487,6 +3002,7 @@ function MealsPage({ offline }: { offline: boolean }) {
           onClick={() => {
             setShowIngredientLibrary((current) => !current);
             setShowRecipeForm(false);
+            setSelectedRecipeId(null);
             setRecipeNotice("");
           }}
         >
@@ -2508,6 +3024,15 @@ function MealsPage({ offline }: { offline: boolean }) {
         <IngredientLibraryPanel
           organizationId={organizationId}
           onClose={() => setShowIngredientLibrary(false)}
+        />
+      ) : null}
+      {selectedRecipeId ? (
+        <RecipeDetailPanel
+          organizationId={organizationId}
+          recipeId={selectedRecipeId}
+          canManage={canManageLibrary}
+          readOnly={offline}
+          onClose={() => setSelectedRecipeId(null)}
         />
       ) : null}
       {recipeNotice ? (
@@ -2780,6 +3305,14 @@ function MealsPage({ offline }: { offline: boolean }) {
                 className="secondary-action"
                 type="button"
                 disabled={offline}
+                aria-label={`${recipe.name} öffnen`}
+                aria-expanded={selectedRecipeId === recipe.id}
+                onClick={() => {
+                  setSelectedRecipeId(recipe.id);
+                  setShowRecipeForm(false);
+                  setShowIngredientLibrary(false);
+                  setRecipeNotice("");
+                }}
               >
                 Rezept öffnen
               </button>

@@ -18,6 +18,10 @@
 - The Camp workspace exposes the Organization recipe list and an Owner/Admin creation form. Ingredient search uses
   the library autocomplete endpoint; submitted rows carry positive decimal values, one of the six supported unit
   variants, optional named-count labels and notes. Every create sends antiforgery to the resolved Organization route.
+- Every listed recipe opens into its complete current version with quantities, tags, allergen and kitchen notes.
+  Owner/Admin edits start from that version and send antiforgery plus the aggregate Version as `If-Match`; a success
+  displays the newly appended immutable version, while a precondition conflict keeps the form visible and directs
+  the user to reopen the current state. Existing meal snapshots are explicitly described as unchanged.
 - Owner/Admin ingredient management lists active normalized names, creates and renames through antiforgery, and sends
   the current numeric Version as `If-Match` for rename. Merge remains a two-step workflow: preview returns current
   source/target versions and affected recipes; the destructive confirmation uses exactly those CAS versions and

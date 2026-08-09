@@ -445,6 +445,256 @@ describe("camp workspace", () => {
     });
   });
 
+  it("opens a recipe and saves edits as a version-safe revision", async () => {
+    const recipeId = "42000000-0000-0000-0000-000000000001";
+    const ingredientId = "41000000-0000-0000-0000-000000000001";
+    const recipe = {
+      id: recipeId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      currentVersion: {
+        id: "43000000-0000-0000-0000-000000000001",
+        number: 1,
+        name: "Kartoffelsuppe",
+        description: "Wärmende Suppe",
+        preparation: "Kartoffeln kochen und pürieren.",
+        basePortions: 8,
+        ingredients: [
+          {
+            id: "44000000-0000-0000-0000-000000000001",
+            ingredientId,
+            ingredientName: "Kartoffeln",
+            quantity: { value: 1.5, unit: 1, countUnitName: null },
+            note: "mehligkochend",
+          },
+        ],
+        dietaryTags: ["vegetarisch"],
+        allergenNotes: "Milch prüfen",
+        kitchenNotes: "Pürierstab bereithalten",
+        createdAt: "2026-08-09T10:00:00Z",
+      },
+      version: 7,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "PUT" && path.endsWith(`/recipes/${recipeId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...recipe,
+                currentVersion: {
+                  ...recipe.currentVersion,
+                  number: 2,
+                  name: "Kartoffeleintopf",
+                  ingredients: [
+                    {
+                      ...recipe.currentVersion.ingredients[0],
+                      quantity: { value: 2, unit: 1, countUnitName: null },
+                    },
+                  ],
+                },
+                version: 8,
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json", ETag: '"8"' },
+              },
+            ),
+          );
+        if (path.endsWith(`/catering/recipes/${recipeId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(recipe), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"7"' },
+            }),
+          );
+        if (path.endsWith("/catering/recipes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: recipeId,
+                  organizationId: recipe.organizationId,
+                  name: "Kartoffelsuppe",
+                  basePortions: 8,
+                  currentVersionNumber: 1,
+                  version: 7,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Kartoffelsuppe öffnen",
+      }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Rezeptdetails: Kartoffelsuppe",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("1,5 Kilogramm Kartoffeln")).toBeInTheDocument();
+    expect(screen.getByText("mehligkochend")).toBeInTheDocument();
+    expect(screen.getByText("Milch prüfen")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Rezept bearbeiten" }));
+    const name = screen.getByRole("textbox", { name: "Rezeptname bearbeiten" });
+    await user.clear(name);
+    await user.type(name, "Kartoffeleintopf");
+    const quantity = screen.getByRole("spinbutton", {
+      name: "Menge für Kartoffeln bearbeiten",
+    });
+    await user.clear(quantity);
+    await user.type(quantity, "2");
+    await user.click(
+      screen.getByRole("button", { name: "Neue Rezeptversion speichern" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Kartoffeleintopf wurde als Rezeptversion 2 gespeichert.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const reviseCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/recipes/${recipeId}`) &&
+        init?.method === "PUT",
+    );
+    expect(reviseCall?.[1]?.headers).toMatchObject({
+      "If-Match": '"7"',
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    expect(JSON.parse(reviseCall?.[1]?.body as string)).toMatchObject({
+      name: "Kartoffeleintopf",
+      description: "Wärmende Suppe",
+      preparation: "Kartoffeln kochen und pürieren.",
+      basePortions: 8,
+      ingredients: [
+        {
+          ingredientId,
+          quantity: { value: 2, unit: 1, countUnitName: null },
+          note: "mehligkochend",
+        },
+      ],
+      dietaryTags: ["vegetarisch"],
+      allergenNotes: "Milch prüfen",
+      kitchenNotes: "Pürierstab bereithalten",
+    });
+  });
+
+  it("explains a recipe revision conflict without losing the edit form", async () => {
+    const recipeId = "42000000-0000-0000-0000-000000000001";
+    const recipe = {
+      id: recipeId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      currentVersion: {
+        id: "43000000-0000-0000-0000-000000000001",
+        number: 3,
+        name: "Gemüsereis",
+        description: "Einfaches Lageressen",
+        preparation: "Reis und Gemüse garen.",
+        basePortions: 6,
+        ingredients: [
+          {
+            id: "44000000-0000-0000-0000-000000000001",
+            ingredientId: "41000000-0000-0000-0000-000000000001",
+            ingredientName: "Reis",
+            quantity: { value: 500, unit: 0, countUnitName: null },
+            note: null,
+          },
+        ],
+        dietaryTags: [],
+        allergenNotes: null,
+        kitchenNotes: null,
+        createdAt: "2026-08-09T10:00:00Z",
+      },
+      version: 9,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "PUT")
+          return Promise.resolve(new Response(null, { status: 412 }));
+        if (path.endsWith(`/catering/recipes/${recipeId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(recipe), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"9"' },
+            }),
+          );
+        if (path.endsWith("/catering/recipes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: recipeId,
+                  organizationId: recipe.organizationId,
+                  name: recipe.currentVersion.name,
+                  basePortions: 6,
+                  currentVersionNumber: 3,
+                  version: 9,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Gemüsereis öffnen" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Rezept bearbeiten" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Neue Rezeptversion speichern" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Das Rezept wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne das Rezept erneut.",
+    );
+    expect(
+      screen.getByRole("form", { name: "Gemüsereis bearbeiten" }),
+    ).toBeInTheDocument();
+  });
+
   it("manages ingredients through previewed version-safe mutations", async () => {
     const sourceId = "41000000-0000-0000-0000-000000000001";
     const targetId = "41000000-0000-0000-0000-000000000002";
