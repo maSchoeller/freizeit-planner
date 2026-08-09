@@ -24,6 +24,16 @@ Die Position erhält automatisch die Quelle „Spontan“. Aus Mahlzeiten übern
 Rezeptquelle; diese Herkunft bleibt erhalten. Wird die Liste gleichzeitig verändert, prüfe den neu geladenen Stand
 und wiederhole die Anlage bewusst.
 
+## Position nachträglich bearbeiten
+
+Mit **Position bearbeiten** kannst du Bezeichnung, Dezimalmenge, Einheit, Geschäft und Notiz später ändern. Außerdem
+lassen sich die im Camp auswählbaren Personen als Verantwortliche zuordnen. Die angezeigte Quelle wird dabei nicht
+verändert. Speichern prüft ausschließlich die Version dieser Position; bei einem Konflikt öffnest du den aktuellen
+Stand erneut und vergleichst deine Angaben.
+
+**Position löschen** öffnet zuerst eine Sicherheitsabfrage. Nach der ausdrücklichen Bestätigung wird die Position in
+den Camp-Papierkorb verschoben, bleibt dort 30 Tage wiederherstellbar und verschwindet aus der aktiven Liste.
+
 ## Mobil abhaken und wieder öffnen
 
 Aktiviere die Checkbox einer Position, sobald sie eingekauft ist. Jede Position besitzt eine eigene Version, sodass
@@ -31,3 +41,9 @@ gleichzeitiges Abhaken nicht die gesamte Liste überschreibt. Die Anwendung zeig
 welcher Serverzeit abgehakt hat. Dieselbe Checkbox öffnet die Position wieder.
 
 Gemeinsame Ansichten bleiben in einem archivierten Camp lesbar, erlauben dort aber keine Anlage und kein Abhaken.
+
+## Liste umbenennen oder löschen
+
+Eine geöffnete Liste kann mit **Umbenennen** einen neuen Namen erhalten. **Liste löschen** verlangt eine gesonderte
+Bestätigung und verschiebt die komplette Liste einschließlich ihrer Positionen für 30 Tage in den Papierkorb. Beide
+Aktionen prüfen die aktuelle Listen-Version. Ein archiviertes Camp zeigt diese Aktionen nicht.

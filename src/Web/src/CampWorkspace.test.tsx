@@ -1848,6 +1848,257 @@ describe("camp workspace", () => {
     });
   });
 
+  it("edits a sourced shopping item and moves it to the trash with chained versions", async () => {
+    const listId = "49000000-0000-0000-0000-000000000001";
+    const itemId = "4a000000-0000-0000-0000-000000000001";
+    const memberId = "10000000-0000-0000-0000-000000000001";
+    const item = {
+      id: itemId,
+      shoppingListId: listId,
+      name: "Kartoffeln",
+      quantity: { value: 12, unit: 1, customUnitName: null },
+      responsibleUserIds: [],
+      store: "Großmarkt",
+      note: null,
+      source: { kind: 1, label: "Mittagessen · Kartoffelsuppe" },
+      isChecked: false,
+      checkedByUserId: null,
+      checkedAt: null,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "PUT" && path.endsWith(`/items/${itemId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: listId,
+                listVersion: 5,
+                changeSequence: 12,
+                item: {
+                  ...item,
+                  quantity: { value: 13.5, unit: 0, customUnitName: null },
+                  responsibleUserIds: [memberId],
+                  note: "Festkochend",
+                  version: 3,
+                },
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (init?.method === "DELETE" && path.endsWith(`/items/${itemId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: listId,
+                listVersion: 6,
+                changeSequence: 13,
+                item: null,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "PUT" &&
+          path.endsWith(`/logistics/shopping-lists/${listId}`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: listId,
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                campId: "30000000-0000-0000-0000-000000000001",
+                name: "Wocheneinkauf",
+                items: [],
+                version: 7,
+                changeSequence: 14,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/logistics/shopping-lists/${listId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/responsibility-candidates"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                { userId: memberId, displayName: "Miriam Muster" },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/logistics/shopping-lists/${listId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: listId,
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                campId: "30000000-0000-0000-0000-000000000001",
+                name: "Großeinkauf Dienstag",
+                items: [item],
+                version: 5,
+                changeSequence: 11,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/logistics/shopping-lists"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: listId,
+                  name: "Großeinkauf Dienstag",
+                  openItemCount: 1,
+                  checkedItemCount: 0,
+                  version: 5,
+                  changeSequence: 11,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Großeinkauf Dienstag öffnen",
+      }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Kartoffeln bearbeiten" }),
+    );
+    const quantity = screen.getByRole("spinbutton", {
+      name: "Menge für Kartoffeln bearbeiten",
+    });
+    await user.clear(quantity);
+    await user.type(quantity, "13.5");
+    await user.selectOptions(
+      screen.getByRole("combobox", {
+        name: "Einheit für Kartoffeln bearbeiten",
+      }),
+      "0",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Notiz für Kartoffeln bearbeiten" }),
+      "Festkochend",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Miriam Muster" }));
+    await user.click(
+      screen.getByRole("button", { name: "Position speichern" }),
+    );
+    expect(
+      await screen.findByText("Kartoffeln wurde gespeichert."),
+    ).toHaveAttribute("role", "status");
+    await user.click(
+      screen.getByRole("button", { name: "Kartoffeln löschen" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Kartoffeln wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Position in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await screen.findByText("Kartoffeln wurde in den Papierkorb verschoben."),
+    ).toHaveAttribute("role", "status");
+    expect(screen.queryByText("13,5 Gramm Kartoffeln")).not.toBeInTheDocument();
+
+    const editCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/items/${itemId}`) &&
+        init?.method === "PUT",
+    );
+    expect(editCall?.[1]?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"2"',
+    });
+    expect(JSON.parse(editCall?.[1]?.body as string)).toMatchObject({
+      quantity: { value: 13.5, unit: 0, customUnitName: null },
+      responsibleUserIds: [memberId],
+      note: "Festkochend",
+    });
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/items/${itemId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"3"',
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Großeinkauf Dienstag umbenennen" }),
+    );
+    const listName = screen.getByRole("textbox", {
+      name: "Listenname bearbeiten",
+    });
+    await user.clear(listName);
+    await user.type(listName, "Wocheneinkauf");
+    await user.click(
+      screen.getByRole("button", { name: "Listennamen speichern" }),
+    );
+    expect(
+      await screen.findByText("Wocheneinkauf wurde umbenannt."),
+    ).toHaveAttribute("role", "status");
+    await user.click(
+      screen.getByRole("button", { name: "Wocheneinkauf löschen" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Wocheneinkauf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Einkaufsliste in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "Wocheneinkauf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const renameCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/shopping-lists/${listId}`) &&
+        init?.method === "PUT",
+    );
+    expect(renameCall?.[1]?.headers).toMatchObject({ "If-Match": '"6"' });
+    const deleteListCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/shopping-lists/${listId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteListCall?.[1]?.headers).toMatchObject({ "If-Match": '"7"' });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

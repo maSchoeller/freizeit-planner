@@ -25,6 +25,12 @@
   item Version, updates the local list and counters immediately, and displays the checking Camp member plus server
   timestamp. List summaries and the selected detail poll every 15 seconds and refetch on window focus; archived Camp
   workspaces remain read-only.
+- Any active sourced or spontaneous item can be revised without changing its immutable source label/reference. The
+  edit UI covers name, decimal quantity/unit, optional store/note and Camp-directory responsibilities, and sends the
+  independent item Version as `If-Match`. Item deletion requires a separate acknowledgement, consumes the newest item
+  Version and removes only the active row after the server moves it into 30-day trash. List rename consumes the
+  current structural Version; whole-list deletion has its own acknowledgement and moves the aggregate and every item
+  into 30-day trash. Returned list/item versions are chained through consecutive UI actions.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
 - The host-composed meal transfer UI reads Catering-owned draft lines without exposing module internals, offers any

@@ -4670,6 +4670,145 @@ function MealsPage({ offline }: { offline: boolean }) {
   );
 }
 
+type ShoppingItemContentDraft = {
+  name: string;
+  quantity: LogisticsQuantity;
+  responsibleUserIds: string[];
+  store: string | null;
+  note: string | null;
+};
+
+function ShoppingItemEditForm({
+  item,
+  members,
+  pending,
+  error,
+  onSave,
+  onCancel,
+}: {
+  item: ShoppingItem;
+  members: CampMemberSummary[];
+  pending: boolean;
+  error: Error | null;
+  onSave: (content: ShoppingItemContentDraft) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(item.name);
+  const [quantity, setQuantity] = useState(String(item.quantity.value));
+  const [unit, setUnit] = useState(String(item.quantity.unit));
+  const [customUnitName, setCustomUnitName] = useState(
+    item.quantity.customUnitName ?? "",
+  );
+  const [responsibleUserIds, setResponsibleUserIds] = useState(
+    item.responsibleUserIds,
+  );
+  const [store, setStore] = useState(item.store ?? "");
+  const [note, setNote] = useState(item.note ?? "");
+  return (
+    <form
+      className="schedule-create-form shopping-item-edit"
+      aria-label={`${item.name} bearbeiten`}
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({
+          name,
+          quantity: {
+            value: Number(quantity),
+            unit: Number(unit),
+            customUnitName: unit === "5" ? customUnitName : null,
+          },
+          responsibleUserIds,
+          store: store || null,
+          note: note || null,
+        });
+      }}
+    >
+      <div className="camp-form-grid">
+        <label>
+          Bezeichnung für {item.name} bearbeiten
+          <input
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label>
+          Menge für {item.name} bearbeiten
+          <input
+            required
+            type="number"
+            min="0.000001"
+            step="any"
+            inputMode="decimal"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+          />
+        </label>
+        <label>
+          Einheit für {item.name} bearbeiten
+          <select
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+          >
+            {Object.entries(shoppingUnitLabels).map(([value, label]) => (
+              <option value={value} key={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {unit === "5" ? (
+          <label>
+            Name der Einheit für {item.name} bearbeiten
+            <input
+              required
+              value={customUnitName}
+              onChange={(event) => setCustomUnitName(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <label>
+          Geschäft für {item.name} bearbeiten
+          <input
+            value={store}
+            onChange={(event) => setStore(event.target.value)}
+          />
+        </label>
+        <label>
+          Notiz für {item.name} bearbeiten
+          <input
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </label>
+      </div>
+      <ResponsibilityFields
+        candidates={members}
+        selected={responsibleUserIds}
+        onChange={setResponsibleUserIds}
+      />
+      {error ? (
+        <p className="error-message" role="alert">
+          {error.message}
+        </p>
+      ) : null}
+      <div className="toolbar">
+        <button type="submit" className="primary-action" disabled={pending}>
+          Position speichern
+        </button>
+        <button
+          type="button"
+          className="secondary-action"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Bearbeitung abbrechen
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function LogisticsPage({ offline }: { offline: boolean }) {
   const { organizationId, campId } = useCampRuntime();
   const queryClient = useQueryClient();
@@ -4683,6 +4822,13 @@ function LogisticsPage({ offline }: { offline: boolean }) {
   const [itemStore, setItemStore] = useState("");
   const [itemNote, setItemNote] = useState("");
   const [notice, setNotice] = useState("");
+  const [editingItemId, setEditingItemId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [deleteItemConfirmed, setDeleteItemConfirmed] = useState(false);
+  const [renamingList, setRenamingList] = useState(false);
+  const [renameListName, setRenameListName] = useState("");
+  const [deletingList, setDeletingList] = useState(false);
+  const [deleteListConfirmed, setDeleteListConfirmed] = useState(false);
   const material = useQuery({
     queryKey: [organizationId, campId, "material"],
     queryFn: () =>
@@ -4853,6 +4999,131 @@ function LogisticsPage({ offline }: { offline: boolean }) {
       await selectedList.refetch();
     },
   });
+  const updateItem = useMutation({
+    mutationFn: ({
+      item,
+      content,
+    }: {
+      item: ShoppingItem;
+      content: ShoppingItemContentDraft;
+    }) => {
+      if (!selectedListId) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      return mutateCateringJson<ShoppingListChange>(
+        `${basePath}/shopping-lists/${selectedListId}/items/${item.id}`,
+        "PUT",
+        content,
+        item.version,
+        "Die Position wurde zwischenzeitlich geändert. Öffne die aktuelle Position erneut.",
+      );
+    },
+    onSuccess: (change) => {
+      applyChange(change);
+      updateListSummary(change.shoppingListId, (summary) => ({
+        ...summary,
+        changeSequence: change.changeSequence,
+      }));
+      setEditingItemId(null);
+      setNotice(`${change.item?.name ?? "Die Position"} wurde gespeichert.`);
+    },
+  });
+  const deleteItem = useMutation({
+    mutationFn: (item: ShoppingItem) => {
+      if (!selectedListId) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      return mutateCateringJson<ShoppingListChange>(
+        `${basePath}/shopping-lists/${selectedListId}/items/${item.id}`,
+        "DELETE",
+        {},
+        item.version,
+        "Die Position wurde zwischenzeitlich geändert. Öffne die aktuelle Position erneut.",
+      );
+    },
+    onSuccess: (change, item) => {
+      queryClient.setQueryData<ShoppingList>(
+        [organizationId, campId, "shopping-list", change.shoppingListId],
+        (current) =>
+          current
+            ? {
+                ...current,
+                version: change.listVersion,
+                changeSequence: change.changeSequence,
+                items: current.items.filter(
+                  (candidate) => candidate.id !== item.id,
+                ),
+              }
+            : current,
+      );
+      updateListSummary(change.shoppingListId, (summary) => ({
+        ...summary,
+        openItemCount: Math.max(
+          0,
+          summary.openItemCount - (item.isChecked ? 0 : 1),
+        ),
+        checkedItemCount: Math.max(
+          0,
+          summary.checkedItemCount - (item.isChecked ? 1 : 0),
+        ),
+        version: change.listVersion,
+        changeSequence: change.changeSequence,
+      }));
+      setDeletingItemId(null);
+      setDeleteItemConfirmed(false);
+      setNotice(`${item.name} wurde in den Papierkorb verschoben.`);
+    },
+  });
+  const renameList = useMutation({
+    mutationFn: () => {
+      const current = selectedList.data;
+      if (!current) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      return mutateCateringJson<ShoppingList>(
+        `${basePath}/shopping-lists/${current.id}`,
+        "PUT",
+        { name: renameListName },
+        current.version,
+        "Die Einkaufsliste wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "shopping-list", updated.id],
+        updated,
+      );
+      updateListSummary(updated.id, (summary) => ({
+        ...summary,
+        name: updated.name,
+        version: updated.version,
+        changeSequence: updated.changeSequence,
+      }));
+      setRenamingList(false);
+      setNotice(`${updated.name} wurde umbenannt.`);
+    },
+  });
+  const deleteList = useMutation({
+    mutationFn: async () => {
+      const current = selectedList.data;
+      if (!current) throw new Error("Öffne zuerst eine Einkaufsliste.");
+      await mutateCateringJson<void>(
+        `${basePath}/shopping-lists/${current.id}`,
+        "DELETE",
+        {},
+        current.version,
+        "Die Einkaufsliste wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+      return { id: current.id, name: current.name };
+    },
+    onSuccess: ({ id, name }) => {
+      queryClient.setQueryData<ShoppingListSummary[]>(
+        [organizationId, campId, "shopping-lists"],
+        (current) => current?.filter((summary) => summary.id !== id),
+      );
+      queryClient.removeQueries({
+        queryKey: [organizationId, campId, "shopping-list", id],
+      });
+      setSelectedListId(null);
+      setDeletingList(false);
+      setDeleteListConfirmed(false);
+      setNotice(`${name} wurde in den Papierkorb verschoben.`);
+    },
+  });
   const memberNames = new Map(
     (members.data ?? []).map((member) => [member.userId, member.displayName]),
   );
@@ -4978,14 +5249,135 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   </p>
                   <h2>{selectedList.data.name}</h2>
                 </div>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => setSelectedListId(null)}
-                >
-                  Liste schließen
-                </button>
+                <div className="toolbar compact-toolbar">
+                  {!offline ? (
+                    <>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        aria-label={`${selectedList.data.name} umbenennen`}
+                        onClick={() => {
+                          setRenameListName(selectedList.data.name);
+                          setRenamingList(true);
+                          setDeletingList(false);
+                          renameList.reset();
+                        }}
+                      >
+                        Umbenennen
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-action"
+                        aria-label={`${selectedList.data.name} löschen`}
+                        onClick={() => {
+                          setDeletingList(true);
+                          setDeleteListConfirmed(false);
+                          setRenamingList(false);
+                          deleteList.reset();
+                        }}
+                      >
+                        Liste löschen
+                      </button>
+                    </>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => setSelectedListId(null)}
+                  >
+                    Liste schließen
+                  </button>
+                </div>
               </div>
+              {renamingList ? (
+                <form
+                  className="schedule-create-form shopping-list-rename"
+                  aria-label="Einkaufsliste umbenennen"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    renameList.mutate();
+                  }}
+                >
+                  <label>
+                    Listenname bearbeiten
+                    <input
+                      required
+                      value={renameListName}
+                      onChange={(event) =>
+                        setRenameListName(event.target.value)
+                      }
+                    />
+                  </label>
+                  {renameList.error ? (
+                    <p role="alert" className="error-message">
+                      {renameList.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="submit"
+                      className="primary-action"
+                      disabled={renameList.isPending}
+                    >
+                      Listennamen speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={renameList.isPending}
+                      onClick={() => setRenamingList(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+              {deletingList ? (
+                <section
+                  className="confirmation-panel"
+                  aria-label="Einkaufsliste löschen"
+                >
+                  <p>
+                    Die Liste und ihre Positionen bleiben 30 Tage im Papierkorb
+                    und können dort wiederhergestellt werden.
+                  </p>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={deleteListConfirmed}
+                      onChange={(event) =>
+                        setDeleteListConfirmed(event.target.checked)
+                      }
+                    />
+                    {selectedList.data.name} wirklich in den Papierkorb
+                    verschieben
+                  </label>
+                  {deleteList.error ? (
+                    <p role="alert" className="error-message">
+                      {deleteList.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={!deleteListConfirmed || deleteList.isPending}
+                      onClick={() => deleteList.mutate()}
+                    >
+                      Einkaufsliste in Papierkorb verschieben
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={deleteList.isPending}
+                      onClick={() => setDeletingList(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </section>
+              ) : null}
               {!offline ? (
                 <form
                   className="schedule-create-form shopping-item-create"
@@ -5108,6 +5500,91 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                           : "einem Camp-Mitglied"}{" "}
                         am {formatGermanDateTime(item.checkedAt)}
                       </small>
+                    ) : null}
+                    {!offline && editingItemId !== item.id ? (
+                      <div className="shopping-item-actions">
+                        <button
+                          type="button"
+                          className="text-action"
+                          onClick={() => {
+                            updateItem.reset();
+                            setEditingItemId(item.id);
+                            setDeletingItemId(null);
+                          }}
+                        >
+                          {item.name} bearbeiten
+                        </button>
+                        <button
+                          type="button"
+                          className="text-action danger-text"
+                          onClick={() => {
+                            deleteItem.reset();
+                            setDeletingItemId(item.id);
+                            setDeleteItemConfirmed(false);
+                            setEditingItemId(null);
+                          }}
+                        >
+                          {item.name} löschen
+                        </button>
+                      </div>
+                    ) : null}
+                    {editingItemId === item.id ? (
+                      <ShoppingItemEditForm
+                        item={item}
+                        members={members.data ?? []}
+                        pending={updateItem.isPending}
+                        error={updateItem.error}
+                        onSave={(content) =>
+                          updateItem.mutate({ item, content })
+                        }
+                        onCancel={() => setEditingItemId(null)}
+                      />
+                    ) : null}
+                    {deletingItemId === item.id ? (
+                      <section
+                        className="confirmation-panel"
+                        aria-label={`${item.name} löschen`}
+                      >
+                        <p>
+                          Die Position bleibt 30 Tage im Papierkorb und kann
+                          dort wiederhergestellt werden.
+                        </p>
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={deleteItemConfirmed}
+                            onChange={(event) =>
+                              setDeleteItemConfirmed(event.target.checked)
+                            }
+                          />
+                          {item.name} wirklich in den Papierkorb verschieben
+                        </label>
+                        {deleteItem.error ? (
+                          <p className="error-message" role="alert">
+                            {deleteItem.error.message}
+                          </p>
+                        ) : null}
+                        <div className="toolbar">
+                          <button
+                            type="button"
+                            className="danger-action"
+                            disabled={
+                              !deleteItemConfirmed || deleteItem.isPending
+                            }
+                            onClick={() => deleteItem.mutate(item)}
+                          >
+                            Position in Papierkorb verschieben
+                          </button>
+                          <button
+                            type="button"
+                            className="secondary-action"
+                            disabled={deleteItem.isPending}
+                            onClick={() => setDeletingItemId(null)}
+                          >
+                            Abbrechen
+                          </button>
+                        </div>
+                      </section>
                     ) : null}
                   </li>
                 ))}

@@ -22,7 +22,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
 | T02 meals and snapshots               | verified    | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Reviewed shopping transfer was unreachable             | 14 Catering, 32 React + full gate/browser            | Catering/Logistics contexts, recipe help  | pending   | Start live Logistics UI                |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
-| L02 shopping                          | in_progress | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Static UI did not render server shopping lists         | 19 Logistics, 33 React + full gate/browser           | Logistics context, shopping help          | pending   | item edit/delete and list lifecycle    |
+| L02 shopping                          | in_progress | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Sourced items had no edit or trash action              | 19 Logistics, 34 React + full gate/browser           | Logistics context, shopping help          | pending   | compose material into shopping lists   |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
 | K01 notebook                          | pending     | Safe Markdown notes, tags, pins and typed links                                             | pending                                                | pending                                              | Knowledge context, help                   | pending   | after I03                              |
 | F02 attachments                       | pending     | Magic-byte/MIME/extension checks, quotas, private authorized image/PDF delivery             | pending                                                | pending                                              | Files context, help                       | pending   | after module CRUD                      |
@@ -264,3 +264,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   rendered checking showed Miriam Muster and the server time. The complete gate passed under high local system load
   in 505 seconds with 19 Logistics, 29 API and 33 React tests plus PostgreSQL RLS/privacy, cleanup, PWA and Help green.
   L02 remains open for post-transfer item editing/deletion, list rename/trash and material-to-list UI composition.
+- 2026-08-09: L02 now supports the remaining shopping-item and list lifecycle in the Camp UI. Writers can edit a
+  sourced or spontaneous item without changing its immutable provenance, including positive decimal quantity,
+  compatible or custom unit, store, note and responsibility. The update chains item Version 2 to 3 before the
+  separate item-trash request uses `If-Match: "3"`; list rename similarly chains list Version 6 to 7 before list
+  trash uses `If-Match: "7"`. Both confirmations explain the 30-day recovery period, and archived Camps remain
+  read-only. The red interaction first failed on the missing sourced-item edit action. A rendered desktop journey
+  verified the complete edit form and item-trash confirmation; the shared responsive list rules had already kept
+  the same controls inside the 610 px viewport without a fixed minimum width. The full gate passed in 192.5 seconds
+  with 19 Logistics and 34 React tests plus build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green.
+  L02 remains open only for composing planned material into a shopping list and its final audit.
