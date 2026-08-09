@@ -106,6 +106,14 @@ VALUES
      'Schlachter1951', 'Kernaussage', '# Inhalt', ARRAY[]::uuid[], '',
      '73000000-0000-0000-0000-000000000001', now() - interval '40 days', now() - interval '31 days',
      now() - interval '31 days', 2);
+
+INSERT INTO logistics.material_requirements
+    ("Id", organization_id, camp_id, "Name", "QuantityValue", "QuantityUnit", "Status",
+     "Version", "DeletedAt", "PurgeAt")
+VALUES
+    ('75000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', 'Abgelaufenes Material', 1, 4, 0, 2,
+     now() - interval '31 days', now() - interval '1 day');
 '@ | Out-Null
 
         dotnet run --project src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj `
@@ -161,6 +169,10 @@ BEGIN
     IF EXISTS (SELECT FROM spiritual.bible_snapshots
                WHERE "Id" = '73000000-0000-0000-0000-000000000001') THEN
         RAISE EXCEPTION 'expired devotion snapshot remained';
+    END IF;
+    IF EXISTS (SELECT FROM logistics.material_requirements
+               WHERE "Id" = '75000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired material requirement remained';
     END IF;
 END
 $assert$;

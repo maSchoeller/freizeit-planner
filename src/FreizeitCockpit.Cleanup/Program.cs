@@ -12,6 +12,7 @@ using Identity.Implementation;
 using Knowledge.Contracts;
 using Knowledge.Implementation;
 using Logistics.Implementation;
+using Logistics.Contracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
@@ -69,6 +70,8 @@ builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
 builder.Services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
 builder.Services.AddScoped<INotebookRetention, KnowledgeRetentionService>();
 builder.Services.AddScoped<IAttachmentMaintenance, AttachmentMaintenanceService>();
+builder.Services.AddScoped<ILogisticsState, EfLogisticsState>();
+builder.Services.AddScoped<ILogisticsRetention, LogisticsRetentionService>();
 builder.Services.AddScoped<IDevotionState, EfDevotionState>();
 builder.Services.AddScoped<IDevotionRetention, DevotionRetentionService>();
 builder.Services.AddScoped<IDataErasure, ActivityDataErasure>();

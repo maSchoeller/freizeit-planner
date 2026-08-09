@@ -1,5 +1,6 @@
 using Files.Contracts;
 using Knowledge.Contracts;
+using Logistics.Contracts;
 using System.Security.Cryptography;
 using System.Text;
 using Spiritual.Contracts;
@@ -23,6 +24,7 @@ internal static class TrashEndpoints
         ICampNotebook notebook,
         IDevotionPlanning devotions,
         IAttachmentCatalog attachments,
+        IMaterialPlanning materials,
         CancellationToken cancellationToken)
     {
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId))
@@ -73,6 +75,18 @@ internal static class TrashEndpoints
                     item.Version,
                     $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/files/{item.Id:D}/restore")));
 
+            var trashedMaterials = await materials.ListTrashAsync(
+                new MaterialTrashQuery(actorId, organizationId, campId),
+                cancellationToken);
+            result.AddRange(trashedMaterials.Select(item => new CampTrashItem(
+                "MaterialRequirement",
+                item.Id,
+                item.Name,
+                item.DeletedAt,
+                item.PurgeAt,
+                item.Version,
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/logistics/material/{item.Id:D}/restore")));
+
             var ordered = result
                 .OrderByDescending(item => item.DeletedAt)
                 .ThenBy(item => item.ObjectType, StringComparer.Ordinal)
@@ -100,6 +114,13 @@ internal static class TrashEndpoints
                 "Papierkorb konnte nicht geladen werden");
         }
         catch (FilesRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(
+                exception.ErrorCode,
+                exception.Message,
+                "Papierkorb konnte nicht geladen werden");
+        }
+        catch (LogisticsRuleException exception)
         {
             return PlanningEndpointSupport.Problem(
                 exception.ErrorCode,

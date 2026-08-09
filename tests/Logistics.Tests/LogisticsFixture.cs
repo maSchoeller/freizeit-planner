@@ -23,18 +23,20 @@ internal sealed class LogisticsFixture
         Access = access;
         Camp = camp;
         Schedule = schedule;
+        Clock = new FixedTimeProvider(new DateTimeOffset(2027, 8, 2, 10, 15, 0, TimeSpan.Zero));
         Subject = new LogisticsPlanningService(
             state,
             access,
             camp,
             schedule,
-            new FixedTimeProvider(new DateTimeOffset(2027, 8, 2, 10, 15, 0, TimeSpan.Zero)));
+            Clock);
     }
 
     public TestLogisticsState State { get; }
     public TestAccessControl Access { get; }
     public TestCampDefaults Camp { get; }
     public TestScheduleReferences Schedule { get; }
+    public FixedTimeProvider Clock { get; }
     public LogisticsPlanningService Subject { get; }
 
     public static LogisticsFixture Create() => new(
@@ -72,10 +74,10 @@ internal sealed class TestLogisticsState : ILogisticsState
     public List<ShoppingCheckEventRecord> Audit { get; } = [];
 
     public ValueTask<IReadOnlyList<MaterialRequirementRecord>> ListMaterialsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
-        ValueTask.FromResult<IReadOnlyList<MaterialRequirementRecord>>(Materials.Where(x => x.OrganizationId == organizationId && x.CampId == campId).ToArray());
+        ValueTask.FromResult<IReadOnlyList<MaterialRequirementRecord>>(Materials.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt is null).ToArray());
 
     public ValueTask<MaterialRequirementRecord?> FindMaterialAsync(Guid organizationId, Guid campId, Guid materialId, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(Materials.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == materialId));
+        ValueTask.FromResult(Materials.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == materialId && x.DeletedAt is null));
 
     public ValueTask AddMaterialAsync(MaterialRequirementRecord material, CancellationToken cancellationToken)
     {
@@ -85,10 +87,17 @@ internal sealed class TestLogisticsState : ILogisticsState
 
     public ValueTask SaveMaterialAsync(MaterialRequirementRecord material, long expectedVersion, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
-    public ValueTask DeleteMaterialAsync(MaterialRequirementRecord material, long expectedVersion, CancellationToken cancellationToken)
+    public ValueTask<IReadOnlyList<MaterialRequirementRecord>> ListDeletedMaterialsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<MaterialRequirementRecord>>(Materials.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt is not null).ToArray());
+
+    public ValueTask<MaterialRequirementRecord?> FindDeletedMaterialAsync(Guid organizationId, Guid campId, Guid materialId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(Materials.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == materialId && x.DeletedAt is not null));
+
+    public ValueTask<int> PurgeDueMaterialsAsync(DateTimeOffset now, int batchSize, CancellationToken cancellationToken)
     {
-        Materials.Remove(material);
-        return ValueTask.CompletedTask;
+        var due = Materials.Where(x => x.PurgeAt <= now).Take(batchSize).ToArray();
+        var removed = Materials.RemoveAll(due.Contains);
+        return ValueTask.FromResult(removed);
     }
 
     public ValueTask<IReadOnlyList<ShoppingListRecord>> ListShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
@@ -129,12 +138,15 @@ internal sealed class TestAccessControl : ITenantAccessControl
 {
     public bool DenyAll { get; set; }
     public HashSet<Guid> DeniedActors { get; } = [];
+    public HashSet<CampAction> DeniedCampActions { get; } = [];
 
     public Task<TenantAccessDecision> AuthorizeOrganizationAsync(OrganizationAccessRequest request, CancellationToken cancellationToken) =>
         Task.FromResult(Decision(request.ActorId));
 
     public Task<TenantAccessDecision> AuthorizeCampAsync(CampAccessRequest request, CancellationToken cancellationToken) =>
-        Task.FromResult(Decision(request.ActorId));
+        Task.FromResult(DeniedCampActions.Contains(request.Action)
+            ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
+            : Decision(request.ActorId));
 
     private TenantAccessDecision Decision(Guid actorId) => DenyAll || DeniedActors.Contains(actorId)
         ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
@@ -163,4 +175,6 @@ internal sealed class TestScheduleReferences : IScheduleReferenceAccess
 internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider
 {
     public override DateTimeOffset GetUtcNow() => now;
+
+    public void Advance(TimeSpan duration) => now = now.Add(duration);
 }

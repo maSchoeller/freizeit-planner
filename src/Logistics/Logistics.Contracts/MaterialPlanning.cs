@@ -19,6 +19,14 @@ public interface IMaterialPlanning
         CancellationToken cancellationToken);
 
     Task DeleteAsync(DeleteMaterialRequirement command, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TrashedMaterialRequirement>> ListTrashAsync(
+        MaterialTrashQuery query,
+        CancellationToken cancellationToken);
+
+    Task<MaterialRequirement> RestoreAsync(
+        RestoreMaterialRequirement command,
+        CancellationToken cancellationToken);
 }
 
 public sealed record MaterialQuery(
@@ -68,6 +76,27 @@ public sealed record DeleteMaterialRequirement(
     Guid CampId,
     Guid MaterialRequirementId,
     long ExpectedVersion);
+
+public sealed record MaterialTrashQuery(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId);
+
+public sealed record RestoreMaterialRequirement(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid MaterialRequirementId,
+    long ExpectedVersion);
+
+public sealed record TrashedMaterialRequirement(
+    Guid Id,
+    Guid OrganizationId,
+    Guid CampId,
+    string Name,
+    DateTimeOffset DeletedAt,
+    DateTimeOffset PurgeAt,
+    long Version);
 
 public sealed record MaterialRequirementSummary(
     Guid Id,

@@ -7,6 +7,7 @@ using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Knowledge.Contracts;
+using Logistics.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -34,11 +35,13 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<ICampNotebook>();
                 services.RemoveAll<IDevotionPlanning>();
                 services.RemoveAll<IAttachmentCatalog>();
+                services.RemoveAll<IMaterialPlanning>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
                 services.AddSingleton<IDevotionPlanning>(trash);
                 services.AddSingleton<IAttachmentCatalog>(trash);
+                services.AddSingleton<IMaterialPlanning>(trash);
             });
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -58,7 +61,7 @@ public sealed class CampTrashApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
-        Assert.Equal(["Datei.pdf", "Andacht", "Notiz"],
+        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material"],
             items.Select(item => item.GetProperty("title").GetString()));
         Assert.All(items, item => Assert.EndsWith(
             "/restore",
@@ -112,7 +115,7 @@ public sealed class CampTrashApiTests
         }
     }
 
-    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog
+    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -155,6 +158,16 @@ public sealed class CampTrashApiTests
             return Task.FromResult(result);
         }
 
+        public Task<IReadOnlyList<TrashedMaterialRequirement>> ListTrashAsync(
+            MaterialTrashQuery query,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<TrashedMaterialRequirement> result = [new TrashedMaterialRequirement(
+                Guid.Parse("40000000-0000-0000-0000-000000000004"), OrganizationId, CampId, "Material",
+                ParseTimestamp("2026-08-06T10:00:00Z"), ParseTimestamp("2026-09-05T10:00:00Z"), 5)];
+            return Task.FromResult(result);
+        }
+
         public Task<Note?> GetNoteAsync(NoteRequest request, CancellationToken cancellationToken) => Unsupported<Note?>();
         public Task<Note> CreateNoteAsync(CreateNote request, CancellationToken cancellationToken) => Unsupported<Note>();
         public Task<Note> ReviseNoteAsync(ReviseNote request, CancellationToken cancellationToken) => Unsupported<Note>();
@@ -174,6 +187,12 @@ public sealed class CampTrashApiTests
         public Task MoveToTrashAsync(ChangeAttachmentLifecycle command, CancellationToken cancellationToken) => Unsupported();
         public Task<AttachmentView> RestoreAsync(ChangeAttachmentLifecycle command, CancellationToken cancellationToken) => Unsupported<AttachmentView>();
         public Task<AttachmentQuotaView> GetQuotaAsync(AttachmentQuotaQuery query, CancellationToken cancellationToken) => Unsupported<AttachmentQuotaView>();
+        public Task<IReadOnlyList<MaterialRequirementSummary>> ListAsync(MaterialQuery query, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<MaterialRequirementSummary>>();
+        public Task<MaterialRequirement?> GetAsync(MaterialRequest request, CancellationToken cancellationToken) => Unsupported<MaterialRequirement?>();
+        public Task<MaterialRequirement> CreateAsync(CreateMaterialRequirement command, CancellationToken cancellationToken) => Unsupported<MaterialRequirement>();
+        public Task<MaterialRequirement> UpdateAsync(UpdateMaterialRequirement command, CancellationToken cancellationToken) => Unsupported<MaterialRequirement>();
+        public Task DeleteAsync(DeleteMaterialRequirement command, CancellationToken cancellationToken) => Unsupported();
+        public Task<MaterialRequirement> RestoreAsync(RestoreMaterialRequirement command, CancellationToken cancellationToken) => Unsupported<MaterialRequirement>();
 
         private static Task Unsupported() => throw new NotSupportedException();
 

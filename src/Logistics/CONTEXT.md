@@ -12,7 +12,8 @@
 ## Implemented planning slice
 
 - `IMaterialPlanning` owns camp-wide and optional schedule-linked material requirements, including procurement
-  state, notes and responsible users. Updates and deletes require the current material `Version`.
+  state, notes and responsible users. Updates and soft deletes require the current material `Version`; deleted
+  requirements disappear from active reads and can be listed/restored only with `CampAction.ManageCamp`.
 - `IShoppingPlanning` owns multiple named lists and one unified item shape for spontaneous, catering and material
   sources. List `Version` protects structural mutations; `ChangeSequence` changes for every list or item mutation
   and is the polling/ETag value. Item `Version` protects independent item edits and check actions.
@@ -30,3 +31,5 @@
   functions/tables.
 - Privacy maintenance deletes all Organization-owned logistics aggregates and check events. Account erasure removes
   responsibility rows and replaces required check/audit actor identifiers with the shared pseudonymous UUID.
+- `ILogisticsRetention` is cleanup-only. It permanently removes material requirements at their deterministic
+  30-day deadline in bounded batches; interactive restore also rechecks the current Camp archive state and deadline.

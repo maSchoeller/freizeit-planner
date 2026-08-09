@@ -30,4 +30,25 @@ public sealed class PlanningModuleRouteTests
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
+
+    [Fact]
+    public async Task MaterialRestoreRouteRequiresAuthentication()
+    {
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+            builder.UseEnvironment("Testing"));
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false
+        });
+        using var request = new HttpRequestMessage(
+            HttpMethod.Post,
+            "/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/"
+                + "30000000-0000-0000-0000-000000000001/logistics/material/"
+                + "40000000-0000-0000-0000-000000000001/restore");
+
+        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
 }

@@ -43,6 +43,7 @@ public sealed class LogisticsDbContext(DbContextOptions<LogisticsDbContext> opti
         entity.Property(x => x.Version).IsConcurrencyToken();
         entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.Status });
         entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.ScheduleEntryId });
+        entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.PurgeAt });
     }
 
     private static void ConfigureMaterialResponsibility(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<MaterialResponsibilityEntity> entity)
@@ -152,6 +153,8 @@ internal sealed class MaterialRequirementEntity : ITenantCampEntity
     public string? Note { get; set; }
     public ProcurementStatus Status { get; set; }
     public Guid? ScheduleEntryId { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
+    public DateTimeOffset? PurgeAt { get; set; }
     public long Version { get; set; } = 1;
 }
 internal sealed class MaterialResponsibilityEntity : ITenantCampEntity { public Guid MaterialRequirementId { get; set; } public Guid UserId { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } }

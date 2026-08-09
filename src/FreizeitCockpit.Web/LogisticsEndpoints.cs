@@ -15,6 +15,7 @@ internal static class LogisticsEndpoints
         group.MapPost("/material", CreateMaterialAsync);
         group.MapPut("/material/{materialId:guid}", UpdateMaterialAsync);
         group.MapDelete("/material/{materialId:guid}", DeleteMaterialAsync);
+        group.MapPost("/material/{materialId:guid}/restore", RestoreMaterialAsync);
         group.MapGet("/shopping-lists", ListShoppingListsAsync);
         group.MapGet("/shopping-lists/{listId:guid}", GetShoppingListAsync);
         group.MapPost("/shopping-lists", CreateShoppingListAsync);
@@ -94,6 +95,31 @@ internal static class LogisticsEndpoints
             await activity.RemoveAsync(actorId, organizationId, campId, "MaterialRequirement", materialId,
                 current.Name, version + 1, cancellationToken);
             return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> RestoreMaterialAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid materialId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        IMaterialPlanning planning,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var restored = await planning.RestoreAsync(
+                new RestoreMaterialRequirement(actorId, organizationId, campId, materialId, version),
+                cancellationToken);
+            await UpsertMaterialActivityAsync(activity, actorId, restored, ActivityKind.Restored, cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, restored.Version);
+            return Results.Ok(restored);
         });
     }
 

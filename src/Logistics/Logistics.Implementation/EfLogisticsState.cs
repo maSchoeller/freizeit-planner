@@ -8,7 +8,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
 {
     public async ValueTask<IReadOnlyList<MaterialRequirementRecord>> ListMaterialsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken)
     {
-        var entities = await dbContext.Materials.AsNoTracking().Where(x => x.OrganizationId == organizationId && x.CampId == campId).ToArrayAsync(cancellationToken);
+        var entities = await dbContext.Materials.AsNoTracking().Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt == null).ToArrayAsync(cancellationToken);
         var ids = entities.Select(x => x.Id).ToArray();
         var responsibilities = await dbContext.MaterialResponsibilities.AsNoTracking().Where(x => ids.Contains(x.MaterialRequirementId)).ToArrayAsync(cancellationToken);
         return entities.Select(x => ToRecord(x, responsibilities.Where(r => r.MaterialRequirementId == x.Id).Select(r => r.UserId).ToArray())).ToArray();
@@ -16,7 +16,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
 
     public async ValueTask<MaterialRequirementRecord?> FindMaterialAsync(Guid organizationId, Guid campId, Guid materialId, CancellationToken cancellationToken)
     {
-        var entity = await dbContext.Materials.AsNoTracking().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == materialId, cancellationToken);
+        var entity = await dbContext.Materials.AsNoTracking().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == materialId && x.DeletedAt == null, cancellationToken);
         if (entity is null) return null;
         var users = await dbContext.MaterialResponsibilities.AsNoTracking().Where(x => x.MaterialRequirementId == materialId).Select(x => x.UserId).ToArrayAsync(cancellationToken);
         return ToRecord(entity, users);
@@ -39,13 +39,61 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
         await SaveAsync(cancellationToken);
     }
 
-    public async ValueTask DeleteMaterialAsync(MaterialRequirementRecord material, long expectedVersion, CancellationToken cancellationToken)
+    public async ValueTask<IReadOnlyList<MaterialRequirementRecord>> ListDeletedMaterialsAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
     {
-        var entity = ToEntity(material);
-        dbContext.Materials.Attach(entity);
-        dbContext.Entry(entity).Property(x => x.Version).OriginalValue = expectedVersion;
-        dbContext.Materials.Remove(entity);
-        await SaveAsync(cancellationToken);
+        var entities = await dbContext.Materials
+            .AsNoTracking()
+            .Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt != null)
+            .ToArrayAsync(cancellationToken);
+        var ids = entities.Select(x => x.Id).ToArray();
+        var responsibilities = await dbContext.MaterialResponsibilities
+            .AsNoTracking()
+            .Where(x => ids.Contains(x.MaterialRequirementId))
+            .ToArrayAsync(cancellationToken);
+        return entities.Select(x => ToRecord(
+            x,
+            responsibilities.Where(r => r.MaterialRequirementId == x.Id).Select(r => r.UserId).ToArray()))
+            .ToArray();
+    }
+
+    public async ValueTask<MaterialRequirementRecord?> FindDeletedMaterialAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid materialId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.Materials.AsNoTracking().SingleOrDefaultAsync(
+            x => x.OrganizationId == organizationId
+                && x.CampId == campId
+                && x.Id == materialId
+                && x.DeletedAt != null,
+            cancellationToken);
+        if (entity is null) return null;
+        var users = await dbContext.MaterialResponsibilities.AsNoTracking()
+            .Where(x => x.MaterialRequirementId == materialId)
+            .Select(x => x.UserId)
+            .ToArrayAsync(cancellationToken);
+        return ToRecord(entity, users);
+    }
+
+    public async ValueTask<int> PurgeDueMaterialsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        var ids = await dbContext.Materials
+            .Where(x => x.PurgeAt != null && x.PurgeAt <= now)
+            .OrderBy(x => x.PurgeAt)
+            .ThenBy(x => x.Id)
+            .Select(x => x.Id)
+            .Take(batchSize)
+            .ToArrayAsync(cancellationToken);
+        return ids.Length == 0
+            ? 0
+            : await dbContext.Materials.Where(x => ids.Contains(x.Id)).ExecuteDeleteAsync(cancellationToken);
     }
 
     public async ValueTask<IReadOnlyList<ShoppingListRecord>> ListShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken)
@@ -190,8 +238,8 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
         catch (DbUpdateConcurrencyException exception) { throw new LogisticsRuleException("version_conflict", "Der Datensatz wurde zwischenzeitlich geändert.", exception); }
     }
 
-    private static MaterialRequirementRecord ToRecord(MaterialRequirementEntity x, IReadOnlyList<Guid> users) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Description, new LogisticsQuantity(x.QuantityValue, x.QuantityUnit, x.CustomUnitName), users, x.ProcurementSource, x.Note, x.Status, x.ScheduleEntryId, x.Version);
-    private static MaterialRequirementEntity ToEntity(MaterialRequirementRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Description = x.Description, QuantityValue = x.Quantity.Value, QuantityUnit = x.Quantity.Unit, CustomUnitName = x.Quantity.CustomUnitName, ProcurementSource = x.ProcurementSource, Note = x.Note, Status = x.Status, ScheduleEntryId = x.ScheduleEntryId, Version = x.Version };
+    private static MaterialRequirementRecord ToRecord(MaterialRequirementEntity x, IReadOnlyList<Guid> users) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Description, new LogisticsQuantity(x.QuantityValue, x.QuantityUnit, x.CustomUnitName), users, x.ProcurementSource, x.Note, x.Status, x.ScheduleEntryId, x.Version, x.DeletedAt, x.PurgeAt);
+    private static MaterialRequirementEntity ToEntity(MaterialRequirementRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Description = x.Description, QuantityValue = x.Quantity.Value, QuantityUnit = x.Quantity.Unit, CustomUnitName = x.Quantity.CustomUnitName, ProcurementSource = x.ProcurementSource, Note = x.Note, Status = x.Status, ScheduleEntryId = x.ScheduleEntryId, Version = x.Version, DeletedAt = x.DeletedAt, PurgeAt = x.PurgeAt };
     private static IEnumerable<MaterialResponsibilityEntity> MaterialResponsibilities(MaterialRequirementRecord x) => x.ResponsibleUserIds.Select(userId => new MaterialResponsibilityEntity { MaterialRequirementId = x.Id, UserId = userId, OrganizationId = x.OrganizationId, CampId = x.CampId });
     private static ShoppingListEntity ToEntity(ShoppingListRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Version = x.Version, ChangeSequence = x.ChangeSequence };
     private static ShoppingItemRecord ToRecord(ShoppingItemEntity x, IReadOnlyList<Guid> users) => new(x.Id, x.OrganizationId, x.CampId, x.ShoppingListId, new ShoppingItemContent(x.Name, new LogisticsQuantity(x.QuantityValue, x.QuantityUnit, x.CustomUnitName), users, x.Store, x.Note), ToSource(x), x.IsChecked, x.CheckedByUserId, x.CheckedAt, x.Version);

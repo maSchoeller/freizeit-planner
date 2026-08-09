@@ -16,13 +16,17 @@ public sealed class MaterialRequirementRecord
         string? note,
         ProcurementStatus status,
         Guid? scheduleEntryId,
-        long version = 1)
+        long version = 1,
+        DateTimeOffset? deletedAt = null,
+        DateTimeOffset? purgeAt = null)
     {
         Id = id;
         OrganizationId = organizationId;
         CampId = campId;
         Apply(name, description, quantity, responsibleUserIds, procurementSource, note, status, scheduleEntryId);
         Version = version;
+        DeletedAt = deletedAt;
+        PurgeAt = purgeAt;
     }
 
     public Guid Id { get; }
@@ -37,6 +41,8 @@ public sealed class MaterialRequirementRecord
     public ProcurementStatus Status { get; private set; }
     public Guid? ScheduleEntryId { get; private set; }
     public long Version { get; private set; }
+    public DateTimeOffset? DeletedAt { get; private set; }
+    public DateTimeOffset? PurgeAt { get; private set; }
 
     public void Update(
         string name,
@@ -57,6 +63,34 @@ public sealed class MaterialRequirementRecord
     public void RequireVersion(long expectedVersion)
     {
         if (Version != expectedVersion) throw Rule("version_conflict", "Der Materialbedarf wurde zwischenzeitlich geändert.");
+    }
+
+    public void MoveToTrash(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is not null)
+        {
+            throw Rule("material_already_trashed", "Der Materialbedarf befindet sich bereits im Papierkorb.");
+        }
+        DeletedAt = now;
+        PurgeAt = now.AddDays(30);
+        Version++;
+    }
+
+    public void Restore(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is null || PurgeAt is null)
+        {
+            throw Rule("material_not_trashed", "Der Materialbedarf befindet sich nicht im Papierkorb.");
+        }
+        if (PurgeAt <= now)
+        {
+            throw Rule("material_restore_expired", "Die Aufbewahrungsfrist ist abgelaufen.");
+        }
+        DeletedAt = null;
+        PurgeAt = null;
+        Version++;
     }
 
     private void Apply(

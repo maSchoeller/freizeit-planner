@@ -11,6 +11,7 @@
     <ProjectReference Include="../../src/Files/Files.Contracts/Files.Contracts.csproj" />
     <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
     <ProjectReference Include="../../src/Knowledge/Knowledge.Contracts/Knowledge.Contracts.csproj" />
+    <ProjectReference Include="../../src/Logistics/Logistics.Contracts/Logistics.Contracts.csproj" />
     <ProjectReference Include="../../src/Spiritual/Spiritual.Contracts/Spiritual.Contracts.csproj" />
   </ItemGroup>
 

@@ -6,7 +6,9 @@ public interface ILogisticsState
     ValueTask<MaterialRequirementRecord?> FindMaterialAsync(Guid organizationId, Guid campId, Guid materialId, CancellationToken cancellationToken);
     ValueTask AddMaterialAsync(MaterialRequirementRecord material, CancellationToken cancellationToken);
     ValueTask SaveMaterialAsync(MaterialRequirementRecord material, long expectedVersion, CancellationToken cancellationToken);
-    ValueTask DeleteMaterialAsync(MaterialRequirementRecord material, long expectedVersion, CancellationToken cancellationToken);
+    ValueTask<IReadOnlyList<MaterialRequirementRecord>> ListDeletedMaterialsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken);
+    ValueTask<MaterialRequirementRecord?> FindDeletedMaterialAsync(Guid organizationId, Guid campId, Guid materialId, CancellationToken cancellationToken);
+    ValueTask<int> PurgeDueMaterialsAsync(DateTimeOffset now, int batchSize, CancellationToken cancellationToken);
 
     ValueTask<IReadOnlyList<ShoppingListRecord>> ListShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken);
     ValueTask<ShoppingListRecord?> FindShoppingListAsync(Guid organizationId, Guid campId, Guid shoppingListId, CancellationToken cancellationToken);

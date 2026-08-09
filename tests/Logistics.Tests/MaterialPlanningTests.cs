@@ -1,5 +1,6 @@
 using Camps.Contracts;
 using Logistics.Contracts;
+using Logistics.Implementation;
 using Xunit;
 
 namespace Logistics.Tests;
@@ -107,7 +108,143 @@ public sealed class MaterialPlanningTests
             cancellationToken);
 
         Assert.Equal("version_conflict", stale.ErrorCode);
+        Assert.Empty(await fixture.Subject.ListAsync(
+            new MaterialQuery(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId),
+            cancellationToken));
+    }
+
+    [Fact]
+    public async Task CampManagerCanRestoreSoftDeletedMaterialBeforeThePurgeDeadline()
+    {
+        var fixture = LogisticsFixture.Create();
+        var material = await fixture.AddMaterialAsync();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await fixture.Subject.DeleteAsync(
+            new DeleteMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version),
+            cancellationToken);
+
+        var trash = await fixture.Subject.ListTrashAsync(
+            new MaterialTrashQuery(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId),
+            cancellationToken);
+        var deleted = Assert.Single(trash);
+        var restored = await fixture.Subject.RestoreAsync(
+            new RestoreMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                deleted.Version),
+            cancellationToken);
+
+        Assert.Equal(new DateTimeOffset(2027, 9, 1, 10, 15, 0, TimeSpan.Zero), deleted.PurgeAt);
+        Assert.Equal(material.Version + 2, restored.Version);
+        Assert.Single(fixture.State.Materials);
+    }
+
+    [Fact]
+    public async Task RetentionPermanentlyRemovesMaterialAtThirtyDays()
+    {
+        var fixture = LogisticsFixture.Create();
+        var material = await fixture.AddMaterialAsync();
+        await fixture.Subject.DeleteAsync(
+            new DeleteMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version),
+            TestContext.Current.CancellationToken);
+        var retention = new LogisticsRetentionService(fixture.State, fixture.Clock);
+
+        var before = await retention.PurgeExpiredAsync(10, TestContext.Current.CancellationToken);
+        fixture.Clock.Advance(TimeSpan.FromDays(30));
+        var due = await retention.PurgeExpiredAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, before.PurgedMaterials);
+        Assert.Equal(1, due.PurgedMaterials);
         Assert.Empty(fixture.State.Materials);
+    }
+
+    [Fact]
+    public async Task MemberCannotBrowseOrRestoreMaterialTrash()
+    {
+        var fixture = LogisticsFixture.Create();
+        var material = await fixture.AddMaterialAsync();
+        await fixture.Subject.DeleteAsync(
+            new DeleteMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version),
+            TestContext.Current.CancellationToken);
+        fixture.Access.DeniedCampActions.Add(Identity.Contracts.CampAction.ManageCamp);
+
+        var browse = await Assert.ThrowsAsync<LogisticsRuleException>(() => fixture.Subject.ListTrashAsync(
+            new MaterialTrashQuery(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId),
+            TestContext.Current.CancellationToken));
+        var restore = await Assert.ThrowsAsync<LogisticsRuleException>(() => fixture.Subject.RestoreAsync(
+            new RestoreMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version + 1),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal("access_denied", browse.ErrorCode);
+        Assert.Equal("access_denied", restore.ErrorCode);
+    }
+
+    [Fact]
+    public async Task ExpiredOrArchivedMaterialCannotBeRestored()
+    {
+        var fixture = LogisticsFixture.Create();
+        var material = await fixture.AddMaterialAsync();
+        await fixture.Subject.DeleteAsync(
+            new DeleteMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version),
+            TestContext.Current.CancellationToken);
+        fixture.Clock.Advance(TimeSpan.FromDays(30));
+        var expired = await Assert.ThrowsAsync<LogisticsRuleException>(() => fixture.Subject.RestoreAsync(
+            new RestoreMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version + 1),
+            TestContext.Current.CancellationToken));
+        fixture.Clock.Advance(TimeSpan.FromDays(-30));
+        fixture.Camp.Status = CampStatus.Archived;
+        var archived = await Assert.ThrowsAsync<LogisticsRuleException>(() => fixture.Subject.RestoreAsync(
+            new RestoreMaterialRequirement(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                material.Id,
+                material.Version + 1),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal("material_restore_expired", expired.ErrorCode);
+        Assert.Equal("camp_archived", archived.ErrorCode);
     }
 
     [Fact]

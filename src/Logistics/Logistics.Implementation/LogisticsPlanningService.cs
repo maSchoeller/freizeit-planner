@@ -56,8 +56,54 @@ public sealed class LogisticsPlanningService(
     {
         await RequireWriteAsync(command.ActorId, command.OrganizationId, command.CampId, cancellationToken);
         var record = await RequireMaterialAsync(command.OrganizationId, command.CampId, command.MaterialRequirementId, cancellationToken);
-        record.RequireVersion(command.ExpectedVersion);
-        await state.DeleteMaterialAsync(record, command.ExpectedVersion, cancellationToken);
+        record.MoveToTrash(command.ExpectedVersion, timeProvider.GetUtcNow());
+        await state.SaveMaterialAsync(record, command.ExpectedVersion, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TrashedMaterialRequirement>> ListTrashAsync(
+        MaterialTrashQuery query,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(
+            query.ActorId,
+            query.OrganizationId,
+            query.CampId,
+            CampAction.ManageCamp,
+            false,
+            cancellationToken);
+        return (await state.ListDeletedMaterialsAsync(query.OrganizationId, query.CampId, cancellationToken))
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedMaterialRequirement(
+                item.Id,
+                item.OrganizationId,
+                item.CampId,
+                item.Name,
+                item.DeletedAt!.Value,
+                item.PurgeAt!.Value,
+                item.Version))
+            .ToArray();
+    }
+
+    public async Task<MaterialRequirement> RestoreAsync(
+        RestoreMaterialRequirement command,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            CampAction.ManageCamp,
+            true,
+            cancellationToken);
+        var record = await state.FindDeletedMaterialAsync(
+            command.OrganizationId,
+            command.CampId,
+            command.MaterialRequirementId,
+            cancellationToken)
+            ?? throw Rule("material_not_found", "Der Materialbedarf wurde nicht gefunden.");
+        record.Restore(command.ExpectedVersion, timeProvider.GetUtcNow());
+        await state.SaveMaterialAsync(record, command.ExpectedVersion, cancellationToken);
+        return ToView(record);
     }
 
     public async Task<IReadOnlyList<ShoppingListSummary>> ListAsync(ShoppingListsQuery query, CancellationToken cancellationToken)

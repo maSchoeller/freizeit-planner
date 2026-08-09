@@ -1,6 +1,7 @@
 using Files.Contracts;
 using Identity.Contracts;
 using Knowledge.Contracts;
+using Logistics.Contracts;
 using Microsoft.Extensions.Logging;
 using Spiritual.Contracts;
 
@@ -19,6 +20,7 @@ public sealed record CleanupResult(
     NotePurgeResult Notes,
     AttachmentPurgeResult Attachments,
     DevotionPurgeResult Devotions,
+    LogisticsRetentionResult Logistics,
     int ExpiredAttachmentReadGrants);
 
 public sealed class CleanupRetryableException(int retryableFailures)
@@ -32,6 +34,7 @@ public sealed class CleanupJob(
     INotebookRetention notebookRetention,
     IAttachmentMaintenance attachmentMaintenance,
     IDevotionRetention devotionRetention,
+    ILogisticsRetention logisticsRetention,
     IEnumerable<IDataErasure> dataErasures,
     ILogger<CleanupJob> logger,
     CleanupOptions options)
@@ -45,6 +48,12 @@ public sealed class CleanupJob(
             "Cleanup completed: {IdentityItems} identity items, {Notes} notes, "
                 + "{AttachmentMetadata} attachment records, {AttachmentBlobs} blobs, "
                 + "{ReadGrants} read grants, {Devotions} devotions.");
+
+    private static readonly Action<ILogger, int, Exception?> LogLogisticsCompleted =
+        LoggerMessage.Define<int>(
+            LogLevel.Information,
+            new EventId(1002, "LogisticsCleanupCompleted"),
+            "Logistics cleanup completed: {Materials} material requirements.");
 
     public async Task<CleanupResult> RunAsync(CancellationToken cancellationToken)
     {
@@ -68,6 +77,9 @@ public sealed class CleanupJob(
         var devotions = await devotionRetention.PurgeExpiredDevotionsAsync(
             options.BatchSize,
             cancellationToken);
+        var logistics = await logisticsRetention.PurgeExpiredAsync(
+            options.BatchSize,
+            cancellationToken);
         var erasureFailures = await EraseDueDataAsync(cancellationToken);
 
         LogCompleted(
@@ -83,6 +95,7 @@ public sealed class CleanupJob(
             expiredReadGrants,
             devotions.PurgedDevotions,
             null);
+        LogLogisticsCompleted(logger, logistics.PurgedMaterials, null);
 
         var retryableFailures = attachments.RetryableFailures + erasureFailures;
         if (retryableFailures > 0)
@@ -90,7 +103,7 @@ public sealed class CleanupJob(
             throw new CleanupRetryableException(retryableFailures);
         }
 
-        return new CleanupResult(identity, notes, attachments, devotions, expiredReadGrants);
+        return new CleanupResult(identity, notes, attachments, devotions, logistics, expiredReadGrants);
     }
 
     private async Task<int> EraseDueDataAsync(CancellationToken cancellationToken)
