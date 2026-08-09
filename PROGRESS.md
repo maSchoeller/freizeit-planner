@@ -21,7 +21,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
 | T02 meals and snapshots               | verified    | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Reviewed shopping transfer was unreachable             | 14 Catering, 32 React + full gate/browser            | Catering/Logistics contexts, recipe help  | pending   | Start live Logistics UI                |
-| L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
+| L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Live UI had no material creation action                | 16 Logistics, 36 React + full gate/browser           | Logistics context, help                   | pending   | add material attachments and audit     |
 | L02 shopping                          | verified    | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Material summaries had no reviewed transfer action     | 19 Logistics, 35 React + full gate/browser           | Logistics context, shopping help          | pending   | Start complete L01 material UI         |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
 | K01 notebook                          | pending     | Safe Markdown notes, tags, pins and typed links                                             | pending                                                | pending                                              | Knowledge context, help                   | pending   | after I03                              |
@@ -284,3 +284,14 @@ This file is the resumable evidence ledger. Commands are run from the repository
   remained inside the document; changing the quantity to six and submitting increased the live list counter from
   zero to one and showed the German success status. The complete gate passed in 219.5 seconds with 19 Logistics plus
   build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green; L02 is verified.
+- 2026-08-09: L01 now has a live Camp material lifecycle instead of read-only summaries. Writers create camp-wide
+  or schedule-linked requirements with name, optional description, positive decimal standard/custom quantity,
+  procurement status/source, note and Camp-directory responsibilities. The same complete form edits a loaded
+  requirement with its current `If-Match`; the returned Version 2 is then used by a separately acknowledged delete
+  that explains the 30-day trash period. Query caches reflect create, update and removal immediately, while archived
+  Camps keep only the readable detail. The red journey first failed on the missing creation action, then proved the
+  schedule and responsibility request, update `If-Match: "1"` and delete `If-Match: "2"`. All 36 React tests pass.
+  At 610 px the 595 px document, 562.8 px material panel and 524.6 px form stayed inside the viewport; the rendered
+  schedule selector and responsibility checkbox were exercised. The full gate passed in 236.8 seconds with 16
+  Logistics plus build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green. L01 remains open for
+  reachable material attachments and its final audit.

@@ -6,9 +6,17 @@ nicht lokal erzeugt.
 
 ## Material prüfen und übernehmen
 
-Jede Materialzeile zeigt Menge, Einheit und Beschaffungsstatus. Mit **Material öffnen** lädst du Beschreibung,
-Beschaffungsquelle, Notiz und die im Camp verantwortlichen Personen. Material kann campweit geplant oder mit einem
-Zeitplaneintrag verknüpft sein; es ist keine Inventar-, Lager- oder Ausleihverwaltung.
+Mit **Materialbedarf anlegen** erfasst du Bezeichnung, optionale Beschreibung, positive Dezimalmenge und Einheit,
+Beschaffungsstatus, Quelle, Notiz und verantwortliche Camp-Mitglieder. Der Bedarf gilt entweder campweit oder wird
+mit einem vorhandenen Tagesplaneintrag verknüpft. Es ist keine Inventar-, Lager- oder Ausleihverwaltung.
+
+Jede Materialzeile zeigt Menge, Einheit und Beschaffungsstatus. Mit **Material öffnen** lädst du alle Angaben. Über
+**Bearbeiten** kannst du auch Status, Verantwortliche und Tagesplan-Verknüpfung ändern. Dabei wird die aktuelle
+Material-Version geprüft; bei einem Konflikt öffnest du den neuen Stand erneut und vergleichst deine Eingaben.
+
+**Material löschen** verlangt eine ausdrückliche Bestätigung. Der Bedarf wird anschließend in den Camp-Papierkorb
+verschoben und bleibt dort 30 Tage wiederherstellbar. In einem archivierten Camp bleiben die Daten lesbar, während
+Anlage, Bearbeitung und Löschen ausgeblendet sind.
 
 **In Einkaufsliste übernehmen** öffnet vor dem Speichern eine Prüfung. Wähle eine beliebige aktuelle Liste und passe
 bei Bedarf Bezeichnung, positive Dezimalmenge, Einheit, Geschäft, Notiz oder Verantwortliche an. Die Anwendung rundet

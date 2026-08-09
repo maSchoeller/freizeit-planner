@@ -25,6 +25,11 @@
   item Version, updates the local list and counters immediately, and displays the checking Camp member plus server
   timestamp. List summaries and the selected detail poll every 15 seconds and refetch on window focus; archived Camp
   workspaces remain read-only.
+- The Camp material UI creates camp-wide or schedule-linked requirements and edits the full contract: name,
+  description, positive decimal quantity/custom unit, procurement status/source, note and responsibility-directory
+  users. Create uses antiforgery; update consumes the independently loaded material Version through `If-Match` and
+  chains the returned Version into a separately confirmed 30-day soft delete. Active query caches update without
+  demo data, and archived Camp workspaces hide every material mutation.
 - Any active sourced or spontaneous item can be revised without changing its immutable source label/reference. The
   edit UI covers name, decimal quantity/unit, optional store/note and Camp-directory responsibilities, and sends the
   independent item Version as `If-Match`. Item deletion requires a separate acknowledgement, consumes the newest item

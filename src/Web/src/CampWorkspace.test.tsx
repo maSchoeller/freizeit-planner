@@ -1832,6 +1832,240 @@ describe("camp workspace", () => {
     });
   });
 
+  it("creates, edits and moves schedule-linked material to the trash with current versions", async () => {
+    const materialId = "48000000-0000-0000-0000-000000000001";
+    const scheduleEntryId = "32000000-0000-0000-0000-000000000001";
+    const memberId = "10000000-0000-0000-0000-000000000001";
+    const createdMaterial = {
+      id: materialId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      name: "Turnierbälle",
+      description: "Für das Geländeturnier",
+      quantity: { value: 4, unit: 4, customUnitName: null },
+      responsibleUserIds: [memberId],
+      procurementSource: "Sportgeschäft",
+      note: "Größe 5",
+      status: 1,
+      scheduleEntryId,
+      version: 1,
+    };
+    let materialRows: unknown[] = [];
+    let currentMaterial = createdMaterial;
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/logistics/material")) {
+          materialRows = [createdMaterial];
+          return Promise.resolve(
+            new Response(JSON.stringify(createdMaterial), {
+              status: 201,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        }
+        if (
+          init?.method === "PUT" &&
+          path.endsWith(`/logistics/material/${materialId}`)
+        ) {
+          currentMaterial = {
+            ...createdMaterial,
+            quantity: { value: 6, unit: 4, customUnitName: null },
+            status: 2,
+            version: 2,
+          };
+          materialRows = [currentMaterial];
+          return Promise.resolve(
+            new Response(JSON.stringify(currentMaterial), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"2"' },
+            }),
+          );
+        }
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/logistics/material/${materialId}`)
+        ) {
+          materialRows = [];
+          return Promise.resolve(new Response(null, { status: 204 }));
+        }
+        if (path.includes("/schedule?"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: scheduleEntryId,
+                  title: "Geländeturnier",
+                  category: "Programm",
+                  status: 1,
+                  responsibleUserIds: [],
+                  overlapsAnotherEntry: false,
+                  timing: {
+                    isAllDay: false,
+                    startsAtUtc: "2026-08-05T12:00:00Z",
+                    endsAtUtc: "2026-08-05T14:00:00Z",
+                  },
+                  version: 1,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/responsibility-candidates"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                { userId: memberId, displayName: "Miriam Muster" },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/logistics/material/${materialId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(currentMaterial), {
+              status: 200,
+              headers: {
+                "Content-Type": "application/json",
+                ETag: `"${currentMaterial.version}"`,
+              },
+            }),
+          );
+        if (path.endsWith("/logistics/material"))
+          return Promise.resolve(
+            new Response(JSON.stringify(materialRows), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Materialbedarf anlegen" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Bezeichnung des Materials" }),
+      "Turnierbälle",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Beschreibung des Materials" }),
+      "Für das Geländeturnier",
+    );
+    const createQuantity = screen.getByRole("spinbutton", {
+      name: "Menge des Materials",
+    });
+    await user.clear(createQuantity);
+    await user.type(createQuantity, "4");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Einheit des Materials" }),
+      "4",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Beschaffungsstatus" }),
+      "1",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Verknüpfung zum Tagesplan" }),
+      scheduleEntryId,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Beschaffungsquelle" }),
+      "Sportgeschäft",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Materialnotiz" }),
+      "Größe 5",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Miriam Muster" }));
+    await user.click(
+      screen.getByRole("button", { name: "Materialbedarf speichern" }),
+    );
+    expect(
+      await screen.findByText("Turnierbälle wurde angelegt."),
+    ).toHaveAttribute("role", "status");
+    expect(await screen.findByText("Tagesplan: Geländeturnier")).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Turnierbälle bearbeiten" }),
+    );
+    const editQuantity = screen.getByRole("spinbutton", {
+      name: "Menge des Materials",
+    });
+    await user.clear(editQuantity);
+    await user.type(editQuantity, "6");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Beschaffungsstatus" }),
+      "2",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Materialänderung speichern" }),
+    );
+    expect(
+      await screen.findByText("Turnierbälle wurde gespeichert."),
+    ).toHaveAttribute("role", "status");
+    expect(screen.getByText("Beschafft")).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Turnierbälle löschen" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Turnierbälle wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", {
+        name: "Material in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "Turnierbälle wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/logistics/material") &&
+        init?.method === "POST",
+    );
+    expect(JSON.parse(createCall?.[1]?.body as string)).toMatchObject({
+      name: "Turnierbälle",
+      quantity: { value: 4, unit: 4, customUnitName: null },
+      responsibleUserIds: [memberId],
+      status: 1,
+      scheduleEntryId,
+    });
+    const updateCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/logistics/material/${materialId}`) &&
+        init?.method === "PUT",
+    );
+    expect(updateCall?.[1]?.headers).toMatchObject({ "If-Match": '"1"' });
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/logistics/material/${materialId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("adds and checks live shopping items with independent versions", async () => {
     const listId = "49000000-0000-0000-0000-000000000001";
     const potatoId = "4a000000-0000-0000-0000-000000000001";

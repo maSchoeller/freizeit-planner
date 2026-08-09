@@ -587,6 +587,16 @@ type MaterialRequirement = MaterialRequirementSummary & {
   procurementSource: string | null;
   note: string | null;
 };
+type MaterialRequirementContent = {
+  name: string;
+  description: string | null;
+  quantity: LogisticsQuantity;
+  responsibleUserIds: string[];
+  procurementSource: string | null;
+  note: string | null;
+  status: number;
+  scheduleEntryId: string | null;
+};
 type ShoppingListSummary = {
   id: string;
   name: string;
@@ -4695,6 +4705,200 @@ type ShoppingItemContentDraft = {
   note: string | null;
 };
 
+function MaterialRequirementForm({
+  mode,
+  initial,
+  members,
+  scheduleEntries,
+  pending,
+  error,
+  onSave,
+  onCancel,
+}: {
+  mode: "create" | "edit";
+  initial?: MaterialRequirement;
+  members: CampMemberSummary[];
+  scheduleEntries: ScheduleEntry[];
+  pending: boolean;
+  error: Error | null;
+  onSave: (content: MaterialRequirementContent) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initial?.name ?? "");
+  const [description, setDescription] = useState(initial?.description ?? "");
+  const [quantity, setQuantity] = useState(
+    String(initial?.quantity.value ?? 1),
+  );
+  const [unit, setUnit] = useState(String(initial?.quantity.unit ?? 4));
+  const [customUnit, setCustomUnit] = useState(
+    initial?.quantity.customUnitName ?? "",
+  );
+  const [status, setStatus] = useState(String(initial?.status ?? 0));
+  const [scheduleEntryId, setScheduleEntryId] = useState(
+    initial?.scheduleEntryId ?? "",
+  );
+  const [procurementSource, setProcurementSource] = useState(
+    initial?.procurementSource ?? "",
+  );
+  const [note, setNote] = useState(initial?.note ?? "");
+  const [responsibleUserIds, setResponsibleUserIds] = useState(
+    initial?.responsibleUserIds ?? [],
+  );
+  return (
+    <form
+      className="schedule-create-form material-form"
+      aria-label={
+        mode === "create" ? "Materialbedarf anlegen" : "Material bearbeiten"
+      }
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSave({
+          name,
+          description: description || null,
+          quantity: {
+            value: Number(quantity),
+            unit: Number(unit),
+            customUnitName: unit === "5" ? customUnit : null,
+          },
+          responsibleUserIds,
+          procurementSource: procurementSource || null,
+          note: note || null,
+          status: Number(status),
+          scheduleEntryId: scheduleEntryId || null,
+        });
+      }}
+    >
+      <h3>
+        {mode === "create"
+          ? "Neuen Materialbedarf planen"
+          : "Material bearbeiten"}
+      </h3>
+      <p className="form-hint">
+        Plane Bedarf und Beschaffung. Lagerbestand und Ausleihen werden hier
+        bewusst nicht verwaltet.
+      </p>
+      <div className="camp-form-grid">
+        <label>
+          Bezeichnung des Materials
+          <input
+            required
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <label className="full-row">
+          Beschreibung des Materials
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+          />
+        </label>
+        <label>
+          Menge des Materials
+          <input
+            required
+            type="number"
+            min="0.000001"
+            step="any"
+            inputMode="decimal"
+            value={quantity}
+            onChange={(event) => setQuantity(event.target.value)}
+          />
+        </label>
+        <label>
+          Einheit des Materials
+          <select
+            value={unit}
+            onChange={(event) => setUnit(event.target.value)}
+          >
+            {Object.entries(shoppingUnitLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        {unit === "5" ? (
+          <label>
+            Name der benutzerdefinierten Einheit
+            <input
+              required
+              value={customUnit}
+              onChange={(event) => setCustomUnit(event.target.value)}
+            />
+          </label>
+        ) : null}
+        <label>
+          Beschaffungsstatus
+          <select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
+            {Object.entries(materialStatusLabels).map(([value, label]) => (
+              <option key={value} value={value}>
+                {label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Verknüpfung zum Tagesplan
+          <select
+            value={scheduleEntryId}
+            onChange={(event) => setScheduleEntryId(event.target.value)}
+          >
+            <option value="">Campweit, ohne Zeitplaneintrag</option>
+            {scheduleEntries.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.title}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Beschaffungsquelle
+          <input
+            value={procurementSource}
+            onChange={(event) => setProcurementSource(event.target.value)}
+          />
+        </label>
+        <label className="full-row">
+          Materialnotiz
+          <textarea
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </label>
+      </div>
+      <ResponsibilityFields
+        candidates={members}
+        selected={responsibleUserIds}
+        onChange={setResponsibleUserIds}
+      />
+      {error ? (
+        <p role="alert" className="error-message">
+          {error.message}
+        </p>
+      ) : null}
+      <div className="toolbar">
+        <button type="submit" className="primary-action" disabled={pending}>
+          {mode === "create"
+            ? "Materialbedarf speichern"
+            : "Materialänderung speichern"}
+        </button>
+        <button
+          type="button"
+          className="secondary-action"
+          disabled={pending}
+          onClick={onCancel}
+        >
+          Abbrechen
+        </button>
+      </div>
+    </form>
+  );
+}
+
 function ShoppingItemEditForm({
   item,
   members,
@@ -4827,12 +5031,16 @@ function ShoppingItemEditForm({
 }
 
 function LogisticsPage({ offline }: { offline: boolean }) {
-  const { organizationId, campId } = useCampRuntime();
+  const { organizationId, campId, camp } = useCampRuntime();
   const queryClient = useQueryClient();
   const basePath = `/api/v1/organizations/${organizationId}/camps/${campId}/logistics`;
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(
     null,
   );
+  const [creatingMaterial, setCreatingMaterial] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState(false);
+  const [deletingMaterial, setDeletingMaterial] = useState(false);
+  const [deleteMaterialConfirmed, setDeleteMaterialConfirmed] = useState(false);
   const [transferringMaterial, setTransferringMaterial] = useState(false);
   const [materialTargetListId, setMaterialTargetListId] = useState("");
   const [materialTransferName, setMaterialTransferName] = useState("");
@@ -4875,6 +5083,14 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         `${basePath}/material/${selectedMaterialId}`,
       ),
     enabled: selectedMaterialId !== null,
+    retry: false,
+  });
+  const scheduleEntries = useQuery({
+    queryKey: [organizationId, campId, "material-schedule-candidates"],
+    queryFn: () =>
+      getJson<ScheduleEntry[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`,
+      ),
     retry: false,
   });
   const members = useQuery({
@@ -5166,6 +5382,101 @@ function LogisticsPage({ offline }: { offline: boolean }) {
       setNotice(`${name} wurde in den Papierkorb verschoben.`);
     },
   });
+  const createMaterial = useMutation({
+    mutationFn: (content: MaterialRequirementContent) =>
+      mutateCateringJson<MaterialRequirement>(
+        `${basePath}/material`,
+        "POST",
+        content,
+      ),
+    onSuccess: (created) => {
+      queryClient.setQueryData<MaterialRequirementSummary[]>(
+        [organizationId, campId, "material"],
+        (current) => [
+          ...(current ?? []),
+          {
+            id: created.id,
+            name: created.name,
+            quantity: created.quantity,
+            status: created.status,
+            scheduleEntryId: created.scheduleEntryId,
+            version: created.version,
+          },
+        ],
+      );
+      queryClient.setQueryData(
+        [organizationId, campId, "material", created.id],
+        created,
+      );
+      setCreatingMaterial(false);
+      setSelectedMaterialId(created.id);
+      setNotice(`${created.name} wurde angelegt.`);
+    },
+  });
+  const updateMaterial = useMutation({
+    mutationFn: (content: MaterialRequirementContent) => {
+      const current = selectedMaterial.data;
+      if (!current) throw new Error("Öffne zuerst den Materialbedarf.");
+      return mutateCateringJson<MaterialRequirement>(
+        `${basePath}/material/${current.id}`,
+        "PUT",
+        content,
+        current.version,
+        "Der Materialbedarf wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "material", updated.id],
+        updated,
+      );
+      queryClient.setQueryData<MaterialRequirementSummary[]>(
+        [organizationId, campId, "material"],
+        (current) =>
+          current?.map((summary) =>
+            summary.id === updated.id
+              ? {
+                  id: updated.id,
+                  name: updated.name,
+                  quantity: updated.quantity,
+                  status: updated.status,
+                  scheduleEntryId: updated.scheduleEntryId,
+                  version: updated.version,
+                }
+              : summary,
+          ),
+      );
+      setEditingMaterial(false);
+      setNotice(`${updated.name} wurde gespeichert.`);
+    },
+  });
+  const deleteMaterial = useMutation({
+    mutationFn: async () => {
+      const current = selectedMaterial.data;
+      if (!current) throw new Error("Öffne zuerst den Materialbedarf.");
+      await mutateCateringJson<void>(
+        `${basePath}/material/${current.id}`,
+        "DELETE",
+        {},
+        current.version,
+        "Der Materialbedarf wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+      return { id: current.id, name: current.name };
+    },
+    onSuccess: ({ id, name }) => {
+      queryClient.setQueryData<MaterialRequirementSummary[]>(
+        [organizationId, campId, "material"],
+        (current) => current?.filter((summary) => summary.id !== id),
+      );
+      queryClient.removeQueries({
+        queryKey: [organizationId, campId, "material", id],
+      });
+      setSelectedMaterialId(null);
+      setDeletingMaterial(false);
+      setDeleteMaterialConfirmed(false);
+      setNotice(`${name} wurde in den Papierkorb verschoben.`);
+    },
+  });
   const transferMaterial = useMutation({
     mutationFn: () => {
       const requirement = selectedMaterial.data;
@@ -5244,8 +5555,34 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         <section className="settings-section">
           <div className="section-heading">
             <h2>Materialbedarf</h2>
+            {!offline ? (
+              <button
+                type="button"
+                className="primary-action"
+                aria-expanded={creatingMaterial}
+                onClick={() => {
+                  createMaterial.reset();
+                  setCreatingMaterial(true);
+                  setSelectedMaterialId(null);
+                  setNotice("");
+                }}
+              >
+                Materialbedarf anlegen
+              </button>
+            ) : null}
           </div>
           <QueryState loading={material.isLoading} error={material.error} />
+          {creatingMaterial ? (
+            <MaterialRequirementForm
+              mode="create"
+              members={members.data ?? []}
+              scheduleEntries={scheduleEntries.data ?? []}
+              pending={createMaterial.isPending}
+              error={createMaterial.error}
+              onSave={(content) => createMaterial.mutate(content)}
+              onCancel={() => setCreatingMaterial(false)}
+            />
+          ) : null}
           <ul className="detail-list material-summaries">
             {material.data?.map((requirement) => (
               <li key={requirement.id}>
@@ -5263,6 +5600,9 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   aria-expanded={selectedMaterialId === requirement.id}
                   onClick={() => {
                     setSelectedMaterialId(requirement.id);
+                    setCreatingMaterial(false);
+                    setEditingMaterial(false);
+                    setDeletingMaterial(false);
                     setTransferringMaterial(false);
                     setNotice("");
                   }}
@@ -5364,39 +5704,70 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                 </div>
                 <div className="toolbar compact-toolbar">
                   {!offline ? (
-                    <button
-                      type="button"
-                      className="primary-action"
-                      aria-label={`${selectedMaterial.data.name} einkaufen`}
-                      disabled={shoppingLists.data?.length === 0}
-                      onClick={() => {
-                        const requirement = selectedMaterial.data;
-                        setMaterialTargetListId(
-                          shoppingLists.data?.[0]?.id ?? "",
-                        );
-                        setMaterialTransferName(requirement.name);
-                        setMaterialTransferQuantity(
-                          String(requirement.quantity.value),
-                        );
-                        setMaterialTransferUnit(
-                          String(requirement.quantity.unit),
-                        );
-                        setMaterialTransferCustomUnit(
-                          requirement.quantity.customUnitName ?? "",
-                        );
-                        setMaterialTransferStore(
-                          requirement.procurementSource ?? "",
-                        );
-                        setMaterialTransferNote(requirement.note ?? "");
-                        setMaterialTransferResponsibleUserIds(
-                          requirement.responsibleUserIds,
-                        );
-                        transferMaterial.reset();
-                        setTransferringMaterial(true);
-                      }}
-                    >
-                      In Einkaufsliste übernehmen
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        aria-label={`${selectedMaterial.data.name} bearbeiten`}
+                        onClick={() => {
+                          updateMaterial.reset();
+                          setEditingMaterial(true);
+                          setDeletingMaterial(false);
+                          setTransferringMaterial(false);
+                        }}
+                      >
+                        Bearbeiten
+                      </button>
+                      <button
+                        type="button"
+                        className="danger-action"
+                        aria-label={`${selectedMaterial.data.name} löschen`}
+                        onClick={() => {
+                          deleteMaterial.reset();
+                          setDeletingMaterial(true);
+                          setDeleteMaterialConfirmed(false);
+                          setEditingMaterial(false);
+                          setTransferringMaterial(false);
+                        }}
+                      >
+                        Material löschen
+                      </button>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        aria-label={`${selectedMaterial.data.name} einkaufen`}
+                        disabled={shoppingLists.data?.length === 0}
+                        onClick={() => {
+                          const requirement = selectedMaterial.data;
+                          setMaterialTargetListId(
+                            shoppingLists.data?.[0]?.id ?? "",
+                          );
+                          setMaterialTransferName(requirement.name);
+                          setMaterialTransferQuantity(
+                            String(requirement.quantity.value),
+                          );
+                          setMaterialTransferUnit(
+                            String(requirement.quantity.unit),
+                          );
+                          setMaterialTransferCustomUnit(
+                            requirement.quantity.customUnitName ?? "",
+                          );
+                          setMaterialTransferStore(
+                            requirement.procurementSource ?? "",
+                          );
+                          setMaterialTransferNote(requirement.note ?? "");
+                          setMaterialTransferResponsibleUserIds(
+                            requirement.responsibleUserIds,
+                          );
+                          transferMaterial.reset();
+                          setTransferringMaterial(true);
+                          setEditingMaterial(false);
+                          setDeletingMaterial(false);
+                        }}
+                      >
+                        In Einkaufsliste übernehmen
+                      </button>
+                    </>
                   ) : null}
                   <button
                     type="button"
@@ -5404,6 +5775,8 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                     onClick={() => {
                       setSelectedMaterialId(null);
                       setTransferringMaterial(false);
+                      setEditingMaterial(false);
+                      setDeletingMaterial(false);
                     }}
                   >
                     Material schließen
@@ -5445,6 +5818,76 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   <dd>{selectedMaterial.data.note ?? "Keine Notiz"}</dd>
                 </div>
               </dl>
+              <p className="form-hint">
+                {selectedMaterial.data.scheduleEntryId
+                  ? `Tagesplan: ${
+                      scheduleEntries.data?.find(
+                        (entry) =>
+                          entry.id === selectedMaterial.data?.scheduleEntryId,
+                      )?.title ?? "Verknüpfter Eintrag"
+                    }`
+                  : "Campweiter Bedarf ohne Tagesplan-Verknüpfung"}
+              </p>
+              {editingMaterial ? (
+                <MaterialRequirementForm
+                  key={`${selectedMaterial.data.id}:${selectedMaterial.data.version}`}
+                  mode="edit"
+                  initial={selectedMaterial.data}
+                  members={members.data ?? []}
+                  scheduleEntries={scheduleEntries.data ?? []}
+                  pending={updateMaterial.isPending}
+                  error={updateMaterial.error}
+                  onSave={(content) => updateMaterial.mutate(content)}
+                  onCancel={() => setEditingMaterial(false)}
+                />
+              ) : null}
+              {deletingMaterial ? (
+                <section
+                  className="confirmation-panel"
+                  aria-label="Material löschen"
+                >
+                  <p>
+                    Der Materialbedarf bleibt 30 Tage im Papierkorb und kann
+                    dort wiederhergestellt werden.
+                  </p>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={deleteMaterialConfirmed}
+                      onChange={(event) =>
+                        setDeleteMaterialConfirmed(event.target.checked)
+                      }
+                    />
+                    {selectedMaterial.data.name} wirklich in den Papierkorb
+                    verschieben
+                  </label>
+                  {deleteMaterial.error ? (
+                    <p role="alert" className="error-message">
+                      {deleteMaterial.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={
+                        !deleteMaterialConfirmed || deleteMaterial.isPending
+                      }
+                      onClick={() => deleteMaterial.mutate()}
+                    >
+                      Material in Papierkorb verschieben
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={deleteMaterial.isPending}
+                      onClick={() => setDeletingMaterial(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </section>
+              ) : null}
               {shoppingLists.data?.length === 0 && !offline ? (
                 <p className="form-hint">
                   Lege zuerst eine Einkaufsliste an, um Material zu übernehmen.
