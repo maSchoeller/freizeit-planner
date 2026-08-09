@@ -1,1 +1,66 @@
-Console.WriteLine("Hello, World!");
+using Azure.Identity;
+using Azure.Storage.Blobs;
+using Files.Contracts;
+using Files.Implementation;
+using FreizeitCockpit.Cleanup;
+using FreizeitCockpit.ServiceDefaults;
+using Identity.Contracts;
+using Identity.Implementation;
+using Knowledge.Contracts;
+using Knowledge.Implementation;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Npgsql;
+
+var builder = Host.CreateApplicationBuilder(args);
+builder.AddFreizeitServiceDefaults();
+
+builder.Services.AddSingleton(
+    TimeProvider.System);
+builder.Services.AddSingleton(services => FreizeitServiceDefaults.CreatePostgresDataSource(
+    builder.Configuration,
+    builder.Environment));
+builder.Services.AddScoped(services =>
+    services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
+builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<KnowledgeDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<FilesDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+
+builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("blobs");
+    BlobContainerClient container;
+    if (!string.IsNullOrWhiteSpace(connectionString))
+    {
+        container = new BlobContainerClient(connectionString, "attachments");
+    }
+    else
+    {
+        var serviceUri = builder.Configuration["Storage:BlobServiceUri"]
+            ?? throw new InvalidOperationException("Storage:BlobServiceUri must be configured.");
+        container = new BlobContainerClient(
+            new Uri(new Uri(serviceUri), "attachments"),
+            new DefaultAzureCredential());
+    }
+
+    return new AzurePrivateBlobStorage(container);
+});
+builder.Services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
+builder.Services.AddScoped<INotebookRetention, KnowledgeRetentionService>();
+builder.Services.AddScoped<IAttachmentMaintenance, AttachmentMaintenanceService>();
+builder.Services.AddSingleton(new CleanupOptions
+{
+    BatchSize = builder.Configuration.GetValue<int?>("Cleanup:BatchSize") ?? 100
+});
+builder.Services.AddScoped<CleanupJob>();
+
+using var host = builder.Build();
+await using var scope = host.Services.CreateAsyncScope();
+await scope.ServiceProvider
+    .GetRequiredService<CleanupJob>()
+    .RunAsync(CancellationToken.None);

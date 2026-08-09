@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj" />
+    <ProjectReference Include="../../src/Files/Files.Contracts/Files.Contracts.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />
+    <ProjectReference Include="../../src/Knowledge/Knowledge.Contracts/Knowledge.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

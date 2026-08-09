@@ -29,7 +29,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | A01 activity/trash                    | in_progress | Metadata-only feed, soft delete/restore and deterministic 30-day purge                      | Schedule HTTP test found no Activity event             | 13 Activity + 18 API + 12 React tests green          | Activity context, search/activity help    | pending   | complete aggregate trash UI  |
 | A02 search/export/print               | in_progress | Tenant-safe filtered search, CSV formula protection, German print views                     | React search test saw static local result              | filtered search and four CSV routes green            | search/activity/export help               | pending   | verify print and real RLS    |
 | P01 PWA/offline                       | pending     | Install/update; read-only four-area snapshot; purge on logout/org switch                    | pending                                                | pending                                              | PWA docs/help                             | pending   | after CRUD                   |
-| O01 operations                        | pending     | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | pending                                                | pending                                              | runbook/architecture                      | pending   | after persistence            |
+| O01 operations                        | in_progress | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Cleanup test first failed because the host was a stub  | 2 Cleanup coordinator tests green                    | cleanup runbook and module contexts        | pending   | add tenant/account purge     |
 | Z01 Azure/CI                          | pending     | azd/Bicep/containers/workflows locally validate; no cloud mutation                          | pending                                                | pending                                              | deployment docs                           | pending   | after F01/O01                |
 | V01 full verification                 | pending     | Format/lint/build/tests, coverage, three browsers/viewports, axe, visual inspection, smoke  | pending                                                | pending                                              | all docs/screenshots                      | pending   | after all slices             |
 
@@ -79,3 +79,8 @@ This file is the resumable evidence ledger. Commands are run from the repository
   filters. Schedule, meal, material, and all-shopping-list CSV routes use the formula-safe formatter. Release build
   completed with zero warnings/errors; Activity passed 13/13, API 18/18, and React 12/12 tests. Aggregate trash UI,
   actual PostgreSQL RLS smoke, and final visual verification remain required before A01/A02 can be marked verified.
+- 2026-08-09: The cleanup executable now performs a bounded one-shot pass instead of printing a placeholder. It
+  removes expired identity artifacts, due note trash, attachment read grants, and due blobs plus metadata through
+  public maintenance contracts. Blob failures leave metadata retryable and fail the job for scheduler retry; logs
+  expose aggregate counts only. Cleanup coordinator tests passed 2/2. Organization/account hard deletion and the
+  dedicated production database-principal bootstrap remain before O01 can be marked verified.

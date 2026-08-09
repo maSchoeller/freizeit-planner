@@ -44,6 +44,7 @@
     <Project Path="tests/Api.Tests/Api.Tests.csproj" />
     <Project Path="tests/Camps.Tests/Camps.Tests.csproj" />
     <Project Path="tests/Catering.Tests/Catering.Tests.csproj" />
+    <Project Path="tests/Cleanup.Tests/Cleanup.Tests.csproj" />
     <Project Path="tests/Files.Tests/Files.Tests.csproj" />
     <Project Path="tests/FreizeitCockpit.TestSupport/FreizeitCockpit.TestSupport.csproj" />
     <Project Path="tests/Identity.Tests/Identity.Tests.csproj" />

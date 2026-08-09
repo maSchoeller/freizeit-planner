@@ -79,6 +79,20 @@ public interface IEmailChangeCodeSender
         CancellationToken cancellationToken);
 }
 
+public interface IIdentityMaintenance
+{
+    Task<IdentityCleanupResult> CleanupExpiredAsync(
+        int batchSize,
+        CancellationToken cancellationToken);
+}
+
+public sealed record IdentityCleanupResult(
+    int ExpiredLoginChallenges,
+    int ExpiredEmailChangeChallenges,
+    int ExpiredInvitations,
+    int StaleSessions,
+    int StaleRateEvents);
+
 public sealed record OrganizationInvitationRequest(
     Guid ActorId,
     string Email,

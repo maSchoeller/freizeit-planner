@@ -19,7 +19,8 @@
   only type, stable ID and a trusted title snapshot; there are no cross-schema foreign keys. Note-to-note links are
   intentionally absent because wiki behaviour is outside v1.
 - `INotebookRetention` is a cleanup-host-only interface. It permanently removes batches only after the 30-day
-  soft-delete period and is never exposed as a Web endpoint.
+  soft-delete period and is never exposed as a Web endpoint. `KnowledgeRetentionService` is the privileged,
+  authorization-free implementation used by that host; interactive code continues through `KnowledgeService`.
 
 ## Markdown and content rules
 
@@ -38,8 +39,8 @@
 - `KnowledgeDbContext` owns notes, tags and links. Every row directly stores `organization_id` and `camp_id`;
   composite foreign keys prevent a child row from referencing a differently scoped note.
 - PostgreSQL forces RLS on every Knowledge table through the non-bypass runtime role, using authoritative
-  Organization access and exact transaction-local Camp context. The retention job requires the later dedicated
-  cleanup-role composition rather than an API/runtime bypass.
+  Organization access and exact transaction-local Camp context. The retention job is a separate composition root
+  and uses the jobs database identity rather than the interactive runtime role.
 - Every mutation carries an expected Version for host-level `If-Match`; trash records actor/time and a deterministic
   purge timestamp, while restore clears deletion metadata and increments Version.
 - Activity/Search receive metadata or bounded summaries only. Markdown is never written to activity or diagnostic

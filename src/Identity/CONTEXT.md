@@ -14,6 +14,9 @@
 - Runtime persistence: ASP.NET Core Identity users, hashed challenges, invitations, memberships, assignments, rate
   events and revocable sessions live in PostgreSQL through `IdentityDbContext`; the web host never migrates. The
   migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
+- Retention: `IIdentityMaintenance` is available only to the cleanup composition root. Each bounded run deletes
+  expired or consumed login/email challenges and invitations, expired or revoked sessions, and rate-limit events
+  older than one day. It never logs token values, email addresses, IP addresses, or other identity payloads.
 - Authorization: `ITenantAccessControl` answers organization/camp decisions; `ITenantAdministration` owns role and
   assignment changes; `IPlatformAdministration` exposes only organization metadata and suspension. All mutations
   use version tokens. The request transaction sets user, organization, camp, and operation context with transaction-

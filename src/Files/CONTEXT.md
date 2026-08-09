@@ -17,7 +17,8 @@
   after current owner authorization succeeds.
 - Lifecycle: deleting moves metadata to the trash, revokes grants, and schedules purge after 30 days. Restore requires the
   current version and an unexpired purge deadline. Maintenance deletes the blob before hard-deleting metadata and leaves
-  failed blob deletions retryable.
+  failed blob deletions retryable. `AttachmentMaintenanceService` is the cleanup-host-only implementation and also
+  removes expired single-use read grants in bounded batches.
 - Persistence/security: owns PostgreSQL schema `files`. Tenant rows carry `organization_id`; camp rows also carry `camp_id`.
   Forced RLS covers attachments and grants, rejects platform administrators from tenant content, and permits grants only to
   their actor. Pending-upload compensation may use the runtime delete policy; scheduled hard purge requires the privileged
