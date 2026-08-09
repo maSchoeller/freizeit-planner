@@ -15,9 +15,10 @@
 - Read invariants: blobs remain private and are streamed through the same-origin application. Images use inline disposition;
   PDFs use attachment disposition. Grants expire after 60 seconds, are bound to one actor, and are consumed atomically only
   after current owner authorization succeeds.
-- The recipe detail UI composes the organization recipe-library list, quota, multipart upload and read-grant routes.
-  Owner/Admin uploads carry antiforgery without overriding the browser multipart boundary; all authorized readers open a
-  file only after a fresh actor-bound grant. The UI exposes allowed formats, per-file and library limits, private delivery,
+- The shared owner attachment UI composes the organization recipe-library or Camp-scoped list, quota, multipart upload,
+  read-grant, and versioned trash routes for recipe, material requirement, and devotion details. Authorized uploads carry
+  antiforgery without overriding the browser multipart boundary; all authorized readers open a file only after a fresh
+  actor-bound grant. The UI exposes allowed formats, per-file and owner-scope limits, private delivery,
   loading/failure/empty states and the explicit v1 malware-scanning exclusion.
 - Lifecycle: deleting moves metadata to the trash, revokes grants, and schedules purge after 30 days. Restore requires the
   current version, `ManageCamp`, current owner authorization, and an unexpired purge deadline. Camp managers can list

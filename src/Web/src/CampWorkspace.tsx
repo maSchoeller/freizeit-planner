@@ -2565,10 +2565,10 @@ function OwnerAttachmentsPanel({
 }: {
   organizationId: string;
   campId?: string;
-  ownerType: "Recipe" | "MaterialRequirement";
+  ownerType: "Recipe" | "MaterialRequirement" | "Devotion";
   ownerId: string;
   ownerName: string;
-  ownerNoun: "das Rezept" | "das Material";
+  ownerNoun: "das Rezept" | "das Material" | "die Andacht";
   canUpload: boolean;
   canDelete?: boolean;
 }) {
@@ -7314,6 +7314,16 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                   </div>
                 </form>
               ) : null}
+              <OwnerAttachmentsPanel
+                organizationId={organizationId}
+                campId={campId}
+                ownerType="Devotion"
+                ownerId={detail.data.id}
+                ownerName={detail.data.topic}
+                ownerNoun="die Andacht"
+                canUpload={!offline}
+                canDelete={!offline}
+              />
               {!offline && !confirmTrash ? (
                 <button
                   type="button"

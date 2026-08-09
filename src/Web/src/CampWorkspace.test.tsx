@@ -2838,6 +2838,131 @@ describe("camp workspace", () => {
     });
   });
 
+  it.each([
+    [
+      1,
+      "Die Bibelstelle wurde beim Provider nicht gefunden. Der bisherige Snapshot bleibt erhalten.",
+    ],
+    [
+      2,
+      "Der Bibel-Provider ist nicht erreichbar. Der bisherige Snapshot bleibt erhalten.",
+    ],
+    [
+      3,
+      "Der Bibel-Provider hat nicht rechtzeitig geantwortet. Der bisherige Snapshot bleibt erhalten.",
+    ],
+  ])(
+    "keeps the existing Bible snapshot for provider refresh status %s",
+    async (status, expectedMessage) => {
+      const devotionId = "51000000-0000-0000-0000-000000000003";
+      const snapshotText = "Der Gott der Hoffnung erfülle euch mit Freude.";
+      const devotion = {
+        id: devotionId,
+        organizationId: "20000000-0000-0000-0000-000000000001",
+        campId: "30000000-0000-0000-0000-000000000001",
+        topic: "Hoffnung bewahren",
+        bibleReference: "Römer 15,13",
+        translation: 0,
+        coreMessage: "Gott bleibt bei uns.",
+        markdownContent: "## Austausch",
+        responsibleUserIds: [],
+        materialNotes: "",
+        scheduleEntryId: null,
+        bibleSnapshot: {
+          reference: "Römer 15,13",
+          textExcerpt: snapshotText,
+          technicalTranslationId: "deu1951",
+          translationDisplayName: "Schlachter 1951",
+          license: "CC BY 4.0",
+          attribution: "Genfer Bibelgesellschaft",
+          retrievedAt: "2026-08-08T12:00:00Z",
+          origin: 0,
+        },
+        createdAt: "2026-08-08T10:00:00Z",
+        updatedAt: "2026-08-08T12:00:00Z",
+        deletedAt: null,
+        version: 3,
+      };
+      const fetchMock = vi.fn(
+        (request: RequestInfo | URL, init?: RequestInit) => {
+          const path = requestPath(request);
+          if (path === "/api/v1/auth/antiforgery")
+            return Promise.resolve(
+              new Response(JSON.stringify({ token: "csrf-token" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }),
+            );
+          if (
+            init?.method === "POST" &&
+            path.endsWith(`/devotions/${devotionId}/bible/refresh`)
+          )
+            return Promise.resolve(
+              new Response(JSON.stringify({ status, devotion }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }),
+            );
+          if (path.endsWith(`/devotions/${devotionId}`))
+            return Promise.resolve(
+              new Response(JSON.stringify(devotion), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }),
+            );
+          if (path.endsWith("/devotions"))
+            return Promise.resolve(
+              new Response(
+                JSON.stringify([
+                  {
+                    id: devotionId,
+                    topic: devotion.topic,
+                    bibleReference: devotion.bibleReference,
+                    translation: devotion.translation,
+                    responsibleUserIds: [],
+                    scheduleEntryId: null,
+                    hasBibleSnapshot: true,
+                    version: 3,
+                  },
+                ]),
+                {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
+                },
+              ),
+            );
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        },
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten");
+
+      await user.click(
+        await screen.findByRole("button", {
+          name: "Hoffnung bewahren öffnen",
+        }),
+      );
+      expect(await screen.findByText(snapshotText)).toBeVisible();
+      await user.click(
+        screen.getByRole("button", {
+          name: "Bibeltext ausdrücklich aktualisieren",
+        }),
+      );
+      expect(await screen.findByText(expectedMessage)).toHaveAttribute(
+        "role",
+        "status",
+      );
+      expect(screen.getByText(snapshotText)).toBeVisible();
+      expect(screen.getByText("Snapshot vom 08.08.2026")).toBeVisible();
+    },
+  );
+
   it("creates a schedule-linked devotion and stores a manual Bible snapshot", async () => {
     const devotionId = "51000000-0000-0000-0000-000000000001";
     const scheduleEntryId = "32000000-0000-0000-0000-000000000001";
@@ -3249,6 +3374,175 @@ describe("camp workspace", () => {
         init?.method === "DELETE",
     );
     expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"3"' });
+  });
+
+  it("uploads and moves a devotion attachment to the camp trash", async () => {
+    const devotionId = "51000000-0000-0000-0000-000000000004";
+    const attachmentId = "4f000000-0000-0000-0000-000000000004";
+    const devotion = {
+      id: devotionId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      topic: "Licht der Welt",
+      bibleReference: "Matthäus 5,14",
+      translation: 0,
+      coreMessage: "Wir bringen Licht in die Welt.",
+      markdownContent: "## Einstieg",
+      responsibleUserIds: [],
+      materialNotes: "Kerzen",
+      scheduleEntryId: null,
+      bibleSnapshot: null,
+      createdAt: "2026-08-09T18:00:00Z",
+      updatedAt: "2026-08-09T18:00:00Z",
+      deletedAt: null,
+      version: 1,
+    };
+    const attachment = {
+      id: attachmentId,
+      originalFileName: "Impulsfragen.pdf",
+      mediaType: 0,
+      contentType: "application/pdf",
+      sizeBytes: 102400,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.includes(`/files?ownerType=Devotion&ownerId=${devotionId}`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...attachment,
+                id: "4f000000-0000-0000-0000-000000000005",
+                originalFileName: "Kerzenbild.png",
+                mediaType: 2,
+                contentType: "image/png",
+                sizeBytes: 8,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/files/${attachmentId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                limitBytes: 1073741824,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 1072693248,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes(`/files?ownerType=Devotion&ownerId=${devotionId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify([attachment]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith(`/devotions/${devotionId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(devotion), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith("/devotions"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: devotionId,
+                  topic: devotion.topic,
+                  bibleReference: devotion.bibleReference,
+                  translation: 0,
+                  responsibleUserIds: [],
+                  scheduleEntryId: null,
+                  hasBibleSnapshot: false,
+                  version: 1,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Licht der Welt öffnen" }),
+    );
+    const files = await screen.findByRole("region", {
+      name: "Dateien zu Licht der Welt",
+    });
+    expect(await within(files).findByText("Impulsfragen.pdf")).toBeVisible();
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Kerzenbild.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(files).getByLabelText("Datei für die Andacht"),
+      upload,
+    );
+    await user.click(
+      within(files).getByRole("button", { name: "Kerzenbild.png hochladen" }),
+    );
+    expect(
+      await within(files).findByText(
+        "Kerzenbild.png wurde sicher hochgeladen.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      within(files).getByRole("button", { name: "Impulsfragen.pdf löschen" }),
+    );
+    await user.click(
+      within(files).getByRole("checkbox", {
+        name: "Impulsfragen.pdf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Datei in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Impulsfragen.pdf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/files/${attachmentId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
   });
 
   it("offers every planning area as a real route", () => {

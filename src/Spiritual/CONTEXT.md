@@ -39,5 +39,7 @@
   antiforgery and `If-Match`, and replaces the cached detail only after the server has attached license, attribution,
   retrieval date, and manual origin. The edit form exposes every devotion field and chains the returned Version into
   its detail and summary caches. Moving a devotion to the 30-day aggregate trash requires an explicit confirmation
-  and the latest `If-Match`, then removes both active cache entries without bypassing the lifecycle endpoint. No
-  module persistence crosses the HTTP/Contracts boundary.
+  and the latest `If-Match`, then removes both active cache entries without bypassing the lifecycle endpoint. The
+  detail composes private attachment list, Camp quota, multipart upload, read-grant, and versioned 30-day file-trash
+  routes with `ownerType=Devotion`; archived Camps keep attachment reads while hiding upload and delete. No module
+  persistence crosses the HTTP/Contracts boundary.

@@ -48,3 +48,12 @@ werden aus der Andacht übernommen. Prüfe vor dem Speichern, ob die Lizenz die 
 Lizenz, Attribution, Datum und der Herkunft **Manuell gespeichert** als neuer unveränderlicher Snapshot abgelegt.
 Auch dabei schützt die aktuelle Andachts-Version vor dem versehentlichen Überschreiben einer zwischenzeitlichen
 Änderung.
+
+## Dateien zur Andacht
+
+Im geöffneten Andachtsdetail kannst du PDF-, JPEG-, PNG- und WebP-Dateien bis zehn MiB hochladen. Die Dateien liegen
+privat; **Öffnen** erzeugt erst eine kurze, einmal verwendbare Leseberechtigung. Die Anzeige nennt außerdem die
+belegte Camp-Dateiquota.
+
+Mit **Löschen** und der anschließenden Bestätigung verschiebst du eine Datei für 30 Tage in den Camp-Papierkorb. Bei
+einer archivierten Freizeit bleiben vorhandene Dateien lesbar, Hochladen und Löschen sind jedoch gesperrt.
