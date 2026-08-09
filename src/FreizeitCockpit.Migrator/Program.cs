@@ -38,7 +38,6 @@ builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
 using var host = builder.Build();
 var dataSource = host.Services.GetRequiredService<NpgsqlDataSource>();
 await using var connection = await dataSource.OpenConnectionAsync();
-await connection.OpenAsync();
 await using var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@lock)", connection);
 acquire.Parameters.AddWithValue("lock", migrationLock);
 await acquire.ExecuteNonQueryAsync();
