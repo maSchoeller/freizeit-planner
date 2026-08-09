@@ -2,7 +2,9 @@ using System.Globalization;
 using System.Security.Claims;
 using Activity.Contracts;
 using Camps.Contracts;
+using Catering.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
+using Spiritual.Contracts;
 
 internal static class CampPlanningEndpoints
 {
@@ -303,9 +305,12 @@ internal static class CampPlanningEndpoints
         Guid organizationId,
         Guid campId,
         Guid scheduleEntryId,
+        LinkedScheduleDeleteBehavior? linkedBehavior,
         HttpContext context,
         IAntiforgery antiforgery,
         ISchedulePlanning planning,
+        ICampMealPlanning meals,
+        IDevotionPlanning devotions,
         PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
@@ -317,6 +322,64 @@ internal static class CampPlanningEndpoints
             var current = await planning.GetAsync(
                 new ScheduleEntryQuery(actorId, organizationId, campId, scheduleEntryId),
                 cancellationToken);
+            var linkedMeals = (await meals.ListMealsAsync(
+                    new CampCateringQuery(actorId, organizationId, campId), cancellationToken))
+                .Where(item => item.ScheduleEntryId == scheduleEntryId)
+                .ToArray();
+            var linkedDevotions = (await devotions.ListAsync(
+                    new DevotionScope(actorId, organizationId, campId), cancellationToken))
+                .Where(item => item.ScheduleEntryId == scheduleEntryId)
+                .ToArray();
+            if (linkedMeals.Length + linkedDevotions.Length > 0 && linkedBehavior is null)
+            {
+                return PlanningEndpointSupport.Problem(
+                    "linked_delete_choice_required",
+                    "Wähle ausdrücklich, ob verknüpfte Mahlzeiten und Andachten entkoppelt oder ebenfalls in den Papierkorb verschoben werden.",
+                    "Löschentscheidung erforderlich");
+            }
+            foreach (var meal in linkedMeals)
+            {
+                if (linkedBehavior == LinkedScheduleDeleteBehavior.MoveLinkedToTrash)
+                {
+                    await meals.MoveMealToTrashAsync(
+                        new DeleteMeal(actorId, organizationId, campId, meal.Id, meal.Version), cancellationToken);
+                    await activity.RemoveAsync(actorId, organizationId, campId, "Meal", meal.Id, meal.Name,
+                        meal.Version + 1, cancellationToken);
+                }
+                else
+                {
+                    var details = await meals.GetMealAsync(
+                        new MealRequest(actorId, organizationId, campId, meal.Id), cancellationToken)
+                        ?? throw new CateringRuleException("meal_not_found", "Die Mahlzeit wurde nicht gefunden.");
+                    var unlinked = await meals.ReviseMealAsync(
+                        new ReviseMeal(actorId, organizationId, campId, meal.Id, details.Name,
+                            details.PortionOverride, null, details.Version), cancellationToken);
+                    await RecordMealUpdateAsync(activity, actorId, unlinked, cancellationToken);
+                }
+            }
+            foreach (var devotion in linkedDevotions)
+            {
+                if (linkedBehavior == LinkedScheduleDeleteBehavior.MoveLinkedToTrash)
+                {
+                    await devotions.MoveToTrashAsync(
+                        new ChangeDevotionLifecycle(actorId, organizationId, campId, devotion.Id,
+                            devotion.Version), cancellationToken);
+                    await activity.RemoveAsync(actorId, organizationId, campId, "Devotion", devotion.Id,
+                        devotion.Topic, devotion.Version + 1, cancellationToken);
+                }
+                else
+                {
+                    var details = await devotions.GetAsync(
+                        new DevotionKey(actorId, organizationId, campId, devotion.Id), cancellationToken)
+                        ?? throw new SpiritualRuleException("devotion_not_found", "Die Andacht wurde nicht gefunden.");
+                    var unlinked = await devotions.UpdateAsync(
+                        new UpdateDevotion(actorId, organizationId, campId, devotion.Id, details.Topic,
+                            details.BibleReference, details.Translation, details.CoreMessage,
+                            details.MarkdownContent, details.ResponsibleUserIds, details.MaterialNotes, null,
+                            details.Version), cancellationToken);
+                    await RecordDevotionUpdateAsync(activity, actorId, unlinked, cancellationToken);
+                }
+            }
             var deleted = await planning.DeleteAsync(
                 new DeleteScheduleEntry(actorId, organizationId, campId, scheduleEntryId, version),
                 cancellationToken);
@@ -325,6 +388,52 @@ internal static class CampPlanningEndpoints
             return Results.NoContent();
         });
     }
+
+    private static Task RecordMealUpdateAsync(
+        PlanningActivityWriter activity,
+        Guid actorId,
+        Meal meal,
+        CancellationToken cancellationToken) => activity.UpsertAsync(
+        actorId,
+        meal.OrganizationId,
+        meal.CampId,
+        ActivityKind.Updated,
+        "Meal",
+        meal.Id,
+        meal.Name,
+        string.Join(' ', meal.Name,
+            string.Join(' ', meal.RecipeSnapshots.Select(recipe => recipe.Name)),
+            string.Join(' ', meal.RecipeSnapshots.SelectMany(recipe => recipe.Ingredients)
+                .Select(ingredient => ingredient.IngredientName))),
+        new Dictionary<string, string>
+        {
+            ["portions"] = meal.EffectivePortions.ToString(CultureInfo.InvariantCulture),
+            ["linked"] = bool.FalseString
+        },
+        meal.Version,
+        cancellationToken);
+
+    private static Task RecordDevotionUpdateAsync(
+        PlanningActivityWriter activity,
+        Guid actorId,
+        DevotionDetails devotion,
+        CancellationToken cancellationToken) => activity.UpsertAsync(
+        actorId,
+        devotion.OrganizationId,
+        devotion.CampId,
+        ActivityKind.Updated,
+        "Devotion",
+        devotion.Id,
+        devotion.Topic,
+        string.Join(' ', devotion.Topic, devotion.BibleReference, devotion.CoreMessage,
+            devotion.MarkdownContent, devotion.MaterialNotes),
+        new Dictionary<string, string>
+        {
+            ["translation"] = devotion.Translation.ToString(),
+            ["hasSnapshot"] = (devotion.BibleSnapshot is not null).ToString(CultureInfo.InvariantCulture)
+        },
+        devotion.Version,
+        cancellationToken);
 
     private static async Task<IResult> RestoreScheduleEntryAsync(
         Guid organizationId,
@@ -393,6 +502,16 @@ internal static class CampPlanningEndpoints
             return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
                 "Aktivität konnte nicht gespeichert werden");
         }
+        catch (CateringRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Verknüpfte Mahlzeit konnte nicht verarbeitet werden");
+        }
+        catch (SpiritualRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Verknüpfte Andacht konnte nicht verarbeitet werden");
+        }
     }
 
     private static ValueTask<IResult?> ValidateMutationAsync(
@@ -450,4 +569,10 @@ internal static class CampPlanningEndpoints
         ScheduleEntryStatus Status,
         IReadOnlyList<Guid> ResponsibleUserIds,
         string? Audience);
+}
+
+internal enum LinkedScheduleDeleteBehavior
+{
+    Unlink,
+    MoveLinkedToTrash
 }

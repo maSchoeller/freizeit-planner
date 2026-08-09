@@ -94,6 +94,10 @@ internal sealed class MealEntity
 
     public long Version { get; set; } = 1;
 
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    public DateTimeOffset? PurgeAt { get; set; }
+
     public List<RecipeSnapshotEntity> RecipeSnapshots { get; } = [];
 }
 

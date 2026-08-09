@@ -1,5 +1,6 @@
 using Files.Contracts;
 using Camps.Contracts;
+using Catering.Contracts;
 using Identity.Contracts;
 using Knowledge.Contracts;
 using Logistics.Contracts;
@@ -23,6 +24,7 @@ public sealed record CleanupResult(
     DevotionPurgeResult Devotions,
     LogisticsRetentionResult Logistics,
     ScheduleRetentionResult Schedule,
+    MealRetentionResult Meals,
     int ExpiredAttachmentReadGrants);
 
 public sealed class CleanupRetryableException(int retryableFailures)
@@ -38,6 +40,7 @@ public sealed class CleanupJob(
     IDevotionRetention devotionRetention,
     ILogisticsRetention logisticsRetention,
     IScheduleRetention scheduleRetention,
+    IMealRetention mealRetention,
     IEnumerable<IDataErasure> dataErasures,
     ILogger<CleanupJob> logger,
     CleanupOptions options)
@@ -64,6 +67,12 @@ public sealed class CleanupJob(
             LogLevel.Information,
             new EventId(1003, "ScheduleCleanupCompleted"),
             "Schedule cleanup completed: {ScheduleEntries} schedule entries.");
+
+    private static readonly Action<ILogger, int, Exception?> LogMealsCompleted =
+        LoggerMessage.Define<int>(
+            LogLevel.Information,
+            new EventId(1004, "MealCleanupCompleted"),
+            "Meal cleanup completed: {Meals} meals.");
 
     public async Task<CleanupResult> RunAsync(CancellationToken cancellationToken)
     {
@@ -93,6 +102,7 @@ public sealed class CleanupJob(
         var schedule = await scheduleRetention.PurgeExpiredAsync(
             options.BatchSize,
             cancellationToken);
+        var meals = await mealRetention.PurgeExpiredAsync(options.BatchSize, cancellationToken);
         var erasureFailures = await EraseDueDataAsync(cancellationToken);
 
         LogCompleted(
@@ -115,6 +125,7 @@ public sealed class CleanupJob(
             logistics.PurgedShoppingItems,
             null);
         LogScheduleCompleted(logger, schedule.PurgedScheduleEntries, null);
+        LogMealsCompleted(logger, meals.PurgedMeals, null);
 
         var retryableFailures = attachments.RetryableFailures + erasureFailures;
         if (retryableFailures > 0)
@@ -122,7 +133,7 @@ public sealed class CleanupJob(
             throw new CleanupRetryableException(retryableFailures);
         }
 
-        return new CleanupResult(identity, notes, attachments, devotions, logistics, schedule,
+        return new CleanupResult(identity, notes, attachments, devotions, logistics, schedule, meals,
             expiredReadGrants);
     }
 

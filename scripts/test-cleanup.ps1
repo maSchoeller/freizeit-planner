@@ -83,6 +83,30 @@ VALUES
     ('79000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
      '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002');
 
+INSERT INTO catering.meals
+    ("Id", organization_id, camp_id, "Name", "Version", "DeletedAt", "PurgeAt")
+VALUES
+    ('7a000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', 'Abgelaufene Mahlzeit', 2,
+     now() - interval '31 days', now() - interval '1 day');
+
+INSERT INTO catering.recipe_snapshots
+    ("Id", meal_id, organization_id, camp_id, source_recipe_id, "SourceRecipeVersionNumber",
+     "Name", "Description", "Preparation", "BasePortions", "DietaryTags", "CapturedAt", "IsCurrent")
+VALUES
+    ('7b000000-0000-0000-0000-000000000001', '7a000000-0000-0000-0000-000000000001',
+     '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002',
+     '7c000000-0000-0000-0000-000000000001', 1, 'Snapshot', '', '', 20, ARRAY[]::text[],
+     now() - interval '31 days', true);
+
+INSERT INTO catering.snapshot_ingredients
+    ("Id", recipe_snapshot_id, organization_id, camp_id, ingredient_id, "IngredientName",
+     "Amount", "Unit")
+VALUES
+    ('7d000000-0000-0000-0000-000000000001', '7b000000-0000-0000-0000-000000000001',
+     '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002',
+     '7e000000-0000-0000-0000-000000000001', 'Zutat', 1, 'Piece');
+
 UPDATE identity.users
 SET "DeletionScheduledAt" = now() - interval '31 days'
 WHERE "Id" = '10000000-0000-0000-0000-000000000004';
@@ -251,6 +275,18 @@ BEGIN
     IF NOT EXISTS (SELECT FROM camps.camps
                    WHERE "Id" = '30000000-0000-0000-0000-000000000002') THEN
         RAISE EXCEPTION 'active camp was removed';
+    END IF;
+    IF EXISTS (SELECT FROM catering.meals
+               WHERE "Id" = '7a000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired meal remained';
+    END IF;
+    IF EXISTS (SELECT FROM catering.recipe_snapshots
+               WHERE meal_id = '7a000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired meal snapshot remained';
+    END IF;
+    IF EXISTS (SELECT FROM catering.snapshot_ingredients
+               WHERE recipe_snapshot_id = '7b000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired meal snapshot ingredient remained';
     END IF;
 END
 $assert$;

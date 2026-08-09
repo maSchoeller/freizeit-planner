@@ -25,6 +25,8 @@ internal static class CateringEndpoints
         meals.MapGet("/{mealId:guid}", GetMealAsync);
         meals.MapPost("/", CreateMealAsync);
         meals.MapPut("/{mealId:guid}", ReviseMealAsync);
+        meals.MapDelete("/{mealId:guid}", DeleteMealAsync);
+        meals.MapPost("/{mealId:guid}/restore", RestoreMealAsync);
         meals.MapPost("/{mealId:guid}/recipes", AddRecipeAsync);
         meals.MapDelete("/{mealId:guid}/recipes/{recipeSnapshotId:guid}", RemoveRecipeAsync);
         meals.MapPost("/{mealId:guid}/recipes/{recipeSnapshotId:guid}/refresh", RefreshRecipeAsync);
@@ -186,6 +188,57 @@ internal static class CateringEndpoints
             await UpsertMealActivityAsync(activity, actorId, result, ActivityKind.Updated, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
+        });
+    }
+
+    private static async Task<IResult> DeleteMealAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid mealId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ICampMealPlanning planning,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var meal = await planning.GetMealAsync(
+                new MealRequest(actorId, organizationId, campId, mealId), cancellationToken);
+            if (meal is null) return Results.NotFound();
+            await planning.MoveMealToTrashAsync(
+                new DeleteMeal(actorId, organizationId, campId, mealId, version), cancellationToken);
+            await activity.RemoveAsync(actorId, organizationId, campId, "Meal", mealId, meal.Name,
+                version + 1, cancellationToken);
+            return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> RestoreMealAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid mealId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ICampMealPlanning planning,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var meal = await planning.RestoreMealAsync(
+                new RestoreMeal(actorId, organizationId, campId, mealId, version), cancellationToken);
+            await UpsertMealActivityAsync(activity, actorId, meal, ActivityKind.Restored, cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, meal.Version);
+            return Results.Ok(meal);
         });
     }
 

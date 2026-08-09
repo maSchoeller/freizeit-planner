@@ -51,6 +51,7 @@ type ScheduleEntry = {
     startDate?: string;
     endDateExclusive?: string;
   };
+  version: number;
 };
 
 type Meal = {
@@ -96,7 +97,8 @@ type CampTrashItem = {
     | "MaterialRequirement"
     | "ShoppingList"
     | "ShoppingItem"
-    | "ScheduleEntry";
+    | "ScheduleEntry"
+    | "Meal";
   objectId: string;
   title: string;
   deletedAt: string;
@@ -372,6 +374,61 @@ function SummaryCard({
 function SchedulePage({ offline }: { offline: boolean }) {
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2026-08-01&toDateExclusive=2026-08-09`;
   const query = useCampQuery<ScheduleEntry[]>("schedule", path);
+  const queryClient = useQueryClient();
+  const [deleteCandidate, setDeleteCandidate] = useState<ScheduleEntry | null>(
+    null,
+  );
+  const [linkedBehavior, setLinkedBehavior] = useState<
+    "" | "Unlink" | "MoveLinkedToTrash"
+  >("");
+  const [deleteStatus, setDeleteStatus] = useState("");
+  const remove = useMutation({
+    mutationFn: async ({
+      entry,
+      behavior,
+    }: {
+      entry: ScheduleEntry;
+      behavior: "Unlink" | "MoveLinkedToTrash";
+    }) => {
+      const token = await getAntiforgeryToken();
+      const response = await fetch(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule/${entry.id}?linkedBehavior=${behavior}`,
+        {
+          method: "DELETE",
+          credentials: "same-origin",
+          headers: {
+            "X-CSRF-TOKEN": token,
+            "If-Match": `"${entry.version}"`,
+          },
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          "Der Zeitplaneintrag konnte nicht in den Papierkorb verschoben werden.",
+        );
+    },
+    onSuccess: async (_, variables) => {
+      setDeleteStatus(
+        `„${variables.entry.title}“ wurde in den Papierkorb verschoben.`,
+      );
+      setDeleteCandidate(null);
+      setLinkedBehavior("");
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "schedule"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "meals"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "devotions"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "trash"],
+        }),
+      ]);
+    },
+  });
   const stored = (loadOfflineSnapshot()?.schedule ?? []) as ScheduleEntry[];
   const entries = query.data ?? (offline ? stored : []);
   useEffect(() => {
@@ -392,7 +449,18 @@ function SchedulePage({ offline }: { offline: boolean }) {
           gelten für Europe/Berlin.
         </p>
       </PageHeading>
-      <QueryState loading={query.isLoading && !offline} error={query.error} />
+      <QueryState
+        loading={query.isLoading && !offline}
+        error={query.error ?? remove.error}
+      />
+      <p
+        className="visually-hidden"
+        role="status"
+        aria-label="Löschstatus"
+        aria-live="polite"
+      >
+        {deleteStatus}
+      </p>
       <section className="calendar-card" aria-label="Kalenderansicht">
         <FullCalendar
           plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
@@ -432,9 +500,84 @@ function SchedulePage({ offline }: { offline: boolean }) {
                 <button className="secondary-action" disabled={offline}>
                   Bearbeiten
                 </button>
+                <button
+                  className="danger-action"
+                  disabled={offline || remove.isPending}
+                  aria-label={`${entry.title} löschen`}
+                  onClick={() => {
+                    setDeleteStatus("");
+                    setDeleteCandidate(entry);
+                    setLinkedBehavior("");
+                  }}
+                >
+                  Löschen
+                </button>
               </li>
             ))}
           </ol>
+        )}
+        {deleteCandidate && (
+          <form
+            className="delete-choice"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (linkedBehavior)
+                remove.mutate({
+                  entry: deleteCandidate,
+                  behavior: linkedBehavior,
+                });
+            }}
+          >
+            <h3>„{deleteCandidate.title}“ löschen?</h3>
+            <p>
+              Entscheide ausdrücklich, was mit verknüpften Mahlzeiten und
+              Andachten geschehen soll.
+            </p>
+            <fieldset>
+              <legend>Verknüpfte Inhalte</legend>
+              <label>
+                <input
+                  type="radio"
+                  name="linked-delete-behavior"
+                  value="Unlink"
+                  checked={linkedBehavior === "Unlink"}
+                  onChange={() => setLinkedBehavior("Unlink")}
+                />
+                Mahlzeiten und Andachten vom Zeitplaneintrag lösen
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name="linked-delete-behavior"
+                  value="MoveLinkedToTrash"
+                  checked={linkedBehavior === "MoveLinkedToTrash"}
+                  onChange={() => setLinkedBehavior("MoveLinkedToTrash")}
+                />
+                Zeitplaneintrag, Mahlzeiten und Andachten gemeinsam in den
+                Papierkorb verschieben
+              </label>
+            </fieldset>
+            <div className="toolbar">
+              <button
+                type="submit"
+                className="danger-action"
+                disabled={!linkedBehavior || remove.isPending}
+              >
+                In den Papierkorb verschieben
+              </button>
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={remove.isPending}
+                onClick={() => {
+                  setDeleteCandidate(null);
+                  setLinkedBehavior("");
+                }}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
         )}
       </section>
     </>

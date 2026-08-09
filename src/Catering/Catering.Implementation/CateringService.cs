@@ -381,6 +381,88 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
         return await MapMealAsync(meal, context.DefaultPortions, cancellationToken);
     }
 
+    public async Task MoveMealToTrashAsync(DeleteMeal request, CancellationToken cancellationToken)
+    {
+        _ = await EnsureMealWriteAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            cancellationToken);
+        var meal = await RequireMealAsync(
+            request.OrganizationId,
+            request.CampId,
+            request.MealId,
+            cancellationToken);
+        EnsureVersion(meal.Version, request.ExpectedVersion);
+        var now = timeProvider.GetUtcNow();
+        meal.DeletedAt = now;
+        meal.PurgeAt = now.AddDays(30);
+        meal.Version++;
+        await SaveAsync(cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TrashedMeal>> ListMealTrashAsync(
+        MealTrashQuery request,
+        CancellationToken cancellationToken)
+    {
+        await EnsureCampAccessAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            CampAction.ManageCamp,
+            cancellationToken);
+        return (await state.ListDeletedMealsAsync(
+                request.OrganizationId,
+                request.CampId,
+                cancellationToken))
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedMeal(
+                item.Id,
+                item.OrganizationId,
+                item.CampId,
+                item.Name,
+                item.ScheduleEntryId,
+                item.DeletedAt!.Value,
+                item.PurgeAt!.Value,
+                item.Version))
+            .ToArray();
+    }
+
+    public async Task<Meal> RestoreMealAsync(RestoreMeal request, CancellationToken cancellationToken)
+    {
+        await EnsureCampAccessAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            CampAction.ManageCamp,
+            cancellationToken);
+        var context = await GetCampContextAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            cancellationToken);
+        if (context.IsArchived)
+        {
+            throw Rule("camp_archived", "Archivierte Freizeiten können nicht mehr bearbeitet werden.");
+        }
+        var meal = await state.FindDeletedMealAsync(
+            request.OrganizationId,
+            request.CampId,
+            request.MealId,
+            cancellationToken)
+            ?? throw Rule("meal_not_found", "Die Mahlzeit wurde nicht gefunden.");
+        EnsureVersion(meal.Version, request.ExpectedVersion);
+        if (meal.PurgeAt is null || meal.PurgeAt <= timeProvider.GetUtcNow())
+        {
+            throw Rule("meal_restore_expired", "Die Aufbewahrungsfrist ist abgelaufen.");
+        }
+        meal.DeletedAt = null;
+        meal.PurgeAt = null;
+        meal.Version++;
+        await SaveAsync(cancellationToken);
+        return await MapMealAsync(meal, context.DefaultPortions, cancellationToken);
+    }
+
     public async Task<Meal> AddRecipeSnapshotAsync(
         AddRecipeSnapshot request,
         CancellationToken cancellationToken)

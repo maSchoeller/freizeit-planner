@@ -135,6 +135,33 @@ public sealed class CateringPlanningTests
     }
 
     [Fact]
+    public async Task MealTrashPreservesSnapshotsAndCanBeRestoredByAManager()
+    {
+        var subject = CreateSubject();
+        var ingredient = await CreateIngredientAsync(subject, "Bohnen");
+        var recipe = await CreateRecipeAsync(subject, ingredient.Id, 500m, MeasurementUnit.Gram, 5);
+        var meal = await CreateMealAsync(subject, recipe.Id);
+
+        await subject.MoveMealToTrashAsync(
+            new DeleteMeal(ActorId, OrganizationId, CampId, meal.Id, meal.Version),
+            TestContext.Current.CancellationToken);
+        var active = await subject.ListMealsAsync(
+            new CampCateringQuery(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+        var trash = await subject.ListMealTrashAsync(
+            new MealTrashQuery(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+        var deleted = Assert.Single(trash);
+        var restored = await subject.RestoreMealAsync(
+            new RestoreMeal(ActorId, OrganizationId, CampId, meal.Id, deleted.Version),
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(active);
+        Assert.Single(restored.RecipeSnapshots);
+        Assert.Equal(meal.Version + 2, restored.Version);
+    }
+
+    [Fact]
     public async Task ArchivedCampRejectsEveryMealMutation()
     {
         var context = new TestCampContext(10, false);
@@ -352,7 +379,9 @@ internal sealed class TestCateringState : ICateringState
         Guid campId,
         CancellationToken cancellationToken) =>
         Task.FromResult<IReadOnlyList<MealEntity>>(
-            Meals.Where(item => item.OrganizationId == organizationId && item.CampId == campId).ToList());
+            Meals.Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt is null).ToList());
 
     public Task<MealEntity?> FindMealAsync(
         Guid organizationId,
@@ -360,7 +389,40 @@ internal sealed class TestCateringState : ICateringState
         Guid mealId,
         CancellationToken cancellationToken) =>
         Task.FromResult(Meals.SingleOrDefault(item =>
-            item.OrganizationId == organizationId && item.CampId == campId && item.Id == mealId));
+            item.OrganizationId == organizationId
+            && item.CampId == campId
+            && item.Id == mealId
+            && item.DeletedAt is null));
+
+    public Task<IReadOnlyList<MealEntity>> ListDeletedMealsAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult<IReadOnlyList<MealEntity>>(Meals.Where(item =>
+            item.OrganizationId == organizationId
+            && item.CampId == campId
+            && item.DeletedAt is not null).ToList());
+
+    public Task<MealEntity?> FindDeletedMealAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid mealId,
+        CancellationToken cancellationToken) =>
+        Task.FromResult(Meals.SingleOrDefault(item =>
+            item.OrganizationId == organizationId
+            && item.CampId == campId
+            && item.Id == mealId
+            && item.DeletedAt is not null));
+
+    public Task<int> PurgeDueMealsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        var due = Meals.Where(item => item.PurgeAt <= now).Take(batchSize).ToArray();
+        foreach (var item in due) Meals.Remove(item);
+        return Task.FromResult(due.Length);
+    }
 
     public void AddMeal(MealEntity meal) => Meals.Add(meal);
 

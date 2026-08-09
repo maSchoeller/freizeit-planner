@@ -44,6 +44,14 @@ public interface ICampMealPlanning
 
     Task<Meal> ReviseMealAsync(ReviseMeal request, CancellationToken cancellationToken);
 
+    Task MoveMealToTrashAsync(DeleteMeal request, CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TrashedMeal>> ListMealTrashAsync(
+        MealTrashQuery request,
+        CancellationToken cancellationToken);
+
+    Task<Meal> RestoreMealAsync(RestoreMeal request, CancellationToken cancellationToken);
+
     Task<Meal> AddRecipeSnapshotAsync(AddRecipeSnapshot request, CancellationToken cancellationToken);
 
     Task<Meal> RemoveRecipeSnapshotAsync(RemoveRecipeSnapshot request, CancellationToken cancellationToken);
@@ -192,6 +200,32 @@ public sealed record ReviseMeal(
     int? PortionOverride,
     Guid? ScheduleEntryId,
     long ExpectedVersion);
+
+public sealed record DeleteMeal(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid MealId,
+    long ExpectedVersion);
+
+public sealed record MealTrashQuery(Guid ActorId, Guid OrganizationId, Guid CampId);
+
+public sealed record RestoreMeal(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid MealId,
+    long ExpectedVersion);
+
+public sealed record TrashedMeal(
+    Guid Id,
+    Guid OrganizationId,
+    Guid CampId,
+    string Name,
+    Guid? ScheduleEntryId,
+    DateTimeOffset DeletedAt,
+    DateTimeOffset PurgeAt,
+    long Version);
 
 public sealed record AddRecipeSnapshot(
     Guid ActorId,

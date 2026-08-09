@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using Activity.Contracts;
 using Camps.Contracts;
+using Catering.Contracts;
 using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Spiritual.Contracts;
 using Xunit;
 
 namespace Api.Tests;
@@ -175,6 +177,58 @@ public sealed class CampPlanningApiTests
         }
     }
 
+    [Fact]
+    public async Task LinkedScheduleDeletionRequiresChoiceAndCanMoveEveryLinkToTrash()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/schedule/{planning.ScheduleEntryId}";
+
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            using var missingChoice = CreateDeleteRequest(uri, csrf, 1);
+            using var rejected = await client.SendAsync(missingChoice, cancellationToken);
+
+            csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            using var commonTrash = CreateDeleteRequest(
+                $"{uri}?linkedBehavior=MoveLinkedToTrash", csrf, 1);
+            using var accepted = await client.SendAsync(commonTrash, cancellationToken);
+
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+            Assert.Equal(HttpStatusCode.NoContent, accepted.StatusCode);
+            Assert.True(planning.MealMovedToTrash);
+            Assert.True(planning.DevotionMovedToTrash);
+            Assert.True(planning.ScheduleMovedToTrash);
+        }
+    }
+
+    [Fact]
+    public async Task LinkedScheduleDeletionCanExplicitlyUnlinkEveryLink()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/schedule/{planning.ScheduleEntryId}?linkedBehavior=Unlink";
+            using var request = CreateDeleteRequest(uri, csrf, 1);
+
+            using var response = await client.SendAsync(request, cancellationToken);
+
+            Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+            Assert.True(planning.MealUnlinked);
+            Assert.True(planning.DevotionUnlinked);
+            Assert.True(planning.ScheduleMovedToTrash);
+            Assert.False(planning.MealMovedToTrash);
+            Assert.False(planning.DevotionMovedToTrash);
+        }
+    }
+
     private static (HttpClient Client, CapturingSender Sender) CreateClient(PlanningFake planning)
     {
         var sender = new CapturingSender();
@@ -189,12 +243,16 @@ public sealed class CampPlanningApiTests
                 services.RemoveAll<ISchedulePlanning>();
                 services.RemoveAll<IActivityJournal>();
                 services.RemoveAll<ICampSearchIndex>();
+                services.RemoveAll<ICampMealPlanning>();
+                services.RemoveAll<IDevotionPlanning>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampManagement>(planning);
                 services.AddSingleton<ISchedulePlanning>(planning);
                 services.AddSingleton<IActivityJournal>(planning);
                 services.AddSingleton<ICampSearchIndex>(planning);
+                services.AddSingleton<ICampMealPlanning>(planning);
+                services.AddSingleton<IDevotionPlanning>(planning);
             });
         });
         return (factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -249,6 +307,14 @@ public sealed class CampPlanningApiTests
         return request;
     }
 
+    private static HttpRequestMessage CreateDeleteRequest(string uri, string csrf, long version)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, uri);
+        request.Headers.Add("X-CSRF-TOKEN", csrf);
+        request.Headers.IfMatch.ParseAdd($"\"{version}\"");
+        return request;
+    }
+
     private sealed record AntiforgeryResponse(string Token);
 
     private sealed class CapturingSender : ILoginCodeSender
@@ -266,11 +332,24 @@ public sealed class CampPlanningApiTests
         }
     }
 
-    private sealed class PlanningFake : ICampManagement, ISchedulePlanning, IActivityJournal, ICampSearchIndex
+    private sealed class PlanningFake : ICampManagement, ISchedulePlanning, IActivityJournal, ICampSearchIndex,
+        ICampMealPlanning, IDevotionPlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
         public Guid CampId { get; } = Guid.Parse("30000000-0000-0000-0000-000000000001");
+
+        public Guid ScheduleEntryId { get; } = Guid.Parse("40000000-0000-0000-0000-000000000001");
+
+        public bool MealMovedToTrash { get; private set; }
+
+        public bool DevotionMovedToTrash { get; private set; }
+
+        public bool ScheduleMovedToTrash { get; private set; }
+
+        public bool MealUnlinked { get; private set; }
+
+        public bool DevotionUnlinked { get; private set; }
 
         public Guid ActorId { get; private set; }
 
@@ -337,6 +416,27 @@ public sealed class CampPlanningApiTests
             CampPeriod.Upcoming,
             version);
 
+        private ScheduleEntryView ScheduleEntry(string title, long version) => new(
+            ScheduleEntryId,
+            OrganizationId,
+            CampId,
+            new ScheduleTimingView(
+                true,
+                null,
+                null,
+                new DateOnly(2027, 8, 1),
+                new DateOnly(2027, 8, 2),
+                "Europe/Berlin"),
+            title,
+            null,
+            null,
+            "Programm",
+            ScheduleEntryStatus.Planned,
+            [],
+            null,
+            false,
+            version);
+
         public Task<IReadOnlyList<CampSummary>> ListAsync(
             CampListQuery query,
             CancellationToken cancellationToken) => throw new NotSupportedException();
@@ -355,7 +455,7 @@ public sealed class CampPlanningApiTests
 
         public Task<ScheduleEntryView> GetAsync(
             ScheduleEntryQuery query,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken) => Task.FromResult(ScheduleEntry("Zeitplaneintrag", 1));
 
         public Task<ScheduleEntryView> UpdateAsync(
             UpdateScheduleEntry command,
@@ -363,7 +463,12 @@ public sealed class CampPlanningApiTests
 
         public Task<ScheduleEntryReference> DeleteAsync(
             DeleteScheduleEntry command,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            ScheduleMovedToTrash = true;
+            return Task.FromResult(new ScheduleEntryReference(OrganizationId, CampId, ScheduleEntryId,
+                command.ExpectedVersion + 1));
+        }
 
         public Task<IReadOnlyList<TrashedScheduleEntry>> ListTrashAsync(
             ScheduleTrashQuery query,
@@ -372,6 +477,117 @@ public sealed class CampPlanningApiTests
         public Task<ScheduleEntryView> RestoreAsync(
             RestoreScheduleEntry command,
             CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<MealSummary>> ListMealsAsync(
+            CampCateringQuery request,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<MealSummary>>([
+                new MealSummary(Guid.Parse("50000000-0000-0000-0000-000000000001"), OrganizationId, CampId,
+                    "Mittagessen", 20, ScheduleEntryId, 1, 3)
+            ]);
+
+        public Task<Meal?> GetMealAsync(MealRequest request, CancellationToken cancellationToken) =>
+            Task.FromResult<Meal?>(new Meal(
+                request.MealId,
+                OrganizationId,
+                CampId,
+                "Mittagessen",
+                20,
+                null,
+                20,
+                ScheduleEntryId,
+                [],
+                3));
+
+        public Task MoveMealToTrashAsync(DeleteMeal request, CancellationToken cancellationToken)
+        {
+            MealMovedToTrash = true;
+            return Task.CompletedTask;
+        }
+
+        public Task<IReadOnlyList<TrashedMeal>> ListMealTrashAsync(
+            MealTrashQuery request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<DevotionSummary>> ListAsync(
+            DevotionScope scope,
+            CancellationToken cancellationToken) => Task.FromResult<IReadOnlyList<DevotionSummary>>([
+                new DevotionSummary(Guid.Parse("60000000-0000-0000-0000-000000000001"), OrganizationId, CampId,
+                    "Abendandacht", "Johannes 3,16", BibleTranslation.Schlachter1951, [], ScheduleEntryId, false, 4)
+            ]);
+
+        public Task MoveToTrashAsync(
+            ChangeDevotionLifecycle command,
+            CancellationToken cancellationToken)
+        {
+            DevotionMovedToTrash = true;
+            return Task.CompletedTask;
+        }
+
+        public Task<Meal> CreateMealAsync(CreateMeal request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Meal> ReviseMealAsync(ReviseMeal request, CancellationToken cancellationToken)
+        {
+            MealUnlinked = request.ScheduleEntryId is null;
+            return Task.FromResult(new Meal(
+                request.MealId,
+                OrganizationId,
+                CampId,
+                request.Name,
+                20,
+                request.PortionOverride,
+                request.PortionOverride ?? 20,
+                request.ScheduleEntryId,
+                [],
+                request.ExpectedVersion + 1));
+        }
+        public Task<Meal> RestoreMealAsync(RestoreMeal request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Meal> AddRecipeSnapshotAsync(AddRecipeSnapshot request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Meal> RemoveRecipeSnapshotAsync(RemoveRecipeSnapshot request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Meal> RefreshRecipeSnapshotAsync(RefreshRecipeSnapshot request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<TrashedDevotion>> ListTrashAsync(DevotionScope scope, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DevotionDetails?> GetAsync(DevotionKey key, CancellationToken cancellationToken) =>
+            Task.FromResult<DevotionDetails?>(new DevotionDetails(
+                key.DevotionId,
+                OrganizationId,
+                CampId,
+                "Abendandacht",
+                "Johannes 3,16",
+                BibleTranslation.Schlachter1951,
+                "Gott liebt die Welt.",
+                "# Abendandacht",
+                [],
+                "Kerze",
+                ScheduleEntryId,
+                null,
+                new DateTimeOffset(2027, 8, 1, 16, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2027, 8, 1, 16, 0, 0, TimeSpan.Zero),
+                null,
+                4));
+        public Task<DevotionDetails> CreateAsync(CreateDevotion command, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DevotionDetails> UpdateAsync(UpdateDevotion command, CancellationToken cancellationToken)
+        {
+            DevotionUnlinked = command.ScheduleEntryId is null;
+            return Task.FromResult(new DevotionDetails(
+                command.DevotionId,
+                OrganizationId,
+                CampId,
+                command.Topic,
+                command.BibleReference,
+                command.Translation,
+                command.CoreMessage,
+                command.MarkdownContent,
+                command.ResponsibleUserIds,
+                command.MaterialNotes,
+                command.ScheduleEntryId,
+                null,
+                new DateTimeOffset(2027, 8, 1, 16, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2027, 8, 1, 17, 0, 0, TimeSpan.Zero),
+                null,
+                command.ExpectedVersion + 1));
+        }
+        public Task RestoreAsync(ChangeDevotionLifecycle command, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<BibleSnapshotRefreshResult> RefreshBibleSnapshotAsync(RefreshBibleSnapshot command, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DevotionDetails> SaveManualBibleSnapshotAsync(SaveManualBibleSnapshot command, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<IReadOnlyList<BibleTranslationView>> ListBibleTranslationsAsync(CancellationToken cancellationToken) => throw new NotSupportedException();
 
         public Task<ActivityEvent> RecordAsync(RecordActivity request, CancellationToken cancellationToken)
         {
@@ -397,7 +613,9 @@ public sealed class CampPlanningApiTests
 
         public Task<SearchProjectionResult> RemoveAsync(
             RemoveSearchDocument request,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken) => Task.FromResult(new SearchProjectionResult(
+                request.ObjectType, request.ObjectId, request.SourceVersion, SearchDocuments.Count + 1,
+                false, true));
 
         public Task<IReadOnlyList<SearchResult>> SearchAsync(
             CampSearchQuery request,

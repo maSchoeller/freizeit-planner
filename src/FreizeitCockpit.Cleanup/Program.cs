@@ -1,6 +1,7 @@
 using Azure.Identity;
 using Azure.Storage.Blobs;
 using Camps.Contracts;
+using Catering.Contracts;
 using Activity.Implementation;
 using Camps.Implementation;
 using Catering.Implementation;
@@ -71,6 +72,7 @@ builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
 builder.Services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
 builder.Services.AddScoped<ICampsState, EfCampsState>();
 builder.Services.AddScoped<IScheduleRetention, ScheduleRetentionService>();
+builder.Services.AddScoped<IMealRetention, MealRetentionService>();
 builder.Services.AddScoped<INotebookRetention, KnowledgeRetentionService>();
 builder.Services.AddScoped<IAttachmentMaintenance, AttachmentMaintenanceService>();
 builder.Services.AddScoped<ILogisticsState, EfLogisticsState>();

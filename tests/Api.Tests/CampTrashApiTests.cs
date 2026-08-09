@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Globalization;
 using System.Text.Json;
 using Camps.Contracts;
+using Catering.Contracts;
 using Files.Contracts;
 using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
@@ -39,6 +40,7 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<IMaterialPlanning>();
                 services.RemoveAll<IShoppingPlanning>();
                 services.RemoveAll<ISchedulePlanning>();
+                services.RemoveAll<ICampMealPlanning>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
@@ -47,6 +49,7 @@ public sealed class CampTrashApiTests
                 services.AddSingleton<IMaterialPlanning>(trash);
                 services.AddSingleton<IShoppingPlanning>(trash);
                 services.AddSingleton<ISchedulePlanning>(trash);
+                services.AddSingleton<ICampMealPlanning>(trash);
             });
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -66,7 +69,7 @@ public sealed class CampTrashApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
-        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf", "Brot", "Tagesplan"],
+        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf", "Brot", "Tagesplan", "Mahlzeit"],
             items.Select(item => item.GetProperty("title").GetString()));
         Assert.All(items, item => Assert.EndsWith(
             "/restore",
@@ -121,7 +124,7 @@ public sealed class CampTrashApiTests
     }
 
     private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning,
-        IShoppingPlanning, ISchedulePlanning
+        IShoppingPlanning, ISchedulePlanning, ICampMealPlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -210,6 +213,16 @@ public sealed class CampTrashApiTests
             return Task.FromResult(result);
         }
 
+        public Task<IReadOnlyList<TrashedMeal>> ListMealTrashAsync(
+            MealTrashQuery request,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<TrashedMeal> result = [new TrashedMeal(
+                Guid.Parse("40000000-0000-0000-0000-000000000008"), OrganizationId, CampId, "Mahlzeit", null,
+                ParseTimestamp("2026-08-02T10:00:00Z"), ParseTimestamp("2026-09-01T10:00:00Z"), 9)];
+            return Task.FromResult(result);
+        }
+
         public Task<Note?> GetNoteAsync(NoteRequest request, CancellationToken cancellationToken) => Unsupported<Note?>();
         public Task<Note> CreateNoteAsync(CreateNote request, CancellationToken cancellationToken) => Unsupported<Note>();
         public Task<Note> ReviseNoteAsync(ReviseNote request, CancellationToken cancellationToken) => Unsupported<Note>();
@@ -252,6 +265,15 @@ public sealed class CampTrashApiTests
         public Task<ScheduleEntryView> UpdateAsync(UpdateScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
         public Task<ScheduleEntryReference> DeleteAsync(DeleteScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryReference>();
         public Task<ScheduleEntryView> RestoreAsync(RestoreScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
+        public Task<IReadOnlyList<MealSummary>> ListMealsAsync(CampCateringQuery request, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<MealSummary>>();
+        public Task<Meal?> GetMealAsync(MealRequest request, CancellationToken cancellationToken) => Unsupported<Meal?>();
+        public Task<Meal> CreateMealAsync(CreateMeal request, CancellationToken cancellationToken) => Unsupported<Meal>();
+        public Task<Meal> ReviseMealAsync(ReviseMeal request, CancellationToken cancellationToken) => Unsupported<Meal>();
+        public Task MoveMealToTrashAsync(DeleteMeal request, CancellationToken cancellationToken) => Unsupported();
+        public Task<Meal> RestoreMealAsync(RestoreMeal request, CancellationToken cancellationToken) => Unsupported<Meal>();
+        public Task<Meal> AddRecipeSnapshotAsync(AddRecipeSnapshot request, CancellationToken cancellationToken) => Unsupported<Meal>();
+        public Task<Meal> RemoveRecipeSnapshotAsync(RemoveRecipeSnapshot request, CancellationToken cancellationToken) => Unsupported<Meal>();
+        public Task<Meal> RefreshRecipeSnapshotAsync(RefreshRecipeSnapshot request, CancellationToken cancellationToken) => Unsupported<Meal>();
 
         private static Task Unsupported() => throw new NotSupportedException();
 

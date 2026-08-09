@@ -440,12 +440,17 @@ button:disabled {
   }
   .workspace {
     display: block;
+    min-width: 0;
+    max-width: 100%;
   }
   .sidebar {
     padding: 0.7rem 0.5rem;
     position: sticky;
     top: 0;
     z-index: 10;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
   }
   .sidebar > .eyebrow,
   .camp-name,
@@ -454,9 +459,17 @@ button:disabled {
   }
   .sidebar ul {
     display: flex;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
     overflow-x: auto;
     gap: 0.25rem;
     scrollbar-width: thin;
+  }
+  .sidebar nav {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
   }
   .sidebar nav a {
     min-width: 2.75rem;
@@ -752,6 +765,40 @@ button:disabled {
   padding: 1rem;
   border-left: 4px solid #9d3a34;
   background: #fff0ee;
+}
+.delete-choice {
+  margin-top: 1.25rem;
+  padding: 1rem;
+  border-left: 4px solid #9d3a34;
+  background: #fff0ee;
+}
+.delete-choice h3,
+.delete-choice p {
+  margin: 0;
+}
+.delete-choice fieldset {
+  display: grid;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #d8aaa6;
+  border-radius: 0.65rem;
+}
+.delete-choice legend {
+  padding-inline: 0.35rem;
+  color: var(--petrol-900);
+  font-weight: 750;
+}
+.delete-choice label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+}
+.delete-choice input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-top: 0.1rem;
+  accent-color: var(--petrol-700);
 }
 .button-link {
   display: inline-flex;

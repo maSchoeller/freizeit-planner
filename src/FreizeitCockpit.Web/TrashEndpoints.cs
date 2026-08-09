@@ -1,5 +1,6 @@
 using Files.Contracts;
 using Camps.Contracts;
+using Catering.Contracts;
 using Knowledge.Contracts;
 using Logistics.Contracts;
 using System.Security.Cryptography;
@@ -28,6 +29,7 @@ internal static class TrashEndpoints
         IMaterialPlanning materials,
         IShoppingPlanning shopping,
         ISchedulePlanning schedule,
+        ICampMealPlanning meals,
         CancellationToken cancellationToken)
     {
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId))
@@ -49,6 +51,18 @@ internal static class TrashEndpoints
                 item.PurgeAt,
                 item.Version,
                 $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/schedule/{item.Id:D}/restore")));
+
+            var trashedMeals = await meals.ListMealTrashAsync(
+                new MealTrashQuery(actorId, organizationId, campId),
+                cancellationToken);
+            result.AddRange(trashedMeals.Select(item => new CampTrashItem(
+                "Meal",
+                item.Id,
+                item.Name,
+                item.DeletedAt,
+                item.PurgeAt,
+                item.Version,
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/catering/meals/{item.Id:D}/restore")));
 
             var notes = await notebook.ListNotesAsync(
                 new NotebookQuery(actorId, organizationId, campId, NotebookSection.Trash),

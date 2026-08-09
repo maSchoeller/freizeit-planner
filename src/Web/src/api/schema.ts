@@ -1567,7 +1567,9 @@ export interface paths {
     post?: never;
     delete: {
       parameters: {
-        query?: never;
+        query?: {
+          linkedBehavior?: components["schemas"]["LinkedScheduleDeleteBehavior"];
+        };
         header?: never;
         path: {
           organizationId: string;
@@ -2062,6 +2064,64 @@ export interface paths {
       };
     };
     post?: never;
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          mealId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/catering/meals/{mealId}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          mealId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
     delete?: never;
     options?: never;
     head?: never;
@@ -4231,6 +4291,7 @@ export interface components {
       /** Format: date-time */
       expiresAt: string;
     };
+    LinkedScheduleDeleteBehavior: number;
     LogisticsQuantity: {
       /** Format: double */
       value: number | string;

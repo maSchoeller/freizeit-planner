@@ -146,4 +146,73 @@ describe("camp workspace", () => {
       "If-Match": '"3"',
     });
   });
+
+  it("requires an explicit linked-content choice before deleting a schedule entry", async () => {
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "DELETE")
+          return Promise.resolve(new Response(null, { status: 204 }));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                id: "40000000-0000-0000-0000-000000000001",
+                title: "Geländespiel",
+                location: "Wald",
+                category: "Programm",
+                overlapsAnotherEntry: false,
+                timing: {
+                  isAllDay: true,
+                  startDate: "2026-08-03",
+                  endDateExclusive: "2026-08-04",
+                },
+                version: 7,
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Geländespiel löschen" }),
+    );
+    expect(
+      screen.getByRole("group", { name: "Verknüpfte Inhalte" }),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("radio", {
+        name: /Mahlzeiten und Andachten vom Zeitplaneintrag lösen/,
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "In den Papierkorb verschieben" }),
+    );
+
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("?linkedBehavior=Unlink") &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toEqual({
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"7"',
+    });
+    expect(
+      await screen.findByRole("status", { name: "Löschstatus" }),
+    ).toHaveTextContent("Geländespiel“ wurde in den Papierkorb verschoben.");
+  });
 });

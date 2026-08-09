@@ -92,6 +92,7 @@ public sealed class CateringDbContext(DbContextOptions<CateringDbContext> option
             entity.Property(item => item.Name).HasMaxLength(160);
             entity.Property(item => item.Version).IsConcurrencyToken();
             entity.HasIndex(item => new { item.OrganizationId, item.CampId });
+            entity.HasIndex(item => new { item.OrganizationId, item.CampId, item.PurgeAt });
             entity.HasMany(item => item.RecipeSnapshots)
                 .WithOne()
                 .HasForeignKey(item => item.MealId)

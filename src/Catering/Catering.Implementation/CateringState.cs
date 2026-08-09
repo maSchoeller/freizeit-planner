@@ -44,6 +44,22 @@ internal interface ICateringState
         Guid mealId,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<MealEntity>> ListDeletedMealsAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken);
+
+    Task<MealEntity?> FindDeletedMealAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid mealId,
+        CancellationToken cancellationToken);
+
+    Task<int> PurgeDueMealsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken);
+
     void AddMeal(MealEntity meal);
 
     Task SaveChangesAsync(CancellationToken cancellationToken);
@@ -110,7 +126,9 @@ internal sealed class EfCateringState(CateringDbContext dbContext) : ICateringSt
         Guid campId,
         CancellationToken cancellationToken) =>
         await dbContext.Meals
-            .Where(item => item.OrganizationId == organizationId && item.CampId == campId)
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt == null)
             .Include(item => item.RecipeSnapshots)
             .ThenInclude(item => item.Ingredients)
             .ToListAsync(cancellationToken);
@@ -124,8 +142,48 @@ internal sealed class EfCateringState(CateringDbContext dbContext) : ICateringSt
             .Include(item => item.RecipeSnapshots)
             .ThenInclude(item => item.Ingredients)
             .SingleOrDefaultAsync(
-                item => item.OrganizationId == organizationId && item.CampId == campId && item.Id == mealId,
+                item => item.OrganizationId == organizationId
+                    && item.CampId == campId
+                    && item.Id == mealId
+                    && item.DeletedAt == null,
                 cancellationToken);
+
+    public async Task<IReadOnlyList<MealEntity>> ListDeletedMealsAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken) =>
+        await dbContext.Meals
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt != null)
+            .Include(item => item.RecipeSnapshots)
+            .ThenInclude(item => item.Ingredients)
+            .ToListAsync(cancellationToken);
+
+    public Task<MealEntity?> FindDeletedMealAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid mealId,
+        CancellationToken cancellationToken) =>
+        dbContext.Meals
+            .Include(item => item.RecipeSnapshots)
+            .ThenInclude(item => item.Ingredients)
+            .SingleOrDefaultAsync(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.Id == mealId
+                && item.DeletedAt != null,
+                cancellationToken);
+
+    public async Task<int> PurgeDueMealsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken) =>
+        await dbContext.Meals
+            .Where(item => item.PurgeAt != null && item.PurgeAt <= now)
+            .OrderBy(item => item.PurgeAt)
+            .ThenBy(item => item.Id)
+            .Take(batchSize)
+            .ExecuteDeleteAsync(cancellationToken);
 
     public void AddMeal(MealEntity meal) => dbContext.Meals.Add(meal);
 
