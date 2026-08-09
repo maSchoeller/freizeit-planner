@@ -4478,6 +4478,157 @@ describe("camp workspace", () => {
     ).toHaveTextContent("Geländespiel“ wurde in den Papierkorb verschoben.");
   });
 
+  it("uploads and moves a private schedule attachment to the camp trash", async () => {
+    const entryId = "40000000-0000-0000-0000-000000000004";
+    const attachmentId = "4f000000-0000-0000-0000-00000000000a";
+    const entry = {
+      id: entryId,
+      title: "Geländespiel",
+      description: "In Gruppen",
+      location: "Wald",
+      category: "Programm",
+      status: 0,
+      responsibleUserIds: [],
+      audience: "Ab 12",
+      overlapsAnotherEntry: false,
+      timing: {
+        isAllDay: false,
+        startsAtUtc: "2026-08-03T08:00:00Z",
+        endsAtUtc: "2026-08-03T09:30:00Z",
+        timeZoneId: "Europe/Berlin",
+      },
+      version: 7,
+    };
+    const attachment = {
+      id: attachmentId,
+      originalFileName: "Stationsplan.pdf",
+      mediaType: 0,
+      contentType: "application/pdf",
+      sizeBytes: 204800,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.includes(`/files?ownerType=ScheduleEntry&ownerId=${entryId}`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...attachment,
+                id: "4f000000-0000-0000-0000-00000000000b",
+                originalFileName: "Wegmarken.png",
+                mediaType: 2,
+                contentType: "image/png",
+                sizeBytes: 8,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/files/${attachmentId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                limitBytes: 104857600,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 103809024,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes(`/files?ownerType=ScheduleEntry&ownerId=${entryId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify([attachment]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.includes("/schedule?"))
+          return Promise.resolve(
+            new Response(JSON.stringify([entry]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(
+      await screen.findByRole("button", {
+        name: "Dateien zu Geländespiel öffnen",
+      }),
+    );
+    const files = await screen.findByRole("region", {
+      name: "Dateien zu Geländespiel",
+    });
+    expect(await within(files).findByText("Stationsplan.pdf")).toBeVisible();
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Wegmarken.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(files).getByLabelText("Datei für den Zeitplaneintrag"),
+      upload,
+    );
+    await user.click(
+      within(files).getByRole("button", { name: "Wegmarken.png hochladen" }),
+    );
+    expect(
+      await within(files).findByText("Wegmarken.png wurde sicher hochgeladen."),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      within(files).getByRole("button", { name: "Stationsplan.pdf löschen" }),
+    );
+    await user.click(
+      within(files).getByRole("checkbox", {
+        name: "Stationsplan.pdf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Datei in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Stationsplan.pdf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/files/${attachmentId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("creates a schedule entry and meal through one visible workflow", async () => {
     const fetchMock = vi.fn(
       (request: RequestInfo | URL, init?: RequestInit) => {

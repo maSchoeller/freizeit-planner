@@ -1360,6 +1360,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
     "" | "Unlink" | "MoveLinkedToTrash"
   >("");
   const [deleteStatus, setDeleteStatus] = useState("");
+  const [filesEntryId, setFilesEntryId] = useState<string | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<"" | "Meal" | "Devotion">("");
   const [scheduleTitle, setScheduleTitle] = useState("");
@@ -1523,6 +1524,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
       );
       setDeleteCandidate(null);
       setLinkedBehavior("");
+      if (filesEntryId === variables.entry.id) setFilesEntryId(null);
       await Promise.all([
         queryClient.invalidateQueries({
           queryKey: [organizationId, campId, "schedule"],
@@ -1610,6 +1612,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
   });
   const stored = (loadOfflineSnapshot()?.schedule ?? []) as ScheduleEntry[];
   const entries = query.data ?? (offline ? stored : []);
+  const filesEntry = entries.find((entry) => entry.id === filesEntryId);
   useEffect(() => {
     if (query.data) saveOfflineSnapshot({ schedule: query.data });
   }, [query.data]);
@@ -2181,6 +2184,21 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   <span className="status info">Überschneidung</span>
                 )}
                 <button
+                  type="button"
+                  className="secondary-action"
+                  aria-expanded={filesEntryId === entry.id}
+                  aria-label={`Dateien zu ${entry.title} ${
+                    filesEntryId === entry.id ? "schließen" : "öffnen"
+                  }`}
+                  onClick={() =>
+                    setFilesEntryId((current) =>
+                      current === entry.id ? null : entry.id,
+                    )
+                  }
+                >
+                  Dateien
+                </button>
+                <button
                   className="secondary-action"
                   disabled={offline || update.isPending}
                   aria-label={`${entry.title} bearbeiten`}
@@ -2210,6 +2228,18 @@ function SchedulePage({ offline }: { offline: boolean }) {
             ))}
           </ol>
         )}
+        {filesEntry ? (
+          <OwnerAttachmentsPanel
+            organizationId={organizationId}
+            campId={campId}
+            ownerType="ScheduleEntry"
+            ownerId={filesEntry.id}
+            ownerName={filesEntry.title}
+            ownerNoun="den Zeitplaneintrag"
+            canUpload={!offline}
+            canDelete={!offline}
+          />
+        ) : null}
         {deleteCandidate && (
           <form
             className="delete-choice"
@@ -2666,12 +2696,19 @@ function OwnerAttachmentsPanel({
 }: {
   organizationId: string;
   campId?: string;
-  ownerType: "Recipe" | "MaterialRequirement" | "Meal" | "Devotion" | "Note";
+  ownerType:
+    | "Recipe"
+    | "MaterialRequirement"
+    | "ScheduleEntry"
+    | "Meal"
+    | "Devotion"
+    | "Note";
   ownerId: string;
   ownerName: string;
   ownerNoun:
     | "das Rezept"
     | "das Material"
+    | "den Zeitplaneintrag"
     | "die Mahlzeit"
     | "die Andacht"
     | "die Notiz";

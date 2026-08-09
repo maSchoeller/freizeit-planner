@@ -32,6 +32,18 @@ zeigen dieselben Daten. Das Formular und die Agenda können vollständig mit der
 Alle Kalenderzeiten werden unabhängig von der Zeitzone des verwendeten Geräts in **Europe/Berlin** dargestellt.
 Bei einer gleichzeitigen Änderung durch eine andere Person wird der aktuelle Serverstand neu geladen.
 
+## Dateien am Zeitplaneintrag
+
+Wähle in der Agenda beim gewünschten Eintrag **Dateien**. Dort siehst du private PDF-, JPEG-, PNG- und WebP-Anhänge
+sowie die gemeinsam für das Camp verwendete 100-MiB-Quote. Eine einzelne Datei darf höchstens zehn MiB groß sein.
+Mit Schreibrecht kannst du Dateien hochladen oder nach einer ausdrücklichen Bestätigung in den Camp-Papierkorb
+verschieben; dort bleiben sie 30 Tage wiederherstellbar. In einem archivierten Camp bleiben vorhandene Dateien
+lesbar, können aber nicht verändert werden.
+
+Beim Öffnen fordert die Anwendung für dein Konto eine einmalige, kurzlebige Leseberechtigung an. Die Dateien bleiben
+privat; Bilder werden sicher angezeigt und PDFs heruntergeladen. Eine Malware-Prüfung ist nicht enthalten, deshalb
+solltest du nur vertrauenswürdige Dateien hochladen.
+
 ## Verknüpften Eintrag löschen
 
 Beim Löschen eines Zeitplaneintrags mit Mahlzeit oder Andacht musst du ausdrücklich wählen:

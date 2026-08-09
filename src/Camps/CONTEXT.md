@@ -29,6 +29,9 @@
   failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures. Create and
   edit forms select one or more responsibility candidates from Identity's minimized camp-readable directory;
   responsibilities affect presentation only and are revalidated by Camps on every write.
+- Every agenda row also opens its Files-owned private attachment area without crossing module internals. Authorized
+  readers obtain a fresh actor-bound grant before opening a file; Camp writers upload with antiforgery and move files
+  to the shared 30-day trash with the attachment `If-Match`. Archived Camps expose these files read-only.
 - Lifecycle UI: the Organization Camp list resolves the tenant through the signed-in account memberships, groups
   Camps by upcoming/ongoing/past, and links only readable results. Owner/Admin creation uses antiforgery; settings
   update, archive, and reactivate use antiforgery plus the current numeric Version in `If-Match`. Archived fields are
