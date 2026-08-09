@@ -24,6 +24,9 @@
 - Concurrency/errors: updates, archive/reactivation, soft deletes and restores require ExpectedVersion; persistence
   uses EF concurrency tokens. Stable `CampsRuleException.ErrorCode` values map to German RFC-9457 responses in the
   host.
+- UI: FullCalendar renders in the Camp IANA zone through its named-time-zone adapter. Drop and resize share the
+  versioned update path with the accessible agenda form, update optimistically, and revert plus refetch on every
+  failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
   `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion

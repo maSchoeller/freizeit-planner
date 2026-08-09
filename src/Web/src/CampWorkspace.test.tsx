@@ -1,9 +1,35 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+
+type CalendarMutationInfo = {
+  event: {
+    id: string;
+    allDay: boolean;
+    startStr: string;
+    endStr: string;
+  };
+  revert: () => void;
+};
+
+const calendarMock = vi.hoisted(() => ({
+  props: undefined as
+    | {
+        eventDrop?: (info: CalendarMutationInfo) => void;
+        eventResize?: (info: CalendarMutationInfo) => void;
+      }
+    | undefined,
+}));
+
+vi.mock("@fullcalendar/react", () => ({
+  default: (props: NonNullable<typeof calendarMock.props>) => {
+    calendarMock.props = props;
+    return <div data-testid="calendar" />;
+  },
+}));
 
 function renderRoute(path: string) {
   const queryClient = new QueryClient({
@@ -28,6 +54,7 @@ describe("camp workspace", () => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
     localStorage.clear();
+    calendarMock.props = undefined;
   });
 
   it("offers every planning area as a real route", () => {
@@ -362,5 +389,288 @@ describe("camp workspace", () => {
     expect(payload.schedule.title).toBe("Abendandacht");
     expect(payload.devotion.topic).toBe("Vertrauen");
     expect(payload.devotion.bibleReference).toBe("Psalm 23");
+  });
+
+  it("creates an all-day schedule entry through the accessible form", async () => {
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "POST")
+          return Promise.resolve(
+            new Response(JSON.stringify({}), { status: 201 }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(screen.getByRole("button", { name: "Eintrag erstellen" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel des Zeitplaneintrags" }),
+      "Anreisetag",
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Ganztägiger Eintrag" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Zeitplaneintrag anlegen" }),
+    );
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/schedule") && init?.method === "POST",
+    );
+    const body = createCall?.[1]?.body;
+    if (typeof body !== "string") throw new Error("Kein JSON-Text gesendet.");
+    const payload = JSON.parse(body) as {
+      timing: Record<string, unknown>;
+    };
+    expect(payload.timing).toEqual({
+      isAllDay: true,
+      localStart: null,
+      localEnd: null,
+      startDate: "2026-08-03",
+      endDateExclusive: "2026-08-04",
+      startChoice: 0,
+      endChoice: 0,
+    });
+  });
+
+  it("edits a schedule entry through the accessible agenda form with antiforgery and version", async () => {
+    const entry = {
+      id: "40000000-0000-0000-0000-000000000001",
+      title: "Geländespiel",
+      description: "In Gruppen",
+      location: "Wald",
+      category: "Programm",
+      status: 0,
+      responsibleUserIds: [],
+      audience: "Ab 12",
+      overlapsAnotherEntry: false,
+      timing: {
+        isAllDay: false,
+        startsAtUtc: "2026-08-03T08:00:00Z",
+        endsAtUtc: "2026-08-03T09:30:00Z",
+        timeZoneId: "Europe/Berlin",
+      },
+      version: 7,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "PUT") {
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ ...entry, title: "Waldspiel", version: 8 }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          );
+        }
+        return Promise.resolve(
+          new Response(JSON.stringify([entry]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Geländespiel bearbeiten" }),
+    );
+    const title = screen.getByRole("textbox", { name: "Titel" });
+    await user.clear(title);
+    await user.type(title, "Waldspiel");
+    await user.click(
+      screen.getByRole("button", { name: "Änderungen speichern" }),
+    );
+
+    const updateCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/schedule/${entry.id}`) &&
+        init?.method === "PUT",
+    );
+    expect(updateCall?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"7"',
+    });
+    const body = updateCall?.[1]?.body;
+    if (typeof body !== "string") throw new Error("Kein JSON-Text gesendet.");
+    expect(JSON.parse(body)).toMatchObject({
+      title: "Waldspiel",
+      description: "In Gruppen",
+      audience: "Ab 12",
+      timing: {
+        isAllDay: false,
+        localStart: "2026-08-03T10:00:00",
+        localEnd: "2026-08-03T11:30:00",
+      },
+    });
+  });
+
+  it("rolls an optimistic calendar drag back when the server rejects it", async () => {
+    const revert = vi.fn();
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "PUT")
+          return Promise.resolve(new Response(null, { status: 500 }));
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                id: "40000000-0000-0000-0000-000000000001",
+                title: "Geländespiel",
+                description: null,
+                location: "Wald",
+                category: "Programm",
+                status: 0,
+                responsibleUserIds: [],
+                audience: null,
+                overlapsAnotherEntry: false,
+                timing: {
+                  isAllDay: false,
+                  startsAtUtc: "2026-08-03T08:00:00Z",
+                  endsAtUtc: "2026-08-03T09:30:00Z",
+                  timeZoneId: "Europe/Berlin",
+                },
+                version: 7,
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+    expect(await screen.findByText("Geländespiel")).toBeInTheDocument();
+
+    act(() =>
+      calendarMock.props?.eventDrop?.({
+        event: {
+          id: "40000000-0000-0000-0000-000000000001",
+          allDay: false,
+          startStr: "2026-08-03T14:00:00+02:00",
+          endStr: "2026-08-03T15:30:00+02:00",
+        },
+        revert,
+      }),
+    );
+
+    await waitFor(() => expect(revert).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole("status", { name: "Änderungsstatus" }),
+    ).toHaveTextContent("Änderung wurde zurückgesetzt");
+  });
+
+  it("explains a calendar resize version conflict and reloads current data", async () => {
+    const revert = vi.fn();
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "PUT")
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({ errorCode: "schedule_entry_version_conflict" }),
+              {
+                status: 409,
+                headers: { "Content-Type": "application/problem+json" },
+              },
+            ),
+          );
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                id: "40000000-0000-0000-0000-000000000001",
+                title: "Geländespiel",
+                description: null,
+                location: "Wald",
+                category: "Programm",
+                status: 0,
+                responsibleUserIds: [],
+                audience: null,
+                overlapsAnotherEntry: false,
+                timing: {
+                  isAllDay: false,
+                  startsAtUtc: "2026-08-03T08:00:00Z",
+                  endsAtUtc: "2026-08-03T09:30:00Z",
+                  timeZoneId: "Europe/Berlin",
+                },
+                version: 7,
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+    expect(await screen.findByText("Geländespiel")).toBeInTheDocument();
+
+    act(() =>
+      calendarMock.props?.eventResize?.({
+        event: {
+          id: "40000000-0000-0000-0000-000000000001",
+          allDay: false,
+          startStr: "2026-08-03T10:00:00+02:00",
+          endStr: "2026-08-03T12:00:00+02:00",
+        },
+        revert,
+      }),
+    );
+
+    await waitFor(() => expect(revert).toHaveBeenCalledOnce());
+    expect(
+      screen.getByRole("status", { name: "Änderungsstatus" }),
+    ).toHaveTextContent("zwischenzeitlich geändert");
   });
 });

@@ -1,6 +1,7 @@
 import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
+import luxonPlugin from "@fullcalendar/luxon3";
 import timeGridPlugin from "@fullcalendar/timegrid";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -41,8 +42,12 @@ const navigation = [
 type ScheduleEntry = {
   id: string;
   title: string;
+  description?: string;
   location?: string;
   category: string;
+  status: number;
+  responsibleUserIds: string[];
+  audience?: string;
   overlapsAnotherEntry: boolean;
   timing: {
     isAllDay: boolean;
@@ -53,6 +58,238 @@ type ScheduleEntry = {
   };
   version: number;
 };
+
+type ScheduleTimingBody = {
+  isAllDay: boolean;
+  localStart: string | null;
+  localEnd: string | null;
+  startDate: string | null;
+  endDateExclusive: string | null;
+  startChoice: number;
+  endChoice: number;
+};
+
+type ScheduleEntryBody = {
+  timing: ScheduleTimingBody;
+  title: string;
+  description: string | null;
+  location: string | null;
+  category: string;
+  status: number;
+  responsibleUserIds: string[];
+  audience: string | null;
+};
+
+type ScheduleEditDraft = {
+  isAllDay: boolean;
+  startDate: string;
+  endDate: string;
+  startTime: string;
+  endTime: string;
+  title: string;
+  description: string;
+  location: string;
+  category: string;
+  status: string;
+  audience: string;
+};
+
+class ScheduleUpdateError extends Error {
+  constructor(message: string) {
+    super(message);
+  }
+}
+
+const campTimeZone = "Europe/Berlin";
+
+function formatCampLocalDateTime(value?: string) {
+  if (!value) return { date: "", time: "" };
+  const parts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: campTimeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(new Date(value));
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value ?? "";
+  return {
+    date: `${part("year")}-${part("month")}-${part("day")}`,
+    time: `${part("hour")}:${part("minute")}`,
+  };
+}
+
+function createScheduleEditDraft(entry: ScheduleEntry): ScheduleEditDraft {
+  const start = entry.timing.isAllDay
+    ? { date: entry.timing.startDate ?? "", time: "" }
+    : formatCampLocalDateTime(entry.timing.startsAtUtc);
+  const end = entry.timing.isAllDay
+    ? { date: entry.timing.endDateExclusive ?? "", time: "" }
+    : formatCampLocalDateTime(entry.timing.endsAtUtc);
+  return {
+    isAllDay: entry.timing.isAllDay,
+    startDate: start.date,
+    endDate: end.date,
+    startTime: start.time,
+    endTime: end.time,
+    title: entry.title,
+    description: entry.description ?? "",
+    location: entry.location ?? "",
+    category: entry.category,
+    status: String(entry.status ?? 0),
+    audience: entry.audience ?? "",
+  };
+}
+
+function scheduleBodyFromDraft(
+  entry: ScheduleEntry,
+  draft: ScheduleEditDraft,
+): ScheduleEntryBody {
+  return {
+    timing: draft.isAllDay
+      ? {
+          isAllDay: true,
+          localStart: null,
+          localEnd: null,
+          startDate: draft.startDate,
+          endDateExclusive: draft.endDate,
+          startChoice: 0,
+          endChoice: 0,
+        }
+      : {
+          isAllDay: false,
+          localStart: `${draft.startDate}T${draft.startTime}:00`,
+          localEnd: `${draft.endDate}T${draft.endTime}:00`,
+          startDate: null,
+          endDateExclusive: null,
+          startChoice: 0,
+          endChoice: 0,
+        },
+    title: draft.title,
+    description: draft.description || null,
+    location: draft.location || null,
+    category: draft.category,
+    status: Number(draft.status),
+    responsibleUserIds: entry.responsibleUserIds ?? [],
+    audience: draft.audience || null,
+  };
+}
+
+function optimisticEntryFromDraft(
+  entry: ScheduleEntry,
+  draft: ScheduleEditDraft,
+): ScheduleEntry {
+  return {
+    ...entry,
+    title: draft.title,
+    description: draft.description || undefined,
+    location: draft.location || undefined,
+    category: draft.category,
+    status: Number(draft.status),
+    audience: draft.audience || undefined,
+    timing: draft.isAllDay
+      ? {
+          isAllDay: true,
+          startDate: draft.startDate,
+          endDateExclusive: draft.endDate,
+        }
+      : {
+          isAllDay: false,
+          startsAtUtc: `${draft.startDate}T${draft.startTime}:00`,
+          endsAtUtc: `${draft.endDate}T${draft.endTime}:00`,
+        },
+  };
+}
+
+function localCalendarDateTime(value: string) {
+  return value.slice(0, 19);
+}
+
+function nextLocalDate(value: string) {
+  const date = new Date(`${value}T00:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function scheduleBodyFromCalendar(
+  entry: ScheduleEntry,
+  event: { allDay: boolean; startStr: string; endStr: string },
+): ScheduleEntryBody {
+  return {
+    timing: event.allDay
+      ? {
+          isAllDay: true,
+          localStart: null,
+          localEnd: null,
+          startDate: event.startStr.slice(0, 10),
+          endDateExclusive: event.endStr.slice(0, 10),
+          startChoice: 0,
+          endChoice: 0,
+        }
+      : {
+          isAllDay: false,
+          localStart: localCalendarDateTime(event.startStr),
+          localEnd: localCalendarDateTime(event.endStr),
+          startDate: null,
+          endDateExclusive: null,
+          startChoice: 0,
+          endChoice: 0,
+        },
+    title: entry.title,
+    description: entry.description ?? null,
+    location: entry.location ?? null,
+    category: entry.category,
+    status: entry.status ?? 0,
+    responsibleUserIds: entry.responsibleUserIds ?? [],
+    audience: entry.audience ?? null,
+  };
+}
+
+function optimisticEntryFromCalendar(
+  entry: ScheduleEntry,
+  event: { allDay: boolean; startStr: string; endStr: string },
+): ScheduleEntry {
+  return {
+    ...entry,
+    timing: event.allDay
+      ? {
+          isAllDay: true,
+          startDate: event.startStr.slice(0, 10),
+          endDateExclusive: event.endStr.slice(0, 10),
+        }
+      : {
+          isAllDay: false,
+          startsAtUtc: event.startStr,
+          endsAtUtc: event.endStr,
+        },
+  };
+}
+
+function scheduleTimingLabel(entry: ScheduleEntry) {
+  if (entry.timing.isAllDay)
+    return `${entry.timing.startDate ?? ""} · ganztägig`;
+  const formatter = new Intl.DateTimeFormat("de-DE", {
+    timeZone: campTimeZone,
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+  const start = entry.timing.startsAtUtc
+    ? formatter.format(new Date(entry.timing.startsAtUtc))
+    : "";
+  const end = entry.timing.endsAtUtc
+    ? new Intl.DateTimeFormat("de-DE", {
+        timeZone: campTimeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(new Date(entry.timing.endsAtUtc))
+    : "";
+  return `${start}–${end} Uhr`;
+}
 
 type Meal = {
   id: string;
@@ -375,6 +612,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2026-08-01&toDateExclusive=2026-08-09`;
   const query = useCampQuery<ScheduleEntry[]>("schedule", path);
   const queryClient = useQueryClient();
+  const scheduleQueryKey = [organizationId, campId, "schedule"] as const;
   const [deleteCandidate, setDeleteCandidate] = useState<ScheduleEntry | null>(
     null,
   );
@@ -385,11 +623,16 @@ function SchedulePage({ offline }: { offline: boolean }) {
   const [createOpen, setCreateOpen] = useState(false);
   const [createType, setCreateType] = useState<"" | "Meal" | "Devotion">("");
   const [scheduleTitle, setScheduleTitle] = useState("");
+  const [scheduleDescription, setScheduleDescription] = useState("");
+  const [scheduleAllDay, setScheduleAllDay] = useState(false);
   const [scheduleDate, setScheduleDate] = useState("2026-08-03");
+  const [scheduleEndDate, setScheduleEndDate] = useState("2026-08-04");
   const [scheduleStart, setScheduleStart] = useState("12:00");
   const [scheduleEnd, setScheduleEnd] = useState("13:00");
   const [scheduleLocation, setScheduleLocation] = useState("");
   const [scheduleCategory, setScheduleCategory] = useState("Programm");
+  const [scheduleStatus, setScheduleStatus] = useState("0");
+  const [scheduleAudience, setScheduleAudience] = useState("");
   const [mealName, setMealName] = useState("");
   const [devotionTopic, setDevotionTopic] = useState("");
   const [devotionBibleReference, setDevotionBibleReference] = useState("");
@@ -397,26 +640,41 @@ function SchedulePage({ offline }: { offline: boolean }) {
   const [devotionContent, setDevotionContent] = useState("");
   const [devotionMaterialNotes, setDevotionMaterialNotes] = useState("");
   const [createStatus, setCreateStatus] = useState("");
+  const [editCandidate, setEditCandidate] = useState<ScheduleEntry | null>(
+    null,
+  );
+  const [editDraft, setEditDraft] = useState<ScheduleEditDraft | null>(null);
+  const [updateStatus, setUpdateStatus] = useState("");
   const create = useMutation({
     mutationFn: async () => {
       const token = await getAntiforgeryToken();
       const schedule = {
-        timing: {
-          isAllDay: false,
-          localStart: `${scheduleDate}T${scheduleStart}:00`,
-          localEnd: `${scheduleDate}T${scheduleEnd}:00`,
-          startDate: null,
-          endDateExclusive: null,
-          startChoice: 0,
-          endChoice: 0,
-        },
+        timing: scheduleAllDay
+          ? {
+              isAllDay: true,
+              localStart: null,
+              localEnd: null,
+              startDate: scheduleDate,
+              endDateExclusive: scheduleEndDate,
+              startChoice: 0,
+              endChoice: 0,
+            }
+          : {
+              isAllDay: false,
+              localStart: `${scheduleDate}T${scheduleStart}:00`,
+              localEnd: `${scheduleDate}T${scheduleEnd}:00`,
+              startDate: null,
+              endDateExclusive: null,
+              startChoice: 0,
+              endChoice: 0,
+            },
         title: scheduleTitle,
-        description: null,
+        description: scheduleDescription || null,
         location: scheduleLocation || null,
         category: scheduleCategory,
-        status: 0,
+        status: Number(scheduleStatus),
         responsibleUserIds: [],
-        audience: null,
+        audience: scheduleAudience || null,
       };
       const path =
         createType === "Meal"
@@ -464,7 +722,11 @@ function SchedulePage({ offline }: { offline: boolean }) {
       setCreateOpen(false);
       setCreateType("");
       setScheduleTitle("");
+      setScheduleDescription("");
+      setScheduleAllDay(false);
       setScheduleLocation("");
+      setScheduleStatus("0");
+      setScheduleAudience("");
       setMealName("");
       setDevotionTopic("");
       setDevotionBibleReference("");
@@ -531,6 +793,75 @@ function SchedulePage({ offline }: { offline: boolean }) {
       ]);
     },
   });
+  const update = useMutation({
+    mutationFn: async ({
+      entry,
+      body,
+    }: {
+      entry: ScheduleEntry;
+      body: ScheduleEntryBody;
+      optimisticEntry: ScheduleEntry;
+      source: "agenda" | "calendar";
+      revert?: () => void;
+    }) => {
+      const token = await getAntiforgeryToken();
+      const response = await fetch(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule/${entry.id}`,
+        {
+          method: "PUT",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+            "If-Match": `"${entry.version}"`,
+          },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok)
+        throw new ScheduleUpdateError(
+          response.status === 409 || response.status === 412
+            ? "Der Zeitplaneintrag wurde zwischenzeitlich geändert. Der aktuelle Stand wurde neu geladen."
+            : "Die Änderung konnte nicht gespeichert werden. Die Änderung wurde zurückgesetzt.",
+        );
+      return (await response.json()) as ScheduleEntry;
+    },
+    onMutate: async (variables) => {
+      setUpdateStatus("");
+      await queryClient.cancelQueries({ queryKey: scheduleQueryKey });
+      const previous =
+        queryClient.getQueryData<ScheduleEntry[]>(scheduleQueryKey);
+      queryClient.setQueryData<ScheduleEntry[]>(scheduleQueryKey, (current) =>
+        current?.map((entry) =>
+          entry.id === variables.entry.id ? variables.optimisticEntry : entry,
+        ),
+      );
+      return { previous };
+    },
+    onSuccess: (result, variables) => {
+      queryClient.setQueryData<ScheduleEntry[]>(scheduleQueryKey, (current) =>
+        current?.map((entry) => (entry.id === result.id ? result : entry)),
+      );
+      setUpdateStatus(`„${result.title}“ wurde gespeichert.`);
+      if (variables.source === "agenda") {
+        setEditCandidate(null);
+        setEditDraft(null);
+      }
+    },
+    onError: (error, variables, context) => {
+      variables.revert?.();
+      if (context?.previous)
+        queryClient.setQueryData(scheduleQueryKey, context.previous);
+      setUpdateStatus(
+        error instanceof ScheduleUpdateError
+          ? error.message
+          : "Die Änderung konnte nicht gespeichert werden. Die Änderung wurde zurückgesetzt.",
+      );
+    },
+    onSettled: async () => {
+      await queryClient.invalidateQueries({ queryKey: scheduleQueryKey });
+    },
+  });
   const stored = (loadOfflineSnapshot()?.schedule ?? []) as ScheduleEntry[];
   const entries = query.data ?? (offline ? stored : []);
   useEffect(() => {
@@ -571,16 +902,68 @@ function SchedulePage({ offline }: { offline: boolean }) {
       >
         {deleteStatus}
       </p>
+      <p
+        className={updateStatus ? "form-feedback" : "visually-hidden"}
+        role="status"
+        aria-label="Änderungsstatus"
+        aria-live="polite"
+      >
+        {updateStatus}
+      </p>
       <section className="calendar-card" aria-label="Kalenderansicht">
         <FullCalendar
-          plugins={[timeGridPlugin, dayGridPlugin, interactionPlugin]}
+          plugins={[
+            timeGridPlugin,
+            dayGridPlugin,
+            interactionPlugin,
+            luxonPlugin,
+          ]}
           initialView="timeGridWeek"
+          timeZone={campTimeZone}
           locale="de"
           firstDay={1}
           allDayText="Ganztägig"
           height="auto"
           events={events}
-          editable={!offline}
+          editable={!offline && !update.isPending}
+          eventDrop={(info) => {
+            const entry = entries.find((item) => item.id === info.event.id);
+            if (!entry) {
+              info.revert();
+              return;
+            }
+            const event = {
+              allDay: info.event.allDay,
+              startStr: info.event.startStr,
+              endStr: info.event.endStr,
+            };
+            update.mutate({
+              entry,
+              body: scheduleBodyFromCalendar(entry, event),
+              optimisticEntry: optimisticEntryFromCalendar(entry, event),
+              source: "calendar",
+              revert: info.revert,
+            });
+          }}
+          eventResize={(info) => {
+            const entry = entries.find((item) => item.id === info.event.id);
+            if (!entry) {
+              info.revert();
+              return;
+            }
+            const event = {
+              allDay: info.event.allDay,
+              startStr: info.event.startStr,
+              endStr: info.event.endStr,
+            };
+            update.mutate({
+              entry,
+              body: scheduleBodyFromCalendar(entry, event),
+              optimisticEntry: optimisticEntryFromCalendar(entry, event),
+              source: "calendar",
+              revert: info.revert,
+            });
+          }}
         />
       </section>
       <section className="settings-section" aria-labelledby="agenda-title">
@@ -615,34 +998,81 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   onChange={(event) => setScheduleTitle(event.target.value)}
                 />
               </label>
-              <div className="schedule-create-grid">
+              <label>
+                Beschreibung
+                <textarea
+                  value={scheduleDescription}
+                  onChange={(event) =>
+                    setScheduleDescription(event.target.value)
+                  }
+                />
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={scheduleAllDay}
+                  onChange={(event) => {
+                    setScheduleAllDay(event.target.checked);
+                    if (event.target.checked)
+                      setScheduleEndDate(nextLocalDate(scheduleDate));
+                  }}
+                />
+                Ganztägiger Eintrag
+              </label>
+              <div
+                className={`schedule-create-grid${
+                  scheduleAllDay ? " schedule-all-day-grid" : ""
+                }`}
+              >
                 <label>
-                  Datum
+                  {scheduleAllDay ? "Startdatum" : "Datum"}
                   <input
                     type="date"
                     required
                     value={scheduleDate}
-                    onChange={(event) => setScheduleDate(event.target.value)}
+                    onChange={(event) => {
+                      setScheduleDate(event.target.value);
+                      if (scheduleAllDay)
+                        setScheduleEndDate(nextLocalDate(event.target.value));
+                    }}
                   />
                 </label>
-                <label>
-                  Beginn
-                  <input
-                    type="time"
-                    required
-                    value={scheduleStart}
-                    onChange={(event) => setScheduleStart(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Ende
-                  <input
-                    type="time"
-                    required
-                    value={scheduleEnd}
-                    onChange={(event) => setScheduleEnd(event.target.value)}
-                  />
-                </label>
+                {scheduleAllDay ? (
+                  <label>
+                    Bis (exklusiv)
+                    <input
+                      type="date"
+                      required
+                      value={scheduleEndDate}
+                      onChange={(event) =>
+                        setScheduleEndDate(event.target.value)
+                      }
+                    />
+                  </label>
+                ) : (
+                  <>
+                    <label>
+                      Beginn
+                      <input
+                        type="time"
+                        required
+                        value={scheduleStart}
+                        onChange={(event) =>
+                          setScheduleStart(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Ende
+                      <input
+                        type="time"
+                        required
+                        value={scheduleEnd}
+                        onChange={(event) => setScheduleEnd(event.target.value)}
+                      />
+                    </label>
+                  </>
+                )}
               </div>
               <label>
                 Ort
@@ -657,6 +1087,24 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   required
                   value={scheduleCategory}
                   onChange={(event) => setScheduleCategory(event.target.value)}
+                />
+              </label>
+              <label>
+                Status
+                <select
+                  value={scheduleStatus}
+                  onChange={(event) => setScheduleStatus(event.target.value)}
+                >
+                  <option value="0">Geplant</option>
+                  <option value="1">Bestätigt</option>
+                  <option value="2">Abgesagt</option>
+                </select>
+              </label>
+              <label>
+                Zielgruppe
+                <input
+                  value={scheduleAudience}
+                  onChange={(event) => setScheduleAudience(event.target.value)}
                 />
               </label>
               <label>
@@ -760,6 +1208,196 @@ function SchedulePage({ offline }: { offline: boolean }) {
             </div>
           </form>
         )}
+        {editCandidate && editDraft && (
+          <form
+            className="schedule-create-form"
+            aria-label={`${editCandidate.title} bearbeiten`}
+            onSubmit={(event) => {
+              event.preventDefault();
+              update.mutate({
+                entry: editCandidate,
+                body: scheduleBodyFromDraft(editCandidate, editDraft),
+                optimisticEntry: optimisticEntryFromDraft(
+                  editCandidate,
+                  editDraft,
+                ),
+                source: "agenda",
+              });
+            }}
+          >
+            <fieldset>
+              <legend>Zeitplaneintrag bearbeiten</legend>
+              <label>
+                Titel
+                <input
+                  autoFocus
+                  required
+                  value={editDraft.title}
+                  onChange={(event) =>
+                    setEditDraft({ ...editDraft, title: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Beschreibung
+                <textarea
+                  value={editDraft.description}
+                  onChange={(event) =>
+                    setEditDraft({
+                      ...editDraft,
+                      description: event.target.value,
+                    })
+                  }
+                />
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={editDraft.isAllDay}
+                  onChange={(event) =>
+                    setEditDraft({
+                      ...editDraft,
+                      isAllDay: event.target.checked,
+                    })
+                  }
+                />
+                Ganztägiger Eintrag
+              </label>
+              <div
+                className={`schedule-create-grid ${
+                  editDraft.isAllDay
+                    ? "schedule-all-day-grid"
+                    : "schedule-time-grid"
+                }`}
+              >
+                <label>
+                  Startdatum
+                  <input
+                    type="date"
+                    required
+                    value={editDraft.startDate}
+                    onChange={(event) =>
+                      setEditDraft({
+                        ...editDraft,
+                        startDate: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                {!editDraft.isAllDay && (
+                  <label>
+                    Beginn
+                    <input
+                      type="time"
+                      required
+                      value={editDraft.startTime}
+                      onChange={(event) =>
+                        setEditDraft({
+                          ...editDraft,
+                          startTime: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                )}
+                <label>
+                  {editDraft.isAllDay ? "Bis (exklusiv)" : "Enddatum"}
+                  <input
+                    type="date"
+                    required
+                    value={editDraft.endDate}
+                    onChange={(event) =>
+                      setEditDraft({
+                        ...editDraft,
+                        endDate: event.target.value,
+                      })
+                    }
+                  />
+                </label>
+                {!editDraft.isAllDay && (
+                  <label>
+                    Ende
+                    <input
+                      type="time"
+                      required
+                      value={editDraft.endTime}
+                      onChange={(event) =>
+                        setEditDraft({
+                          ...editDraft,
+                          endTime: event.target.value,
+                        })
+                      }
+                    />
+                  </label>
+                )}
+              </div>
+              <label>
+                Ort
+                <input
+                  value={editDraft.location}
+                  onChange={(event) =>
+                    setEditDraft({ ...editDraft, location: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Kategorie
+                <input
+                  required
+                  value={editDraft.category}
+                  onChange={(event) =>
+                    setEditDraft({ ...editDraft, category: event.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Status
+                <select
+                  value={editDraft.status}
+                  onChange={(event) =>
+                    setEditDraft({ ...editDraft, status: event.target.value })
+                  }
+                >
+                  <option value="0">Geplant</option>
+                  <option value="1">Bestätigt</option>
+                  <option value="2">Abgesagt</option>
+                </select>
+              </label>
+              <label>
+                Zielgruppe
+                <input
+                  value={editDraft.audience}
+                  onChange={(event) =>
+                    setEditDraft({ ...editDraft, audience: event.target.value })
+                  }
+                />
+              </label>
+            </fieldset>
+            <p className="form-hint">
+              Verantwortliche bleiben bei dieser Zeitänderung erhalten.
+            </p>
+            <div className="toolbar">
+              <button
+                className="primary-action"
+                type="submit"
+                disabled={offline || update.isPending}
+              >
+                Änderungen speichern
+              </button>
+              <button
+                className="secondary-action"
+                type="button"
+                disabled={update.isPending}
+                onClick={() => {
+                  setEditCandidate(null);
+                  setEditDraft(null);
+                }}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        )}
         {entries.length === 0 ? (
           <p className="empty-state">
             Für diesen Zeitraum gibt es noch keine Einträge.
@@ -773,11 +1411,21 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   <span>
                     {entry.location ?? "Kein Ort"} · {entry.category}
                   </span>
+                  <span>{scheduleTimingLabel(entry)}</span>
                 </div>
                 {entry.overlapsAnotherEntry && (
                   <span className="status info">Überschneidung</span>
                 )}
-                <button className="secondary-action" disabled={offline}>
+                <button
+                  className="secondary-action"
+                  disabled={offline || update.isPending}
+                  aria-label={`${entry.title} bearbeiten`}
+                  onClick={() => {
+                    setUpdateStatus("");
+                    setEditCandidate(entry);
+                    setEditDraft(createScheduleEditDraft(entry));
+                  }}
+                >
                   Bearbeiten
                 </button>
                 <button

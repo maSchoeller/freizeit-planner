@@ -6,7 +6,8 @@ Angaben über ihre Verknüpfung und speichern sie nicht ein zweites Mal.
 ## Eintrag anlegen
 
 1. Öffne im Camp **Tagesplan** und wähle **Eintrag erstellen**.
-2. Trage Titel, Datum, Beginn, Ende, Ort und Kategorie ein.
+2. Trage Titel, Datum beziehungsweise den ganztägigen Zeitraum, Ort, Kategorie, Status und optional die Zielgruppe
+   ein.
 3. Wähle unter **Gemeinsam anlegen**, ob zugleich eine Mahlzeit oder Andacht entstehen soll.
 4. Ergänze die eingeblendeten Pflichtangaben und wähle **Zeitplaneintrag anlegen**.
 
@@ -16,6 +17,18 @@ eingetragen.
 
 Überschneidungen sind erlaubt und werden als Hinweis angezeigt. Die Kalenderansicht und die darunterliegende Agenda
 zeigen dieselben Daten. Das Formular und die Agenda können vollständig mit der Tastatur bedient werden.
+
+## Eintrag bearbeiten oder im Kalender verschieben
+
+- Wähle in der Agenda **Bearbeiten**, um Inhalt, Zeitraum, Ganztägig-Kennzeichen, Ort, Kategorie, Status und
+  Zielgruppe über ein Tastaturformular zu ändern.
+- Im Kalender kannst du einen Eintrag mit der Maus oder per Touch verschieben und seine Dauer am unteren Rand
+  ändern. Die Agenda ist die vollständige Alternative ohne Ziehen.
+- Kalenderänderungen erscheinen sofort. Lehnt der Server sie ab, springt der Eintrag automatisch an seine vorige
+  Position zurück und ein verständlicher Hinweis wird angezeigt.
+
+Alle Kalenderzeiten werden unabhängig von der Zeitzone des verwendeten Geräts in **Europe/Berlin** dargestellt.
+Bei einer gleichzeitigen Änderung durch eine andere Person wird der aktuelle Serverstand neu geladen.
 
 ## Verknüpften Eintrag löschen
 
@@ -28,6 +41,6 @@ Es gibt keine stille Kaskadenlöschung. Nach Ablauf der Frist entfernt die Berei
 
 ## Konflikte und Offlinebetrieb
 
-Änderungen verwenden die zuletzt gelesene Version. Wenn zwischenzeitlich jemand anderes gespeichert hat, lade den
-aktuellen Stand und prüfe deine Eingaben erneut. Im Offlinebetrieb bleibt der gespeicherte Planungssnapshot lesbar;
-Anlegen, Bearbeiten und Löschen sind deaktiviert.
+Änderungen verwenden die zuletzt gelesene Version. Wenn zwischenzeitlich jemand anderes gespeichert hat, wird der
+aktuelle Stand automatisch neu geladen; prüfe dann deine Eingaben erneut. Im Offlinebetrieb bleibt der gespeicherte
+Planungssnapshot lesbar; Anlegen, Bearbeiten, Verschieben und Löschen sind deaktiviert.

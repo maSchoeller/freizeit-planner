@@ -18,7 +18,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | I02 invitations and account lifecycle | verified    | Invite rotation/revoke; memberships; reauth; verified email; 30-day account/tenant deletion | Missing lifecycle contracts caused compile failure     | Full verify passed in 86.9 s plus Aspire smoke       | Identity context, account/role help       | `98fb62d` | Start I03 authorization                |
 | I03 tenant authorization              | verified    | Role matrix, last owner, suspension, IDOR protection and RLS isolation                      | Missing authorization contracts caused compile failure | Full verify 382.3 s; PostgreSQL/Aspire/browser smoke | auth/RLS docs and role help               | `dc0c859` | Start C01/T01/S01 wave                 |
 | C01 camps                             | in_progress | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Contract acceptance test next                          | pending                                              | Camps context, help                       | pending   | module worktree active                 |
-| C02 schedule                          | in_progress | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Atomic route initially returned 405                    | Full verify 155.5 s; PostgreSQL/browser green        | Camps context, schedule help              | pending   | complete accessible edit and drag UX   |
+| C02 schedule                          | in_progress | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing edit/drop/resize handlers and all-day UI       | 17 Camps, 26 API, 20 React + browser green           | Camps context, schedule help              | pending   | complete responsibility assignment UI  |
 | T01 ingredients and recipes           | in_progress | Normalize/merge, decimal units, recipe versions and attachments                             | Contract acceptance test next                          | pending                                              | Catering context, help                    | pending   | module worktree active                 |
 | T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Invalid schedule link was accepted                     | 14 Catering + atomic PostgreSQL green                | Catering context, schedule help           | pending   | complete meal and snapshot UI          |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
@@ -140,3 +140,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   for overlapping date/time fields; all sizes are free of page-wide horizontal overflow. The complete repository
   verify gate passed in 155.5 seconds with Camps 17/17, Catering 14/14, Spiritual 24/24, API 26/26, React 16/16,
   PostgreSQL RLS/rollback/cleanup, warning-free builds, generated clients, and help output green.
+- 2026-08-09: Schedule updates now have one accessible agenda form and one shared optimistic update path for
+  FullCalendar drag and resize. Every path sends antiforgery plus `If-Match`; rejected writes revert immediately,
+  while version conflicts explain the reload. Timed and all-day creation/editing cover description, location,
+  category, status, and audience. FullCalendar resolves the Camp IANA zone through the v6 Luxon adapter rather than
+  the device zone. Red tests proved the previously inert edit button, absent drop/resize callbacks, and missing
+  all-day creation. Rendered 1440x1000, 768x1024, 390x844 and 320x800 passes found and fixed collapsed date-field
+  spacing; the final layouts have no page-wide horizontal overflow, 48 px labeled checkbox/button targets, and
+  ordered keyboard focus. The final full repository gate passed in 191.5 seconds with 20/20 React tests and a
+  667.66 KiB production bundle after replacing the 1,388.37 KiB Moment adapter. Responsibility assignment remains
+  the final C02 UI gap.
