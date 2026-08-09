@@ -13,7 +13,7 @@ import {
   Search,
   ShoppingCart,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
 import {
@@ -70,6 +70,22 @@ type Devotion = {
   topic: string;
   bibleReference: string;
   hasBibleSnapshot: boolean;
+};
+type ActivityEvent = {
+  id: string;
+  actorId: string;
+  kind: 0 | 1 | 2 | 3;
+  objectType: string;
+  title: string;
+  timestamp: string;
+};
+type SearchResult = {
+  objectType: string;
+  objectId: string;
+  title: string;
+  metadata: Record<string, string>;
+  updatedAt: string;
+  version: number;
 };
 
 async function getJson<T>(path: string): Promise<T> {
@@ -229,6 +245,10 @@ function QueryState({
 }
 
 function OverviewPage() {
+  const activity = useCampQuery<ActivityEvent[]>(
+    "activity",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/activity?limit=5`,
+  );
   return (
     <>
       <PageHeading eyebrow="Dienstag, 4. August" title="Guten Morgen, Miriam">
@@ -275,21 +295,40 @@ function OverviewPage() {
         <SummaryCard title="Beschaffung" value="12" text="noch einzukaufen" />
         <section className="card activity-card">
           <h2>Jüngste Aktivitäten</h2>
-          <ul>
-            <li>
-              <span>Jonas hat „Geländespiel“ geändert.</span>
-              <time>vor 12 Min.</time>
-            </li>
-            <li>
-              <span>Lea hat 3 Einkaufspositionen abgehakt.</span>
-              <time>vor 29 Min.</time>
-            </li>
-          </ul>
+          <QueryState loading={activity.isLoading} error={activity.error} />
+          {activity.data?.length ? (
+            <ul>
+              {activity.data.map((event) => (
+                <li key={event.id}>
+                  <span>
+                    {activityKindLabel[event.kind]}: „{event.title}“
+                  </span>
+                  <time dateTime={event.timestamp}>
+                    {new Intl.DateTimeFormat("de-DE", {
+                      dateStyle: "short",
+                      timeStyle: "short",
+                    }).format(new Date(event.timestamp))}
+                  </time>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            !activity.isLoading && (
+              <p className="empty-state">Noch keine Aktivität vorhanden.</p>
+            )
+          )}
         </section>
       </div>
     </>
   );
 }
+
+const activityKindLabel: Record<ActivityEvent["kind"], string> = {
+  0: "Erstellt",
+  1: "Geändert",
+  2: "In den Papierkorb verschoben",
+  3: "Wiederhergestellt",
+};
 
 function SummaryCard({
   title,
@@ -657,18 +696,18 @@ function FilesPage({ offline }: { offline: boolean }) {
 
 function SearchTrashPage() {
   const [query, setQuery] = useState("");
-  const results = useMemo(
-    () =>
-      [
-        "Geländespiel im Wald",
-        "Kartoffelsuppe",
-        "Abendandacht",
-        "Material für Station 4",
-      ].filter((value) =>
-        value.toLocaleLowerCase("de").includes(query.toLocaleLowerCase("de")),
+  const [objectType, setObjectType] = useState("");
+  const normalizedQuery = query.trim();
+  const search = useQuery({
+    queryKey: [organizationId, campId, "search", normalizedQuery, objectType],
+    queryFn: () =>
+      getJson<SearchResult[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/search?query=${encodeURIComponent(normalizedQuery)}${objectType ? `&objectTypes=${encodeURIComponent(objectType)}` : ""}`,
       ),
-    [query],
-  );
+    enabled: normalizedQuery.length >= 2,
+    retry: false,
+  });
+  const exportBase = `/api/v1/organizations/${organizationId}/camps/${campId}/exports`;
   return (
     <>
       <PageHeading
@@ -680,36 +719,79 @@ function SearchTrashPage() {
           nach 30 Tagen endgültig entfernt.
         </p>
       </PageHeading>
-      <label className="search-field search-wide">
-        Camp durchsuchen
-        <input
-          type="search"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          placeholder="Titel oder Text"
-        />
-      </label>
+      <div className="toolbar search-toolbar">
+        <label className="search-field search-wide">
+          Camp durchsuchen
+          <input
+            type="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Titel oder Text"
+          />
+        </label>
+        <label>
+          Inhaltstyp
+          <select
+            value={objectType}
+            onChange={(event) => setObjectType(event.target.value)}
+          >
+            <option value="">Alle Inhalte</option>
+            <option value="ScheduleEntry">Zeitplan</option>
+            <option value="Meal">Mahlzeiten</option>
+            <option value="MaterialRequirement">Material</option>
+            <option value="ShoppingList">Einkaufslisten</option>
+            <option value="Devotion">Andachten</option>
+            <option value="Note">Notizen</option>
+            <option value="Attachment">Dateien</option>
+          </select>
+        </label>
+      </div>
       <section className="settings-section">
         <h2>Suchergebnisse</h2>
-        {query && (
+        <QueryState loading={search.isLoading} error={search.error} />
+        {search.data?.length ? (
           <ul className="detail-list">
-            {results.map((result) => (
-              <li key={result}>
-                <strong>{result}</strong>
-                <span>In diesem Camp</span>
+            {search.data.map((result) => (
+              <li key={`${result.objectType}-${result.objectId}`}>
+                <strong>{result.title}</strong>
+                <span>
+                  {searchTypeLabel[result.objectType] ?? result.objectType} ·
+                  zuletzt aktualisiert{" "}
+                  {new Intl.DateTimeFormat("de-DE").format(
+                    new Date(result.updatedAt),
+                  )}
+                </span>
               </li>
             ))}
           </ul>
+        ) : normalizedQuery.length < 2 ? (
+          <p className="empty-state">Gib mindestens zwei Zeichen ein.</p>
+        ) : (
+          !search.isLoading && (
+            <p className="empty-state">Keine passenden Inhalte gefunden.</p>
+          )
         )}
-        {!query && <p className="empty-state">Gib einen Suchbegriff ein.</p>}
       </section>
       <section className="settings-section">
         <h2>Papierkorb</h2>
         <p className="empty-state">Der Papierkorb ist leer.</p>
       </section>
       <div className="toolbar">
-        <button className="secondary-action">Zeitplan als CSV</button>
-        <button className="secondary-action">Einkauf als CSV</button>
+        <a
+          className="secondary-action"
+          href={`${exportBase}/schedule.csv?fromDate=2026-08-01&toDateExclusive=2026-08-09`}
+        >
+          Zeitplan als CSV
+        </a>
+        <a className="secondary-action" href={`${exportBase}/meals.csv`}>
+          Mahlzeiten als CSV
+        </a>
+        <a className="secondary-action" href={`${exportBase}/material.csv`}>
+          Material als CSV
+        </a>
+        <a className="secondary-action" href={`${exportBase}/shopping.csv`}>
+          Einkauf als CSV
+        </a>
         <button className="secondary-action" onClick={() => window.print()}>
           Druckansicht
         </button>
@@ -717,3 +799,14 @@ function SearchTrashPage() {
     </>
   );
 }
+
+const searchTypeLabel: Record<string, string> = {
+  Camp: "Camp",
+  ScheduleEntry: "Zeitplan",
+  Meal: "Mahlzeit",
+  MaterialRequirement: "Material",
+  ShoppingList: "Einkaufsliste",
+  Devotion: "Andacht",
+  Note: "Notiz",
+  Attachment: "Datei",
+};

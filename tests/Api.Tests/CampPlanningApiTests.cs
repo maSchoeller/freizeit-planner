@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using Activity.Contracts;
 using Camps.Contracts;
 using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
@@ -125,6 +126,52 @@ public sealed class CampPlanningApiTests
             Assert.Equal("\"1\"", response.Headers.ETag?.Tag);
             Assert.Equal(new DateTime(2027, 8, 1, 9, 0, 0), planning.LocalStart);
             Assert.Equal("Morgenandacht", entry?.Title);
+            var activity = Assert.Single(planning.Activities);
+            Assert.Equal(ActivityKind.Created, activity.Kind);
+            Assert.Equal("ScheduleEntry", activity.ObjectType);
+            Assert.Equal("Morgenandacht", activity.Title);
+            var searchDocument = Assert.Single(planning.SearchDocuments);
+            Assert.Equal("ScheduleEntry", searchDocument.ObjectType);
+            Assert.Equal("Andacht", searchDocument.Metadata["category"]);
+        }
+    }
+
+    [Fact]
+    public async Task ActivityFailureRollsBackThePlanningResponse()
+    {
+        var planning = new PlanningFake { FailActivity = true };
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/schedule";
+            var body = new
+            {
+                timing = new
+                {
+                    isAllDay = true,
+                    localStart = (DateTime?)null,
+                    localEnd = (DateTime?)null,
+                    startDate = new DateOnly(2027, 8, 1),
+                    endDateExclusive = new DateOnly(2027, 8, 2),
+                    startChoice = AmbiguousLocalTimeChoice.Reject,
+                    endChoice = AmbiguousLocalTimeChoice.Reject
+                },
+                title = "Ausflug",
+                description = "",
+                location = "",
+                category = "Programm",
+                status = ScheduleEntryStatus.Planned,
+                responsibleUserIds = Array.Empty<Guid>(),
+                audience = "Alle"
+            };
+            using var request = CreateJsonRequest(HttpMethod.Post, uri, body, csrf);
+
+            using var response = await client.SendAsync(request, cancellationToken);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
     }
 
@@ -140,10 +187,14 @@ public sealed class CampPlanningApiTests
                 services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<ICampManagement>();
                 services.RemoveAll<ISchedulePlanning>();
+                services.RemoveAll<IActivityJournal>();
+                services.RemoveAll<ICampSearchIndex>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampManagement>(planning);
                 services.AddSingleton<ISchedulePlanning>(planning);
+                services.AddSingleton<IActivityJournal>(planning);
+                services.AddSingleton<ICampSearchIndex>(planning);
             });
         });
         return (factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -215,7 +266,7 @@ public sealed class CampPlanningApiTests
         }
     }
 
-    private sealed class PlanningFake : ICampManagement, ISchedulePlanning
+    private sealed class PlanningFake : ICampManagement, ISchedulePlanning, IActivityJournal, ICampSearchIndex
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -226,6 +277,12 @@ public sealed class CampPlanningApiTests
         public long ExpectedVersion { get; private set; }
 
         public DateTime? LocalStart { get; private set; }
+
+        public List<RecordActivity> Activities { get; } = [];
+
+        public List<UpsertSearchDocument> SearchDocuments { get; } = [];
+
+        public bool FailActivity { get; init; }
 
         public Task<CampView> CreateAsync(CreateCamp command, CancellationToken cancellationToken)
         {
@@ -306,6 +363,36 @@ public sealed class CampPlanningApiTests
 
         public Task<ScheduleEntryReference> DeleteAsync(
             DeleteScheduleEntry command,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ActivityEvent> RecordAsync(RecordActivity request, CancellationToken cancellationToken)
+        {
+            if (FailActivity) throw new ActivityRuleException("activity_unavailable", "Aktivität nicht verfügbar.");
+            Activities.Add(request);
+            return Task.FromResult(new ActivityEvent(Guid.NewGuid(), request.ActorId, request.OrganizationId,
+                request.CampId, request.Kind, request.ObjectType, request.ObjectId, request.Title,
+                request.Timestamp, Activities.Count));
+        }
+
+        public Task<IReadOnlyList<ActivityEvent>> ListAsync(
+            ActivityQuery request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<SearchProjectionResult> UpsertAsync(
+            UpsertSearchDocument request,
+            CancellationToken cancellationToken)
+        {
+            SearchDocuments.Add(request);
+            return Task.FromResult(new SearchProjectionResult(request.ObjectType, request.ObjectId,
+                request.SourceVersion, SearchDocuments.Count, true, false));
+        }
+
+        public Task<SearchProjectionResult> RemoveAsync(
+            RemoveSearchDocument request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<IReadOnlyList<SearchResult>> SearchAsync(
+            CampSearchQuery request,
             CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

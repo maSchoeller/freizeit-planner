@@ -6,6 +6,7 @@
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/Activity/Activity.Contracts/Activity.Contracts.csproj" />
     <ProjectReference Include="../../src/Camps/Camps.Contracts/Camps.Contracts.csproj" />
     <ProjectReference Include="../../src/FreizeitCockpit.Web/FreizeitCockpit.Web.csproj" />
     <ProjectReference Include="../FreizeitCockpit.TestSupport/FreizeitCockpit.TestSupport.csproj" />

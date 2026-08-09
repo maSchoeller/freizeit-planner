@@ -38,7 +38,14 @@ internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
         try
         {
             await next(context);
-            await transaction.CommitAsync(context.RequestAborted);
+            if (context.Response.StatusCode < StatusCodes.Status400BadRequest)
+            {
+                await transaction.CommitAsync(context.RequestAborted);
+            }
+            else
+            {
+                await transaction.RollbackAsync(CancellationToken.None);
+            }
         }
         catch
         {

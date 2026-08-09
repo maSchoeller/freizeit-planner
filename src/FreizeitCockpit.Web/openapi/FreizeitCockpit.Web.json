@@ -4038,6 +4038,36 @@
             }
           },
           {
+            "name": "kinds",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "objectTypes",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "actorFilter",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            }
+          },
+          {
             "name": "limit",
             "in": "query",
             "schema": {
@@ -4091,6 +4121,13 @@
           },
           {
             "name": "objectTypes",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "metadata",
             "in": "query",
             "schema": {
               "type": "string"
@@ -4257,7 +4294,6 @@
           {
             "name": "listId",
             "in": "query",
-            "required": true,
             "schema": {
               "type": "string",
               "format": "uuid"

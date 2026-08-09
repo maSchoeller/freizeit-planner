@@ -1,3 +1,4 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import { describe, expect, it } from "vitest";
@@ -5,12 +6,17 @@ import { App } from "./App";
 
 describe("Dashboard", () => {
   it("exposes the next plan and core navigation in German", () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
     render(
-      <MemoryRouter
-        initialEntries={["/o/sonnenhoehe/camps/sommerfreizeit-2026"]}
-      >
-        <App />
-      </MemoryRouter>,
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={["/o/sonnenhoehe/camps/sommerfreizeit-2026"]}
+        >
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>,
     );
     expect(
       screen.getByRole("heading", { name: "Heute im Tagesplan" }),

@@ -283,6 +283,8 @@ else
     builder.Services.AddScoped<ICampExportFormatter, CampExportFormatter>();
 }
 
+builder.Services.AddScoped<PlanningActivityWriter>();
+
 var app = builder.Build();
 
 app.UseExceptionHandler();

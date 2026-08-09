@@ -23,6 +23,15 @@ export default defineConfig({
           },
         ],
       },
+      {
+        text: "Planung",
+        items: [
+          {
+            text: "Suche, Aktivität, Druck und CSV",
+            link: "/suche-aktivitaet-export",
+          },
+        ],
+      },
     ],
     search: { provider: "local" },
     footer: { message: "Freizeit-Cockpit · Hilfe auf Deutsch" },

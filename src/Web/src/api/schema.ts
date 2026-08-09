@@ -3604,6 +3604,10 @@ export interface paths {
     get: {
       parameters: {
         query?: {
+          kinds?: string;
+          objectTypes?: string;
+          actorFilter?: string;
+          before?: string;
           limit?: number | string;
         };
         header?: never;
@@ -3644,6 +3648,7 @@ export interface paths {
         query: {
           query: string;
           objectTypes?: string;
+          metadata?: string;
           limit?: number | string;
         };
         header?: never;
@@ -3792,8 +3797,8 @@ export interface paths {
     };
     get: {
       parameters: {
-        query: {
-          listId: string;
+        query?: {
+          listId?: string;
         };
         header?: never;
         path: {

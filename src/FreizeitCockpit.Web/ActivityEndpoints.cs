@@ -19,18 +19,20 @@ internal static class ActivityEndpoints
         return endpoints;
     }
 
-    private static async Task<IResult> ListActivityAsync(Guid organizationId, Guid campId, int? limit,
-        HttpContext context, IActivityJournal journal, CancellationToken cancellationToken) => await ExecuteAsync(async () =>
+    private static async Task<IResult> ListActivityAsync(Guid organizationId, Guid campId, string? kinds,
+        string? objectTypes, Guid? actorFilter, DateTimeOffset? before, int? limit, HttpContext context,
+        IActivityJournal journal, CancellationToken cancellationToken) => await ExecuteAsync(async () =>
         PlanningEndpointSupport.TryActor(context.User, out var actorId)
             ? Results.Ok(await journal.ListAsync(new ActivityQuery(actorId, organizationId, campId,
-                Limit: limit ?? 50), cancellationToken)) : Results.Unauthorized());
+                ParseKinds(kinds), Split(objectTypes), actorFilter, before, limit ?? 50), cancellationToken))
+            : Results.Unauthorized());
 
     private static async Task<IResult> SearchAsync(Guid organizationId, Guid campId, string query,
-        string? objectTypes, int? limit, HttpContext context, ICampSearchIndex search,
+        string? objectTypes, string? metadata, int? limit, HttpContext context, ICampSearchIndex search,
         CancellationToken cancellationToken) => await ExecuteAsync(async () =>
         PlanningEndpointSupport.TryActor(context.User, out var actorId)
             ? Results.Ok(await search.SearchAsync(new CampSearchQuery(actorId, organizationId, campId, query,
-                Split(objectTypes), Limit: limit ?? 50), cancellationToken)) : Results.Unauthorized());
+                Split(objectTypes), ParseMetadata(metadata), limit ?? 50), cancellationToken)) : Results.Unauthorized());
 
     private static async Task<IResult> ExportScheduleAsync(Guid organizationId, Guid campId, DateOnly fromDate,
         DateOnly toDateExclusive, HttpContext context, ISchedulePlanning schedule, ICampExportFormatter formatter,
@@ -78,22 +80,34 @@ internal static class ActivityEndpoints
         });
     }
 
-    private static async Task<IResult> ExportShoppingAsync(Guid organizationId, Guid campId, Guid listId,
+    private static async Task<IResult> ExportShoppingAsync(Guid organizationId, Guid campId, Guid? listId,
         HttpContext context, IShoppingPlanning shopping, ICampExportFormatter formatter,
         CancellationToken cancellationToken)
     {
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
         return await ExecuteAsync(async () =>
         {
-            var list = await shopping.GetAsync(new ShoppingListRequest(actorId, organizationId, campId, listId),
-                cancellationToken);
-            if (list is null) return Results.NotFound();
-            var rows = list.Items.Select(item => (IReadOnlyList<string?>)[item.Name,
-                item.Quantity.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                item.Quantity.CustomUnitName ?? item.Quantity.Unit.ToString(), item.Store,
-                item.IsChecked ? "Ja" : "Nein", item.Source.Label]).ToArray();
+            var listIds = listId is { } requestedListId
+                ? [requestedListId]
+                : (await shopping.ListAsync(new ShoppingListsQuery(actorId, organizationId, campId),
+                    cancellationToken)).Select(item => item.Id).ToArray();
+            var rows = new List<IReadOnlyList<string?>>();
+            foreach (var currentListId in listIds)
+            {
+                var list = await shopping.GetAsync(
+                    new ShoppingListRequest(actorId, organizationId, campId, currentListId), cancellationToken);
+                if (list is null)
+                {
+                    if (listId is not null) return Results.NotFound();
+                    continue;
+                }
+                rows.AddRange(list.Items.Select(item => (IReadOnlyList<string?>)[list.Name, item.Name,
+                    item.Quantity.Value.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    item.Quantity.CustomUnitName ?? item.Quantity.Unit.ToString(), item.Store,
+                    item.IsChecked ? "Ja" : "Nein", item.Source.Label]));
+            }
             return await CsvAsync(formatter, actorId, organizationId, campId,
-                ["Position", "Menge", "Einheit", "Geschäft", "Erledigt", "Quelle"], rows,
+                ["Liste", "Position", "Menge", "Einheit", "Geschäft", "Erledigt", "Quelle"], rows,
                 "einkauf.csv", cancellationToken);
         });
     }
@@ -109,6 +123,34 @@ internal static class ActivityEndpoints
 
     private static string[]? Split(string? values) => string.IsNullOrWhiteSpace(values)
         ? null : values.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    private static ActivityKind[]? ParseKinds(string? values)
+    {
+        var parts = Split(values);
+        if (parts is null) return null;
+        var result = new ActivityKind[parts.Length];
+        for (var index = 0; index < parts.Length; index++)
+        {
+            if (!Enum.TryParse(parts[index], true, out result[index]))
+                throw new ActivityRuleException("activity_kind_invalid", "Der Aktivitätsfilter ist ungültig.");
+        }
+        return result;
+    }
+
+    private static Dictionary<string, string>? ParseMetadata(string? value)
+    {
+        var parts = Split(value);
+        if (parts is null) return null;
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in parts)
+        {
+            var separator = part.IndexOf(':', StringComparison.Ordinal);
+            if (separator <= 0 || separator == part.Length - 1 ||
+                !result.TryAdd(part[..separator], part[(separator + 1)..]))
+                throw new ActivityRuleException("search_metadata_invalid", "Der Metadatenfilter ist ungültig.");
+        }
+        return result;
+    }
 
     private static async Task<IResult> ExecuteAsync(Func<Task<IResult>> action)
     {

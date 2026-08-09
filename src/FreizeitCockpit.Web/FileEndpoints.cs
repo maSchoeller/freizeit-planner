@@ -1,3 +1,4 @@
+using Activity.Contracts;
 using Files.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 
@@ -47,17 +48,18 @@ internal static class FileEndpoints
 
     private static Task<IResult> UploadCampAsync(Guid organizationId, Guid campId, AttachmentOwnerType ownerType,
         Guid ownerId, IFormFile file, HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
-        CancellationToken cancellationToken) => UploadAsync(organizationId, campId, ownerType, ownerId, file,
-            context, antiforgery, catalog, cancellationToken);
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => UploadAsync(organizationId, campId,
+            ownerType, ownerId, file, context, antiforgery, catalog, activity, cancellationToken);
 
     private static Task<IResult> UploadRecipeAsync(Guid organizationId, Guid ownerId, IFormFile file,
         HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
         CancellationToken cancellationToken) => UploadAsync(organizationId, null, AttachmentOwnerType.Recipe,
-            ownerId, file, context, antiforgery, catalog, cancellationToken);
+            ownerId, file, context, antiforgery, catalog, null, cancellationToken);
 
     private static async Task<IResult> UploadAsync(Guid organizationId, Guid? campId,
         AttachmentOwnerType ownerType, Guid ownerId, IFormFile file, HttpContext context,
-        IAntiforgery antiforgery, IAttachmentCatalog catalog, CancellationToken cancellationToken)
+        IAntiforgery antiforgery, IAttachmentCatalog catalog, PlanningActivityWriter? activity,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -73,6 +75,10 @@ internal static class FileEndpoints
             var result = await catalog.UploadAsync(new UploadAttachment(actorId, organizationId, campId,
                 new AttachmentOwnerReference(ownerType, ownerId), file.FileName, file.ContentType, file.Length),
                 stream, cancellationToken);
+            if (campId is not null && activity is not null)
+            {
+                await UpsertActivityAsync(activity, actorId, result, ActivityKind.Created, cancellationToken);
+            }
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Created($"{context.Request.Path}/{result.Id:D}", result);
         });
@@ -95,26 +101,45 @@ internal static class FileEndpoints
 
     private static Task<IResult> TrashCampAsync(Guid organizationId, Guid campId, Guid attachmentId,
         HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
-        CancellationToken cancellationToken) => ChangeLifecycleAsync(organizationId, campId, attachmentId,
-            context, antiforgery, catalog.MoveToTrashAsync, cancellationToken);
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => TrashAsync(organizationId, campId,
+            attachmentId, context, antiforgery, catalog, activity, cancellationToken);
 
     private static Task<IResult> RestoreCampAsync(Guid organizationId, Guid campId, Guid attachmentId,
         HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
-        CancellationToken cancellationToken) => ChangeLifecycleAsync(organizationId, campId, attachmentId,
-            context, antiforgery, async (command, token) => { _ = await catalog.RestoreAsync(command, token); },
-            cancellationToken);
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => RestoreAsync(organizationId, campId,
+            attachmentId, context, antiforgery, catalog, activity, cancellationToken);
 
-    private static async Task<IResult> ChangeLifecycleAsync(Guid organizationId, Guid? campId, Guid attachmentId,
-        HttpContext context, IAntiforgery antiforgery,
-        Func<ChangeAttachmentLifecycle, CancellationToken, Task> action, CancellationToken cancellationToken)
+    private static async Task<IResult> TrashAsync(Guid organizationId, Guid campId, Guid attachmentId,
+        HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
+        PlanningActivityWriter activity, CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
         if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version)) return PlanningEndpointSupport.PreconditionRequired();
         return await ExecuteAsync(async () =>
         {
-            await action(new ChangeAttachmentLifecycle(actorId, organizationId,
-            campId, attachmentId, version), cancellationToken); return Results.NoContent();
+            await catalog.MoveToTrashAsync(new ChangeAttachmentLifecycle(actorId, organizationId,
+                campId, attachmentId, version), cancellationToken);
+            await activity.RemoveAsync(actorId, organizationId, campId, "Attachment", attachmentId,
+                "Datei", version + 1, cancellationToken);
+            return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> RestoreAsync(Guid organizationId, Guid campId, Guid attachmentId,
+        HttpContext context, IAntiforgery antiforgery, IAttachmentCatalog catalog,
+        PlanningActivityWriter activity, CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version)) return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var restored = await catalog.RestoreAsync(new ChangeAttachmentLifecycle(actorId, organizationId,
+                campId, attachmentId, version), cancellationToken);
+            await UpsertActivityAsync(activity, actorId, restored, ActivityKind.Restored, cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, restored.Version);
+            return Results.Ok(restored);
         });
     }
 
@@ -155,7 +180,24 @@ internal static class FileEndpoints
         try { return await action(); }
         catch (FilesRuleException exception)
         { return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message, "Dateioperation nicht möglich"); }
+        catch (ActivityRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+            "Aktivität konnte nicht gespeichert werden");
+        }
     }
+
+    private static Task UpsertActivityAsync(PlanningActivityWriter activity, Guid actorId,
+        AttachmentView attachment, ActivityKind kind, CancellationToken cancellationToken) => activity.UpsertAsync(
+        actorId, attachment.OrganizationId, attachment.CampId!.Value, kind, "Attachment", attachment.Id,
+        attachment.OriginalFileName, attachment.OriginalFileName,
+        new Dictionary<string, string>
+        {
+            ["mediaType"] = attachment.MediaType.ToString(),
+            ["ownerType"] = attachment.Owner.Type.ToString()
+        },
+        attachment.Version,
+        cancellationToken);
 
     private const long AttachmentUploadLimit = 10L * 1024 * 1024;
 }

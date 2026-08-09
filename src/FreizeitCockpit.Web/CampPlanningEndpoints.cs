@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Security.Claims;
+using Activity.Contracts;
 using Camps.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 
@@ -102,6 +103,7 @@ internal static class CampPlanningEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ICampManagement management,
+        PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
         if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
@@ -123,6 +125,12 @@ internal static class CampPlanningEndpoints
                     body.DefaultPortions,
                     version),
                 cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Updated,
+                "Camp", result.Id, result.Name,
+                string.Join(' ', result.Name, result.Description, result.Slug),
+                new Dictionary<string, string> { ["status"] = result.Status.ToString() },
+                result.Version,
+                cancellationToken);
             WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
@@ -135,6 +143,7 @@ internal static class CampPlanningEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ICampManagement management,
+        PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
         if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
@@ -144,6 +153,12 @@ internal static class CampPlanningEndpoints
         {
             var result = await management.ChangeStatusAsync(
                 new ChangeCampStatus(actorId, organizationId, campId, body.Status, version),
+                cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Updated,
+                "Camp", result.Id, result.Name,
+                string.Join(' ', result.Name, result.Description, result.Slug),
+                new Dictionary<string, string> { ["status"] = result.Status.ToString() },
+                result.Version,
                 cancellationToken);
             WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
@@ -196,6 +211,7 @@ internal static class CampPlanningEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ISchedulePlanning planning,
+        PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
         if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
@@ -216,6 +232,16 @@ internal static class CampPlanningEndpoints
                     body.ResponsibleUserIds,
                     body.Audience),
                 cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Created,
+                "ScheduleEntry", result.Id, result.Title,
+                string.Join(' ', result.Title, result.Description, result.Location, result.Category, result.Audience),
+                new Dictionary<string, string>
+                {
+                    ["category"] = result.Category,
+                    ["status"] = result.Status.ToString()
+                },
+                result.Version,
+                cancellationToken);
             WriteEtag(context.Response, result.Version);
             return Results.Created(
                 $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/schedule/{result.Id:D}",
@@ -231,6 +257,7 @@ internal static class CampPlanningEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ISchedulePlanning planning,
+        PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
         if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
@@ -254,6 +281,16 @@ internal static class CampPlanningEndpoints
                     body.Audience,
                     version),
                 cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Updated,
+                "ScheduleEntry", result.Id, result.Title,
+                string.Join(' ', result.Title, result.Description, result.Location, result.Category, result.Audience),
+                new Dictionary<string, string>
+                {
+                    ["category"] = result.Category,
+                    ["status"] = result.Status.ToString()
+                },
+                result.Version,
+                cancellationToken);
             WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
@@ -266,6 +303,7 @@ internal static class CampPlanningEndpoints
         HttpContext context,
         IAntiforgery antiforgery,
         ISchedulePlanning planning,
+        PlanningActivityWriter activity,
         CancellationToken cancellationToken)
     {
         if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
@@ -273,9 +311,14 @@ internal static class CampPlanningEndpoints
         if (!TryReadVersion(context.Request, out var version)) return PreconditionRequired();
         return await ExecuteAsync(async () =>
         {
-            await planning.DeleteAsync(
+            var current = await planning.GetAsync(
+                new ScheduleEntryQuery(actorId, organizationId, campId, scheduleEntryId),
+                cancellationToken);
+            var deleted = await planning.DeleteAsync(
                 new DeleteScheduleEntry(actorId, organizationId, campId, scheduleEntryId, version),
                 cancellationToken);
+            await activity.RemoveAsync(actorId, organizationId, campId, "ScheduleEntry", scheduleEntryId,
+                current.Title, deleted.Version, cancellationToken);
             return Results.NoContent();
         });
     }
@@ -301,6 +344,11 @@ internal static class CampPlanningEndpoints
                 title: "Planung nicht möglich",
                 detail: exception.Message,
                 extensions: new Dictionary<string, object?> { ["errorCode"] = exception.ErrorCode });
+        }
+        catch (ActivityRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Aktivität konnte nicht gespeichert werden");
         }
     }
 

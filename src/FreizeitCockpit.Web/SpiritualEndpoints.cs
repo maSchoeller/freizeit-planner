@@ -1,3 +1,4 @@
+using Activity.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 using Spiritual.Contracts;
 
@@ -43,7 +44,8 @@ internal static class SpiritualEndpoints
     });
 
     private static async Task<IResult> CreateAsync(Guid organizationId, Guid campId, DevotionBody body,
-        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, CancellationToken cancellationToken)
+        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -52,6 +54,7 @@ internal static class SpiritualEndpoints
             var result = await planning.CreateAsync(new CreateDevotion(actorId, organizationId, campId, body.Topic,
                 body.BibleReference, body.Translation, body.CoreMessage, body.MarkdownContent,
                 body.ResponsibleUserIds, body.MaterialNotes, body.ScheduleEntryId), cancellationToken);
+            await UpsertActivityAsync(activity, actorId, result, ActivityKind.Created, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Created($"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/devotions/{result.Id:D}", result);
         });
@@ -59,7 +62,7 @@ internal static class SpiritualEndpoints
 
     private static async Task<IResult> UpdateAsync(Guid organizationId, Guid campId, Guid devotionId,
         DevotionBody body, HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning,
-        CancellationToken cancellationToken)
+        PlanningActivityWriter activity, CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -69,38 +72,62 @@ internal static class SpiritualEndpoints
             var result = await planning.UpdateAsync(new UpdateDevotion(actorId, organizationId, campId, devotionId,
                 body.Topic, body.BibleReference, body.Translation, body.CoreMessage, body.MarkdownContent,
                 body.ResponsibleUserIds, body.MaterialNotes, body.ScheduleEntryId, version), cancellationToken);
+            await UpsertActivityAsync(activity, actorId, result, ActivityKind.Updated, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
     }
 
     private static Task<IResult> TrashAsync(Guid organizationId, Guid campId, Guid devotionId,
-        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, CancellationToken cancellationToken) =>
+        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken) =>
         ChangeLifecycleAsync(organizationId, campId, devotionId, context, antiforgery, planning.MoveToTrashAsync,
-            StatusCodes.Status204NoContent, cancellationToken);
+            planning, activity, false, cancellationToken);
 
     private static Task<IResult> RestoreAsync(Guid organizationId, Guid campId, Guid devotionId,
-        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, CancellationToken cancellationToken) =>
+        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken) =>
         ChangeLifecycleAsync(organizationId, campId, devotionId, context, antiforgery, planning.RestoreAsync,
-            StatusCodes.Status204NoContent, cancellationToken);
+            planning, activity, true, cancellationToken);
 
     private static async Task<IResult> ChangeLifecycleAsync(Guid organizationId, Guid campId, Guid devotionId,
         HttpContext context, IAntiforgery antiforgery,
         Func<ChangeDevotionLifecycle, CancellationToken, Task> action,
-        int statusCode, CancellationToken cancellationToken)
+        IDevotionPlanning planning, PlanningActivityWriter activity, bool restore,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
         if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version)) return PlanningEndpointSupport.PreconditionRequired();
         return await ExecuteAsync(async () =>
         {
+            DevotionDetails? current = null;
+            if (!restore)
+            {
+                current = await planning.GetAsync(
+                    new DevotionKey(actorId, organizationId, campId, devotionId), cancellationToken);
+                if (current is null) return Results.NotFound();
+            }
             await action(new ChangeDevotionLifecycle(actorId, organizationId, campId, devotionId, version), cancellationToken);
-            return Results.StatusCode(statusCode);
+            if (restore)
+            {
+                var restored = await planning.GetAsync(
+                    new DevotionKey(actorId, organizationId, campId, devotionId), cancellationToken);
+                if (restored is null) return Results.NotFound();
+                await UpsertActivityAsync(activity, actorId, restored, ActivityKind.Restored, cancellationToken);
+            }
+            else
+            {
+                await activity.RemoveAsync(actorId, organizationId, campId, "Devotion", devotionId,
+                    current!.Topic, version + 1, cancellationToken);
+            }
+            return Results.NoContent();
         });
     }
 
     private static async Task<IResult> RefreshSnapshotAsync(Guid organizationId, Guid campId, Guid devotionId,
-        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, CancellationToken cancellationToken)
+        HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -109,6 +136,7 @@ internal static class SpiritualEndpoints
         {
             var result = await planning.RefreshBibleSnapshotAsync(
                 new RefreshBibleSnapshot(actorId, organizationId, campId, devotionId, version), cancellationToken);
+            await UpsertActivityAsync(activity, actorId, result.Devotion, ActivityKind.Updated, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Devotion.Version);
             return Results.Ok(result);
         });
@@ -116,7 +144,7 @@ internal static class SpiritualEndpoints
 
     private static async Task<IResult> SaveManualSnapshotAsync(Guid organizationId, Guid campId, Guid devotionId,
         ManualSnapshotBody body, HttpContext context, IAntiforgery antiforgery, IDevotionPlanning planning,
-        CancellationToken cancellationToken)
+        PlanningActivityWriter activity, CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -126,10 +154,25 @@ internal static class SpiritualEndpoints
             var result = await planning.SaveManualBibleSnapshotAsync(new SaveManualBibleSnapshot(actorId,
                 organizationId, campId, devotionId, body.Reference, body.Translation, body.TextExcerpt, version),
                 cancellationToken);
+            await UpsertActivityAsync(activity, actorId, result, ActivityKind.Updated, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
     }
+
+    private static Task UpsertActivityAsync(PlanningActivityWriter activity, Guid actorId,
+        DevotionDetails devotion, ActivityKind kind, CancellationToken cancellationToken) => activity.UpsertAsync(
+        actorId, devotion.OrganizationId, devotion.CampId, kind, "Devotion", devotion.Id, devotion.Topic,
+        string.Join(' ', devotion.Topic, devotion.BibleReference, devotion.CoreMessage,
+            devotion.MarkdownContent, devotion.MaterialNotes),
+        new Dictionary<string, string>
+        {
+            ["translation"] = devotion.Translation.ToString(),
+            ["hasSnapshot"] = (devotion.BibleSnapshot is not null).ToString(
+                System.Globalization.CultureInfo.InvariantCulture)
+        },
+        devotion.Version,
+        cancellationToken);
 
     private static async Task<IResult> ExecuteAsync(Func<Task<IResult>> action)
     {
@@ -137,6 +180,11 @@ internal static class SpiritualEndpoints
         catch (SpiritualRuleException exception)
         {
             return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message, "Andachtsplanung nicht möglich");
+        }
+        catch (ActivityRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Aktivität konnte nicht gespeichert werden");
         }
     }
 

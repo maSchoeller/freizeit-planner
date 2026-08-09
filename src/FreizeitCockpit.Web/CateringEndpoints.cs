@@ -1,3 +1,4 @@
+using Activity.Contracts;
 using Catering.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 
@@ -156,7 +157,8 @@ internal static class CateringEndpoints
     });
 
     private static async Task<IResult> CreateMealAsync(Guid organizationId, Guid campId, MealBody body,
-        HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning, CancellationToken cancellationToken)
+        HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -164,13 +166,15 @@ internal static class CateringEndpoints
         {
             var result = await planning.CreateMealAsync(new CreateMeal(actorId, organizationId, campId, body.Name,
                 body.PortionOverride, body.ScheduleEntryId, body.RecipeIds), cancellationToken);
+            await UpsertMealActivityAsync(activity, actorId, result, ActivityKind.Created, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Created($"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/catering/meals/{result.Id:D}", result);
         });
     }
 
     private static async Task<IResult> ReviseMealAsync(Guid organizationId, Guid campId, Guid mealId, MealBody body,
-        HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning, CancellationToken cancellationToken)
+        HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning, PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -179,6 +183,7 @@ internal static class CateringEndpoints
         {
             var result = await planning.ReviseMealAsync(new ReviseMeal(actorId, organizationId, campId, mealId,
                 body.Name, body.PortionOverride, body.ScheduleEntryId, version), cancellationToken);
+            await UpsertMealActivityAsync(activity, actorId, result, ActivityKind.Updated, cancellationToken);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
@@ -186,24 +191,27 @@ internal static class CateringEndpoints
 
     private static async Task<IResult> AddRecipeAsync(Guid organizationId, Guid campId, Guid mealId,
         RecipeSelectionBody body, HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning,
-        CancellationToken cancellationToken) => await ChangeMealAsync(context, antiforgery, async (actorId, version) =>
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => await ChangeMealAsync(
+        context, antiforgery, activity, async (actorId, version) =>
         await planning.AddRecipeSnapshotAsync(new AddRecipeSnapshot(actorId, organizationId, campId, mealId,
             body.RecipeId, version), cancellationToken));
 
     private static async Task<IResult> RemoveRecipeAsync(Guid organizationId, Guid campId, Guid mealId,
         Guid recipeSnapshotId, HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning,
-        CancellationToken cancellationToken) => await ChangeMealAsync(context, antiforgery, async (actorId, version) =>
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => await ChangeMealAsync(
+        context, antiforgery, activity, async (actorId, version) =>
         await planning.RemoveRecipeSnapshotAsync(new RemoveRecipeSnapshot(actorId, organizationId, campId, mealId,
             recipeSnapshotId, version), cancellationToken));
 
     private static async Task<IResult> RefreshRecipeAsync(Guid organizationId, Guid campId, Guid mealId,
         Guid recipeSnapshotId, HttpContext context, IAntiforgery antiforgery, ICampMealPlanning planning,
-        CancellationToken cancellationToken) => await ChangeMealAsync(context, antiforgery, async (actorId, version) =>
+        PlanningActivityWriter activity, CancellationToken cancellationToken) => await ChangeMealAsync(
+        context, antiforgery, activity, async (actorId, version) =>
         await planning.RefreshRecipeSnapshotAsync(new RefreshRecipeSnapshot(actorId, organizationId, campId, mealId,
             recipeSnapshotId, version), cancellationToken));
 
     private static async Task<IResult> ChangeMealAsync(HttpContext context, IAntiforgery antiforgery,
-        Func<Guid, long, Task<Meal>> action)
+        PlanningActivityWriter activity, Func<Guid, long, Task<Meal>> action)
     {
         if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
@@ -211,10 +219,28 @@ internal static class CateringEndpoints
         return await ExecuteAsync(async () =>
         {
             var result = await action(actorId, version);
+            await UpsertMealActivityAsync(activity, actorId, result, ActivityKind.Updated,
+                context.RequestAborted);
             PlanningEndpointSupport.WriteEtag(context.Response, result.Version);
             return Results.Ok(result);
         });
     }
+
+    private static Task UpsertMealActivityAsync(PlanningActivityWriter activity, Guid actorId, Meal meal,
+        ActivityKind kind, CancellationToken cancellationToken) => activity.UpsertAsync(actorId,
+        meal.OrganizationId, meal.CampId, kind, "Meal", meal.Id, meal.Name,
+        string.Join(' ', meal.Name,
+            string.Join(' ', meal.RecipeSnapshots.Select(recipe => recipe.Name)),
+            string.Join(' ', meal.RecipeSnapshots.SelectMany(recipe => recipe.Ingredients)
+                .Select(ingredient => ingredient.IngredientName))),
+        new Dictionary<string, string>
+        {
+            ["portions"] = meal.EffectivePortions.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["linked"] = (meal.ScheduleEntryId is not null).ToString(
+                System.Globalization.CultureInfo.InvariantCulture)
+        },
+        meal.Version,
+        cancellationToken);
 
     private static async Task<IResult> PrepareShoppingAsync(Guid organizationId, Guid campId, Guid mealId,
         HttpContext context, IMealShoppingSource source, CancellationToken cancellationToken) => await ExecuteAsync(async () =>
@@ -228,6 +254,11 @@ internal static class CateringEndpoints
         catch (CateringRuleException exception)
         {
             return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message, "Essensplanung nicht möglich");
+        }
+        catch (ActivityRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Aktivität konnte nicht gespeichert werden");
         }
     }
 
