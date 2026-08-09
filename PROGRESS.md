@@ -23,7 +23,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | T02 meals and snapshots               | verified    | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Reviewed shopping transfer was unreachable             | 14 Catering, 32 React + full gate/browser            | Catering/Logistics contexts, recipe help  | pending   | Start live Logistics UI                |
 | L01 material                          | verified    | Camp/schedule material, responsibilities, procurement status and private attachments        | Material details exposed no reachable attachment area  | 16 Logistics, 28 Files, 37 React + full gate/browser | Logistics/Files contexts, material help   | pending   | Start next incomplete product slice    |
 | L02 shopping                          | verified    | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Material summaries had no reviewed transfer action     | 19 Logistics, 35 React + full gate/browser           | Logistics context, shopping help          | pending   | Start complete L01 material UI         |
-| S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Static cards exposed no snapshot detail or refresh     | 24 Spiritual, 38 React + full gate/browser           | Spiritual context, devotion/Bible help    | pending   | CRUD, manual fallback, failures, files |
+| S01 devotions and Bible               | in_progress | Four translations, attributed snapshots, create/link/responsibilities, refresh/manual fallback | Andacht entwerfen exposed no functional form         | 24 Spiritual, 39 React + full gate/browser           | Spiritual context, devotion/Bible help    | pending   | Edit/trash, provider failures, files   |
 | K01 notebook                          | pending     | Safe Markdown notes, tags, pins and typed links                                             | pending                                                | pending                                              | Knowledge context, help                   | pending   | after I03                              |
 | F02 attachments                       | pending     | Magic-byte/MIME/extension checks, quotas, private authorized image/PDF delivery             | pending                                                | pending                                              | Files context, help                       | pending   | after module CRUD                      |
 | A01 activity/trash                    | in_progress | Metadata-only feed, soft delete/restore and deterministic 30-day purge                      | Schedule hard delete bypassed trash                    | 11 Catering + 23 API + 14 React + cleanup green      | Camps/Catering contexts, trash help       | pending   | audit remaining delete paths and UI    |
@@ -316,3 +316,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   German success status while keeping license metadata. The full gate passed in 232.5 seconds with 24 Spiritual plus
   build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green. S01 remains open for full CRUD, manual
   snapshot fallback, provider-failure UX and private attachments.
+- 2026-08-09: S01 now creates a provider-independent Andacht from the UI with the Contracts-owned four-translation
+  catalog, optional ScheduleEntry link, Camp responsibility candidates, core message, Markdown content and material
+  notes. The create call uses antiforgery and deliberately stores no Bible text. The returned Version 1 detail is
+  opened directly without a racing refetch. Manual fallback reuses its reference and translation, sends antiforgery
+  plus `If-Match: "1"`, and replaces the detail only with the server-attributed Version 2 immutable snapshot. The red
+  journey first failed because **Andacht entwerfen** exposed no Thema field. All 39 React tests pass. At 610 px the
+  595 px document, 562.8 px form/detail and 524.6 px snapshot stayed inside the viewport; the browser completed the
+  full create/manual journey and rendered Public Domain plus **Manuell gespeichert**. The full gate passed in 228.3
+  seconds with 24 Spiritual plus build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green. S01 remains
+  open for edit/trash, explicit provider-failure journeys and private attachments.

@@ -594,6 +594,14 @@ type BibleSnapshotRefreshResult = {
   status: number;
   devotion: DevotionDetail;
 };
+type BibleTranslationView = {
+  translation: number;
+  technicalId: string;
+  displayName: string;
+  license: string;
+  attribution: string;
+  isDefault: boolean;
+};
 type ActivityEvent = {
   id: string;
   actorId: string;
@@ -6570,19 +6578,130 @@ function LogisticsPage({ offline }: { offline: boolean }) {
 }
 
 function DevotionsPage({ offline }: { offline: boolean }) {
-  const { organizationId, campId } = useCampRuntime();
+  const { organizationId, campId, camp } = useCampRuntime();
   const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/devotions`;
   const query = useCampQuery<Devotion[]>("devotions", path);
+  const translations = useCampQuery<BibleTranslationView[]>(
+    "devotion-translations",
+    `${path}/translations`,
+  );
+  const scheduleEntries = useQuery({
+    queryKey: [organizationId, campId, "devotion-schedule-candidates"],
+    queryFn: () =>
+      getJson<ScheduleEntry[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`,
+      ),
+    retry: false,
+  });
+  const members = useCampQuery<CampMemberSummary[]>(
+    "responsibility-candidates",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/responsibility-candidates`,
+  );
   const [selectedDevotionId, setSelectedDevotionId] = useState<string | null>(
     null,
   );
+  const [creating, setCreating] = useState(false);
+  const [topic, setTopic] = useState("");
+  const [bibleReference, setBibleReference] = useState("");
+  const [translation, setTranslation] = useState("0");
+  const [coreMessage, setCoreMessage] = useState("");
+  const [markdownContent, setMarkdownContent] = useState("");
+  const [materialNotes, setMaterialNotes] = useState("");
+  const [responsibleUserIds, setResponsibleUserIds] = useState<string[]>([]);
+  const [scheduleEntryId, setScheduleEntryId] = useState("");
+  const [manualSnapshotOpen, setManualSnapshotOpen] = useState(false);
+  const [manualText, setManualText] = useState("");
   const [notice, setNotice] = useState("");
   const detail = useQuery({
     queryKey: [organizationId, campId, "devotion", selectedDevotionId],
     queryFn: () => getJson<DevotionDetail>(`${path}/${selectedDevotionId}`),
     enabled: selectedDevotionId !== null,
     retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const createDevotion = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<DevotionDetail>(path, "POST", {
+        topic,
+        bibleReference,
+        translation: Number(translation),
+        coreMessage,
+        markdownContent,
+        responsibleUserIds,
+        materialNotes,
+        scheduleEntryId: scheduleEntryId || null,
+      }),
+    onSuccess: (created) => {
+      queryClient.setQueryData<Devotion[]>(
+        [organizationId, campId, "devotions"],
+        (current) => [
+          ...(current ?? []),
+          {
+            id: created.id,
+            organizationId: created.organizationId,
+            campId: created.campId,
+            topic: created.topic,
+            bibleReference: created.bibleReference,
+            translation: created.translation,
+            responsibleUserIds: created.responsibleUserIds,
+            scheduleEntryId: created.scheduleEntryId,
+            hasBibleSnapshot: created.bibleSnapshot !== null,
+            version: created.version,
+          },
+        ],
+      );
+      queryClient.setQueryData(
+        [organizationId, campId, "devotion", created.id],
+        created,
+      );
+      setSelectedDevotionId(created.id);
+      setCreating(false);
+      setNotice(`${created.topic} wurde angelegt.`);
+    },
+  });
+  const saveManualSnapshot = useMutation({
+    mutationFn: () => {
+      const current = detail.data;
+      if (!current) throw new Error("Öffne zuerst eine Andacht.");
+      return mutateCateringJson<DevotionDetail>(
+        `${path}/${current.id}/bible/manual`,
+        "PUT",
+        {
+          reference: current.bibleReference,
+          translation: current.translation,
+          textExcerpt: manualText,
+        },
+        current.version,
+        "Die Andacht wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "devotion", updated.id],
+        updated,
+      );
+      queryClient.setQueryData<Devotion[]>(
+        [organizationId, campId, "devotions"],
+        (current) =>
+          current?.map((devotion) =>
+            devotion.id === updated.id
+              ? {
+                  ...devotion,
+                  bibleReference: updated.bibleReference,
+                  translation: updated.translation,
+                  hasBibleSnapshot: updated.bibleSnapshot !== null,
+                  version: updated.version,
+                }
+              : devotion,
+          ),
+      );
+      setManualSnapshotOpen(false);
+      setManualText("");
+      setNotice(
+        "Der manuelle Bibeltext wurde als unveränderter Snapshot gespeichert.",
+      );
+    },
   });
   const refreshSnapshot = useMutation({
     mutationFn: () => {
@@ -6640,21 +6759,134 @@ function DevotionsPage({ offline }: { offline: boolean }) {
       ) : null}
       <QueryState loading={query.isLoading} error={query.error} />
       <div className="toolbar">
-        <button className="primary-action" disabled={offline}>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={offline}
+          onClick={() => {
+            setCreating(true);
+            setNotice("");
+          }}
+        >
           Andacht entwerfen
         </button>
-        <label>
-          Übersetzung
-          <select defaultValue="Schlachter1951" disabled={offline}>
-            <option value="Schlachter1951">Schlachter 1951</option>
-            <option value="Luther1912">Luther 1912</option>
-            <option value="ElberfelderUnrevised">
-              Unrevidierte Elberfelder
-            </option>
-            <option value="Textbibel">Textbibel</option>
-          </select>
-        </label>
       </div>
+      {creating ? (
+        <form
+          className="schedule-create-form devotion-form"
+          aria-label="Andacht anlegen"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNotice("");
+            createDevotion.mutate();
+          }}
+        >
+          <h2>Neue Andacht planen</h2>
+          <p className="form-hint">
+            Der Andachtsentwurf bleibt unabhängig vom Bibel-Provider
+            bearbeitbar. Ein Bibeltext wird erst nach einer ausdrücklichen
+            Aktion gespeichert.
+          </p>
+          <div className="camp-form-grid">
+            <label>
+              Thema
+              <input
+                required
+                value={topic}
+                onChange={(event) => setTopic(event.target.value)}
+              />
+            </label>
+            <label>
+              Bibelstelle
+              <input
+                required
+                value={bibleReference}
+                onChange={(event) => setBibleReference(event.target.value)}
+              />
+            </label>
+            <label>
+              Bibelübersetzung
+              <select
+                value={translation}
+                onChange={(event) => setTranslation(event.target.value)}
+              >
+                {translations.data?.map((item) => (
+                  <option
+                    key={item.translation}
+                    value={String(item.translation)}
+                  >
+                    {item.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
+              Verknüpfung zum Tagesplan
+              <select
+                value={scheduleEntryId}
+                onChange={(event) => setScheduleEntryId(event.target.value)}
+              >
+                <option value="">Keine Verknüpfung</option>
+                {scheduleEntries.data?.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="full-width">
+              Ziel oder Kerngedanke
+              <textarea
+                required
+                value={coreMessage}
+                onChange={(event) => setCoreMessage(event.target.value)}
+              />
+            </label>
+            <label className="full-width">
+              Markdown-Inhalt oder Gliederung
+              <textarea
+                required
+                value={markdownContent}
+                onChange={(event) => setMarkdownContent(event.target.value)}
+              />
+            </label>
+            <label className="full-width">
+              Materialhinweise
+              <textarea
+                value={materialNotes}
+                onChange={(event) => setMaterialNotes(event.target.value)}
+              />
+            </label>
+          </div>
+          <ResponsibilityFields
+            candidates={members.data ?? []}
+            selected={responsibleUserIds}
+            onChange={setResponsibleUserIds}
+          />
+          {createDevotion.error ? (
+            <p role="alert" className="error-message">
+              {createDevotion.error.message}
+            </p>
+          ) : null}
+          <div className="toolbar">
+            <button
+              type="submit"
+              className="primary-action"
+              disabled={createDevotion.isPending}
+            >
+              Andacht speichern
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              disabled={createDevotion.isPending}
+              onClick={() => setCreating(false)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
       <div className="card-grid">
         {query.data?.map((devotion) => (
           <article className="card" key={devotion.id}>
@@ -6695,17 +6927,29 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                 </div>
                 <div className="toolbar compact-toolbar">
                   {!offline ? (
-                    <button
-                      type="button"
-                      className="primary-action"
-                      disabled={refreshSnapshot.isPending}
-                      onClick={() => {
-                        setNotice("");
-                        refreshSnapshot.mutate();
-                      }}
-                    >
-                      Bibeltext ausdrücklich aktualisieren
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        className="primary-action"
+                        disabled={refreshSnapshot.isPending}
+                        onClick={() => {
+                          setNotice("");
+                          refreshSnapshot.mutate();
+                        }}
+                      >
+                        Bibeltext ausdrücklich aktualisieren
+                      </button>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        onClick={() => {
+                          setManualSnapshotOpen(true);
+                          setNotice("");
+                        }}
+                      >
+                        Bibeltext manuell speichern
+                      </button>
+                    </>
                   ) : null}
                   <button
                     type="button"
@@ -6783,6 +7027,54 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                   bleiben auch ohne Provider bearbeitbar.
                 </p>
               )}
+              {manualSnapshotOpen ? (
+                <form
+                  className="schedule-create-form manual-bible-form"
+                  aria-label="Bibeltext manuell speichern"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    saveManualSnapshot.mutate();
+                  }}
+                >
+                  <h3>Manuellen Bibel-Snapshot speichern</h3>
+                  <p className="form-hint">
+                    Speichere nur einen Text, dessen Lizenz die Verwendung im
+                    Freizeit-Cockpit erlaubt. Übersetzung und Bibelstelle werden
+                    aus der Andacht übernommen.
+                  </p>
+                  <label>
+                    Manueller Bibeltext
+                    <textarea
+                      required
+                      value={manualText}
+                      onChange={(event) => setManualText(event.target.value)}
+                    />
+                  </label>
+                  {saveManualSnapshot.error ? (
+                    <p role="alert" className="error-message">
+                      {saveManualSnapshot.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="submit"
+                      className="primary-action"
+                      disabled={saveManualSnapshot.isPending}
+                    >
+                      Manuellen Snapshot speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={saveManualSnapshot.isPending}
+                      onClick={() => setManualSnapshotOpen(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              ) : null}
               {refreshSnapshot.error ? (
                 <p role="alert" className="error-message">
                   {refreshSnapshot.error.message}

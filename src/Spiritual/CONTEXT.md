@@ -33,4 +33,8 @@
   technical translation id, display name, license, attribution, origin and retrieval date. Provider refresh is an
   explicit online-only action with antiforgery and the current devotion Version through `If-Match`; only a successful
   server response replaces the cached detail. Reference-not-found, unavailable and timeout statuses explain that the
-  existing snapshot remains usable. No module persistence crosses the HTTP/Contracts boundary.
+  existing snapshot remains usable. The online create form loads the Contracts-owned translation catalog plus
+  Schedule and responsibility candidates through public host APIs, then caches the returned versioned detail without
+  implicitly fetching a Bible text. Manual snapshot entry reuses the devotion reference and translation, requires
+  antiforgery and `If-Match`, and replaces the cached detail only after the server has attached license, attribution,
+  retrieval date, and manual origin. No module persistence crosses the HTTP/Contracts boundary.

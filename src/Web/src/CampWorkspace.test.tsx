@@ -2838,6 +2838,258 @@ describe("camp workspace", () => {
     });
   });
 
+  it("creates a schedule-linked devotion and stores a manual Bible snapshot", async () => {
+    const devotionId = "51000000-0000-0000-0000-000000000001";
+    const scheduleEntryId = "32000000-0000-0000-0000-000000000001";
+    const memberId = "10000000-0000-0000-0000-000000000001";
+    const created = {
+      id: devotionId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      topic: "Mut zum Vertrauen",
+      bibleReference: "Psalm 23,1",
+      translation: 1,
+      coreMessage: "Gott begleitet uns.",
+      markdownContent: "## Einstieg\nGemeinsamer Rückblick.",
+      responsibleUserIds: [memberId],
+      materialNotes: "Tücher",
+      scheduleEntryId,
+      bibleSnapshot: null,
+      createdAt: "2026-08-09T20:00:00Z",
+      updatedAt: "2026-08-09T20:00:00Z",
+      deletedAt: null,
+      version: 1,
+    };
+    let summaries: unknown[] = [];
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/devotions")) {
+          summaries = [
+            {
+              id: devotionId,
+              topic: created.topic,
+              bibleReference: created.bibleReference,
+              translation: created.translation,
+              responsibleUserIds: [memberId],
+              scheduleEntryId,
+              hasBibleSnapshot: false,
+              version: 1,
+            },
+          ];
+          return Promise.resolve(
+            new Response(JSON.stringify(created), {
+              status: 201,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        }
+        if (
+          init?.method === "PUT" &&
+          path.endsWith(`/devotions/${devotionId}/bible/manual`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...created,
+                bibleSnapshot: {
+                  reference: "Psalm 23,1",
+                  textExcerpt:
+                    "Der HERR ist mein Hirte; mir wird nichts mangeln.",
+                  technicalTranslationId: "deu1912",
+                  translationDisplayName: "Luther 1912",
+                  license: "Public Domain",
+                  attribution: "Manuell eingetragen · Luther 1912",
+                  retrievedAt: "2026-08-09T20:05:00Z",
+                  origin: 1,
+                },
+                updatedAt: "2026-08-09T20:05:00Z",
+                version: 2,
+              }),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json", ETag: '"2"' },
+              },
+            ),
+          );
+        if (path.endsWith("/devotions/translations"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  translation: 0,
+                  technicalId: "deu1951",
+                  displayName: "Schlachter 1951",
+                  license: "CC BY 4.0",
+                  attribution: "Genfer Bibelgesellschaft",
+                  isDefault: true,
+                },
+                {
+                  translation: 1,
+                  technicalId: "deu1912",
+                  displayName: "Luther 1912",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+                {
+                  translation: 2,
+                  technicalId: "deuelo",
+                  displayName: "Unrevidierte Elberfelder",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+                {
+                  translation: 3,
+                  technicalId: "deutkw",
+                  displayName: "Textbibel",
+                  license: "Public Domain",
+                  attribution: "Public Domain",
+                  isDefault: false,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes("/schedule?"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: scheduleEntryId,
+                  title: "Abendandacht",
+                  category: "Andacht",
+                  status: 1,
+                  responsibleUserIds: [],
+                  overlapsAnotherEntry: false,
+                  timing: {
+                    isAllDay: false,
+                    startsAtUtc: "2026-08-05T18:00:00Z",
+                    endsAtUtc: "2026-08-05T19:00:00Z",
+                  },
+                  version: 1,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/responsibility-candidates"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                { userId: memberId, displayName: "Miriam Muster" },
+              ]),
+              {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              },
+            ),
+          );
+        if (path.endsWith("/devotions"))
+          return Promise.resolve(
+            new Response(JSON.stringify(summaries), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Andacht entwerfen" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Thema" }),
+      created.topic,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Bibelstelle" }),
+      created.bibleReference,
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Bibelübersetzung" }),
+      "1",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Ziel oder Kerngedanke" }),
+      created.coreMessage,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Markdown-Inhalt oder Gliederung" }),
+      created.markdownContent,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Materialhinweise" }),
+      created.materialNotes,
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Verknüpfung zum Tagesplan" }),
+      scheduleEntryId,
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Miriam Muster" }));
+    await user.click(screen.getByRole("button", { name: "Andacht speichern" }));
+    expect(
+      await screen.findByText("Mut zum Vertrauen wurde angelegt."),
+    ).toHaveAttribute("role", "status");
+    expect(
+      await screen.findByText(/Noch kein Bibeltext gespeichert/),
+    ).toBeVisible();
+
+    await user.click(
+      screen.getByRole("button", { name: "Bibeltext manuell speichern" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Manueller Bibeltext" }),
+      "Der HERR ist mein Hirte; mir wird nichts mangeln.",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Manuellen Snapshot speichern" }),
+    );
+    expect(await screen.findByText("Manuell gespeichert")).toBeVisible();
+    expect(screen.getByText("Public Domain")).toBeVisible();
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/devotions") && init?.method === "POST",
+    );
+    expect(JSON.parse(createCall?.[1]?.body as string)).toMatchObject({
+      topic: created.topic,
+      bibleReference: created.bibleReference,
+      translation: 1,
+      responsibleUserIds: [memberId],
+      scheduleEntryId,
+    });
+    const manualCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(
+          `/devotions/${devotionId}/bible/manual`,
+        ) && init?.method === "PUT",
+    );
+    expect(manualCall?.[1]?.headers).toMatchObject({ "If-Match": '"1"' });
+    expect(JSON.parse(manualCall?.[1]?.body as string)).toEqual({
+      reference: "Psalm 23,1",
+      translation: 1,
+      textExcerpt: "Der HERR ist mein Hirte; mir wird nichts mangeln.",
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

@@ -4,6 +4,13 @@ Unter **Andachten** findest du die geistlichen Entwürfe des geöffneten Camps. 
 und ob bereits ein lizenzierter Bibeltext gespeichert ist. Mit **Andacht öffnen** lädst du Kerngedanke, Entwurf,
 Materialhinweise und den aktuellen Bibel-Snapshot.
 
+## Andacht anlegen
+
+Mit **Andacht entwerfen** erfasst du Thema, Bibelstelle, Übersetzung, Kerngedanke, Markdown-Inhalt und optionale
+Materialhinweise. Du kannst Verantwortliche auswählen und die Andacht mit einem Eintrag aus dem Tagesplan
+verknüpfen. Das Speichern der Andacht lädt noch keinen Bibeltext: Referenz und Entwurf bleiben damit auch bei einem
+Provider-Ausfall nutzbar.
+
 ## Gespeicherter Bibel-Snapshot
 
 Ein Snapshot enthält die Bibelstelle und den Textauszug zusammen mit technischer Übersetzungs-ID, Anzeigename,
@@ -23,3 +30,11 @@ neuen unveränderlichen Snapshot; der vorherige Inhalt wird nicht im Hintergrund
 Ist die Referenz unbekannt, der Provider nicht erreichbar oder die Antwort zu langsam, bleibt der vorhandene
 Snapshot nutzbar. Die Anwendung zeigt den Grund verständlich an. Referenz, Andachtsinhalt und ein eigener manueller
 Text können weiterhin ohne Provider bearbeitet werden.
+
+## Bibeltext manuell speichern
+
+Mit **Bibeltext manuell speichern** kannst du einen erlaubten Text selbst eintragen. Bibelstelle und Übersetzung
+werden aus der Andacht übernommen. Prüfe vor dem Speichern, ob die Lizenz die Nutzung erlaubt. Der Text wird mit
+Lizenz, Attribution, Datum und der Herkunft **Manuell gespeichert** als neuer unveränderlicher Snapshot abgelegt.
+Auch dabei schützt die aktuelle Andachts-Version vor dem versehentlichen Überschreiben einer zwischenzeitlichen
+Änderung.
