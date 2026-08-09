@@ -36,6 +36,10 @@
   host adapter for current default portions, archive state, and writable ScheduleEntry references, so this module
   does not depend on Camps internals or Contracts. Create, update, and restore reject foreign, missing, deleted, or
   archived-Camp schedule links. Every meal mutation rejects an archived Camp.
+- The Camp food page creates meals from the current default portions or one explicit positive override, optionally
+  links one writable ScheduleEntry, and copies any selected library recipes into immutable snapshots. Meal details
+  show effective portions, scaled decimal quantities and source/latest recipe versions. Refresh remains a distinct
+  antiforgery plus `If-Match` action that replaces only the selected current snapshot after explicit user intent.
 - `IMealShoppingSource` returns source-stable, editable draft lines. The host passes reviewed quantities to the
   Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items.
 - `Quantity` uses `decimal`. Automatic conversion is limited to g/kg and ml/l. Piece is compatible only with piece;

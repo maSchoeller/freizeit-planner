@@ -914,6 +914,61 @@ button:disabled {
   margin-bottom: 0;
   background: var(--white);
 }
+.meal-create-form,
+.meal-detail-panel,
+.meal-snapshot-list {
+  display: grid;
+  gap: 1rem;
+}
+.meal-create-form > label:not(.checkbox-label) {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--petrol-900);
+  font-weight: 750;
+}
+.meal-create-form > label input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  background: var(--white);
+  color: var(--petrol-900);
+  font: inherit;
+}
+.meal-recipe-options {
+  display: grid;
+  gap: 0.65rem;
+}
+.meal-detail-panel {
+  margin-bottom: 1.25rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: var(--sky-100);
+}
+.meal-detail-panel h2,
+.meal-detail-panel h3,
+.meal-detail-panel h4,
+.meal-detail-panel p {
+  margin-block: 0;
+}
+.meal-snapshot-card {
+  display: grid;
+  gap: 0.8rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--white);
+}
+.status.warn {
+  color: #704b00;
+  background: #fff2c7;
+}
+.status.done {
+  color: #1e625b;
+  background: #dff4ec;
+}
 .recipe-attachments {
   display: grid;
   gap: 0.85rem;
@@ -1070,7 +1125,8 @@ button:disabled {
 @media (max-width: 960px) {
   .schedule-create-grid,
   .recipe-ingredient-row,
-  .recipe-detail-grid {
+  .recipe-detail-grid,
+  .meal-create-form .camp-form-grid {
     grid-template-columns: 1fr;
   }
   .recipe-ingredient-row h3,

@@ -424,7 +424,44 @@ type Meal = {
   id: string;
   name: string;
   effectivePortions: number;
+  scheduleEntryId: string | null;
   recipeCount: number;
+  version: number;
+};
+type MealRecipeSnapshot = {
+  id: string;
+  sourceRecipeId: string;
+  sourceRecipeVersionNumber: number;
+  latestRecipeVersionNumber: number;
+  refreshAvailable: boolean;
+  name: string;
+  description: string;
+  preparation: string;
+  basePortions: number;
+  ingredients: {
+    id: string;
+    ingredientId: string;
+    ingredientName: string;
+    baseQuantity: RecipeQuantity;
+    scaledQuantity: RecipeQuantity;
+    note: string | null;
+  }[];
+  dietaryTags: string[];
+  allergenNotes: string | null;
+  kitchenNotes: string | null;
+  capturedAt: string;
+};
+type MealDetail = {
+  id: string;
+  organizationId: string;
+  campId: string;
+  name: string;
+  campDefaultPortions: number;
+  portionOverride: number | null;
+  effectivePortions: number;
+  scheduleEntryId: string | null;
+  recipeSnapshots: MealRecipeSnapshot[];
+  version: number;
 };
 type Ingredient = {
   id: string;
@@ -3064,8 +3101,159 @@ function RecipeDetailPanel({
   );
 }
 
+function MealDetailPanel({
+  organizationId,
+  campId,
+  mealId,
+  readOnly,
+  onClose,
+}: {
+  organizationId: string;
+  campId: string;
+  mealId: string;
+  readOnly: boolean;
+  onClose: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const detailQueryKey = [organizationId, campId, "meal", mealId];
+  const meal = useQuery({
+    queryKey: detailQueryKey,
+    queryFn: () =>
+      getJson<MealDetail>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}`,
+      ),
+    retry: false,
+  });
+  const [notice, setNotice] = useState("");
+  const refreshSnapshot = useMutation({
+    mutationFn: (snapshot: MealRecipeSnapshot) => {
+      const current = meal.data;
+      if (!current) throw new Error("Die Mahlzeit ist noch nicht geladen.");
+      return mutateCateringJson<MealDetail>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}/recipes/${snapshot.id}/refresh`,
+        "POST",
+        {},
+        current.version,
+        "Die Mahlzeit wurde zwischenzeitlich geändert. Schließe die Details und öffne sie erneut.",
+      );
+    },
+    onSuccess: async (revised, snapshot) => {
+      queryClient.setQueryData(detailQueryKey, revised);
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "meals"],
+      });
+      setNotice(
+        `${snapshot.name} wurde ausdrücklich auf Rezeptversion ${snapshot.latestRecipeVersionNumber} aktualisiert.`,
+      );
+    },
+  });
+  const current = meal.data;
+
+  return (
+    <section className="meal-detail-panel" aria-label="Mahlzeitdetails">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">
+            {current
+              ? `${current.effectivePortions} Personen`
+              : "Mahlzeit wird geladen"}
+          </p>
+          <h2>
+            {current ? `Mahlzeitdetails: ${current.name}` : "Mahlzeitdetails"}
+          </h2>
+        </div>
+        <button type="button" className="secondary-action" onClick={onClose}>
+          Mahlzeit schließen
+        </button>
+      </div>
+      <QueryState loading={meal.isLoading} error={meal.error} />
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
+      {current ? (
+        <>
+          <p className="form-hint">
+            {current.portionOverride === null
+              ? `Verwendet den Camp-Standard von ${current.campDefaultPortions} Personen.`
+              : `Überschreibt den Camp-Standard von ${current.campDefaultPortions} mit ${current.portionOverride} Personen.`}
+            {current.scheduleEntryId
+              ? " Mit einem Zeitplaneintrag verknüpft."
+              : " Ohne Zeitplaneintrag."}
+          </p>
+          <div className="meal-snapshot-list">
+            {current.recipeSnapshots.map((snapshot) => (
+              <article className="meal-snapshot-card" key={snapshot.id}>
+                <div className="section-heading">
+                  <div>
+                    <p className="eyebrow">
+                      Rezeptversion {snapshot.sourceRecipeVersionNumber} von{" "}
+                      {snapshot.latestRecipeVersionNumber}
+                    </p>
+                    <h3>{snapshot.name}</h3>
+                  </div>
+                  {snapshot.refreshAvailable ? (
+                    <span className="status warn">Neue Version verfügbar</span>
+                  ) : (
+                    <span className="status done">Aktuell</span>
+                  )}
+                </div>
+                <p>{snapshot.description}</p>
+                <h4>Skalierte Zutaten</h4>
+                <ul className="recipe-detail-ingredients">
+                  {snapshot.ingredients.map((ingredient) => (
+                    <li key={ingredient.id}>
+                      <span>
+                        {formatRecipeQuantity(ingredient.scaledQuantity)}{" "}
+                        {ingredient.ingredientName}
+                      </span>
+                      {ingredient.note ? (
+                        <small>{ingredient.note}</small>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+                {snapshot.allergenNotes ? (
+                  <p>
+                    <strong>Allergenhinweis:</strong> {snapshot.allergenNotes}
+                  </p>
+                ) : null}
+                {snapshot.refreshAvailable ? (
+                  <button
+                    type="button"
+                    className="primary-action"
+                    disabled={readOnly || refreshSnapshot.isPending}
+                    onClick={() => {
+                      setNotice("");
+                      refreshSnapshot.mutate(snapshot);
+                    }}
+                  >
+                    {snapshot.name} auf Version{" "}
+                    {snapshot.latestRecipeVersionNumber} aktualisieren
+                  </button>
+                ) : null}
+              </article>
+            ))}
+            {current.recipeSnapshots.length === 0 ? (
+              <p className="empty-state">
+                Diese Mahlzeit enthält noch keinen Rezept-Snapshot.
+              </p>
+            ) : null}
+          </div>
+          {refreshSnapshot.error ? (
+            <p role="alert" className="error-message">
+              {refreshSnapshot.error.message}
+            </p>
+          ) : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
 function MealsPage({ offline }: { offline: boolean }) {
-  const { organizationId, organizationRole, campId } = useCampRuntime();
+  const { organizationId, organizationRole, campId, camp } = useCampRuntime();
   const canManageLibrary = organizationRole === 0 || organizationRole === 1;
   const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals`;
@@ -3081,6 +3269,16 @@ function MealsPage({ offline }: { offline: boolean }) {
   const [showRecipeForm, setShowRecipeForm] = useState(false);
   const [showIngredientLibrary, setShowIngredientLibrary] = useState(false);
   const [selectedRecipeId, setSelectedRecipeId] = useState<string | null>(null);
+  const [showMealForm, setShowMealForm] = useState(false);
+  const [selectedMealId, setSelectedMealId] = useState<string | null>(null);
+  const [mealName, setMealName] = useState("");
+  const [overridePortions, setOverridePortions] = useState(false);
+  const [mealPortions, setMealPortions] = useState(
+    String(camp.defaultPortions),
+  );
+  const [mealScheduleEntryId, setMealScheduleEntryId] = useState("");
+  const [mealRecipeIds, setMealRecipeIds] = useState<string[]>([]);
+  const [mealNotice, setMealNotice] = useState("");
   const [recipeName, setRecipeName] = useState("");
   const [recipeDescription, setRecipeDescription] = useState("");
   const [recipePreparation, setRecipePreparation] = useState("");
@@ -3107,6 +3305,38 @@ function MealsPage({ offline }: { offline: boolean }) {
       ),
     enabled: showRecipeForm && ingredientSearch.trim().length >= 2,
     retry: false,
+  });
+  const mealScheduleEntries = useQuery({
+    queryKey: [organizationId, campId, "meal-schedule-candidates"],
+    queryFn: () =>
+      getJson<ScheduleEntry[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`,
+      ),
+    enabled: showMealForm,
+    retry: false,
+  });
+  const createMeal = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<MealDetail>(path, "POST", {
+        name: mealName,
+        portionOverride: overridePortions ? Number(mealPortions) : null,
+        scheduleEntryId: mealScheduleEntryId || null,
+        recipeIds: mealRecipeIds,
+      }),
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "meals"],
+      });
+      setMealNotice(
+        `${created.name} wurde mit ${created.effectivePortions} Personen und ${created.recipeSnapshots.length} Rezept-${created.recipeSnapshots.length === 1 ? "Snapshot" : "Snapshots"} angelegt.`,
+      );
+      setShowMealForm(false);
+      setMealName("");
+      setOverridePortions(false);
+      setMealPortions(String(camp.defaultPortions));
+      setMealScheduleEntryId("");
+      setMealRecipeIds([]);
+    },
   });
   const createRecipe = useMutation({
     mutationFn: async () => {
@@ -3207,8 +3437,21 @@ function MealsPage({ offline }: { offline: boolean }) {
       </PageHeading>
       <QueryState loading={query.isLoading && !offline} error={query.error} />
       <div className="toolbar">
-        <button type="button" className="primary-action" disabled={offline}>
-          Mahlzeit planen
+        <button
+          type="button"
+          className="primary-action"
+          disabled={offline}
+          aria-expanded={showMealForm}
+          onClick={() => {
+            setShowMealForm((current) => !current);
+            setSelectedMealId(null);
+            setSelectedRecipeId(null);
+            setShowRecipeForm(false);
+            setShowIngredientLibrary(false);
+            setMealNotice("");
+          }}
+        >
+          {showMealForm ? "Mahlzeitformular schließen" : "Mahlzeit planen"}
         </button>
         <button
           type="button"
@@ -3224,6 +3467,8 @@ function MealsPage({ offline }: { offline: boolean }) {
             setShowRecipeForm((current) => !current);
             setShowIngredientLibrary(false);
             setSelectedRecipeId(null);
+            setShowMealForm(false);
+            setSelectedMealId(null);
             setRecipeNotice("");
           }}
         >
@@ -3243,6 +3488,8 @@ function MealsPage({ offline }: { offline: boolean }) {
             setShowIngredientLibrary((current) => !current);
             setShowRecipeForm(false);
             setSelectedRecipeId(null);
+            setShowMealForm(false);
+            setSelectedMealId(null);
             setRecipeNotice("");
           }}
         >
@@ -3260,6 +3507,131 @@ function MealsPage({ offline }: { offline: boolean }) {
           />
         </label>
       </div>
+      {mealNotice ? (
+        <p className="form-feedback" role="status">
+          {mealNotice}
+        </p>
+      ) : null}
+      {showMealForm ? (
+        <form
+          className="schedule-create-form meal-create-form"
+          aria-labelledby="new-meal-heading"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setMealNotice("");
+            createMeal.mutate();
+          }}
+        >
+          <h2 id="new-meal-heading">Neue Mahlzeit</h2>
+          <p className="form-hint">
+            Camp-Standard: {camp.defaultPortions} Personen
+          </p>
+          <div className="camp-form-grid">
+            <label>
+              Name der Mahlzeit
+              <input
+                required
+                value={mealName}
+                onChange={(event) => setMealName(event.target.value)}
+              />
+            </label>
+            <label>
+              Zeitplaneintrag
+              <select
+                value={mealScheduleEntryId}
+                onChange={(event) => setMealScheduleEntryId(event.target.value)}
+              >
+                <option value="">Nicht mit dem Zeitplan verknüpfen</option>
+                {mealScheduleEntries.data?.map((entry) => (
+                  <option key={entry.id} value={entry.id}>
+                    {entry.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={overridePortions}
+              onChange={(event) => setOverridePortions(event.target.checked)}
+            />
+            Personenzahl überschreiben
+          </label>
+          {overridePortions ? (
+            <label>
+              Personenzahl
+              <input
+                required
+                type="number"
+                min="1"
+                step="1"
+                value={mealPortions}
+                onChange={(event) => setMealPortions(event.target.value)}
+              />
+            </label>
+          ) : null}
+          <fieldset>
+            <legend>Rezept-Snapshots</legend>
+            <p className="form-hint">
+              Ausgewählte Rezepte werden in ihrem aktuellen Stand kopiert und
+              später nicht still verändert.
+            </p>
+            <div className="meal-recipe-options">
+              {(recipes.data ?? []).map((recipe) => (
+                <label className="checkbox-label" key={recipe.id}>
+                  <input
+                    type="checkbox"
+                    checked={mealRecipeIds.includes(recipe.id)}
+                    onChange={(event) =>
+                      setMealRecipeIds((current) =>
+                        event.target.checked
+                          ? [...current, recipe.id]
+                          : current.filter((id) => id !== recipe.id),
+                      )
+                    }
+                  />
+                  {recipe.name} als Snapshot hinzufügen
+                </label>
+              ))}
+              {!recipes.isLoading && recipes.data?.length === 0 ? (
+                <p className="empty-state">
+                  Noch kein Bibliotheksrezept vorhanden. Die Mahlzeit kann
+                  trotzdem ohne Rezept angelegt werden.
+                </p>
+              ) : null}
+            </div>
+          </fieldset>
+          <QueryState
+            loading={mealScheduleEntries.isLoading}
+            error={mealScheduleEntries.error}
+          />
+          {createMeal.error ? (
+            <p role="alert" className="error-message">
+              {createMeal.error.message}
+            </p>
+          ) : null}
+          <div className="toolbar">
+            <button
+              type="submit"
+              className="primary-action"
+              disabled={createMeal.isPending}
+            >
+              {createMeal.isPending
+                ? "Mahlzeit wird gespeichert …"
+                : "Mahlzeit speichern"}
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              disabled={createMeal.isPending}
+              onClick={() => setShowMealForm(false)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
       {showIngredientLibrary ? (
         <IngredientLibraryPanel
           organizationId={organizationId}
@@ -3273,6 +3645,15 @@ function MealsPage({ offline }: { offline: boolean }) {
           canManage={canManageLibrary}
           readOnly={offline}
           onClose={() => setSelectedRecipeId(null)}
+        />
+      ) : null}
+      {selectedMealId ? (
+        <MealDetailPanel
+          organizationId={organizationId}
+          campId={campId}
+          mealId={selectedMealId}
+          readOnly={offline}
+          onClose={() => setSelectedMealId(null)}
         />
       ) : null}
       {recipeNotice ? (
@@ -3549,6 +3930,8 @@ function MealsPage({ offline }: { offline: boolean }) {
                 aria-expanded={selectedRecipeId === recipe.id}
                 onClick={() => {
                   setSelectedRecipeId(recipe.id);
+                  setSelectedMealId(null);
+                  setShowMealForm(false);
                   setShowRecipeForm(false);
                   setShowIngredientLibrary(false);
                   setRecipeNotice("");
@@ -3576,8 +3959,22 @@ function MealsPage({ offline }: { offline: boolean }) {
                 {meal.recipeCount} Rezept-Snapshots · Änderungen an
                 Bibliotheksrezepten werden nicht still übernommen.
               </p>
-              <button className="secondary-action" disabled={offline}>
-                Öffnen
+              <button
+                type="button"
+                className="secondary-action"
+                aria-label={`${meal.name} öffnen`}
+                aria-expanded={selectedMealId === meal.id}
+                disabled={offline}
+                onClick={() => {
+                  setSelectedMealId(meal.id);
+                  setSelectedRecipeId(null);
+                  setShowMealForm(false);
+                  setShowRecipeForm(false);
+                  setShowIngredientLibrary(false);
+                  setMealNotice("");
+                }}
+              >
+                Mahlzeit öffnen
               </button>
             </article>
           ))}

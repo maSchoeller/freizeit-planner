@@ -20,7 +20,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | C01 camps                             | verified    | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Static dashboard examples masked the live Camp state   | 17 Camps, 29 API, 25 React + browser green           | Camps context, organization/camp help     | pending   | Start next incomplete product slice    |
 | C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
-| T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Invalid schedule link was accepted                     | 14 Catering + atomic PostgreSQL green                | Catering context, schedule help           | pending   | complete meal and snapshot UI          |
+| T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Meal planning and snapshot refresh were unreachable    | 14 Catering, 30 React + browser green                | Catering context, recipe/schedule help    | pending   | edit/delete and snapshot composition   |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
 | L02 shopping                          | in_progress | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Hard delete removed individual items immediately       | 19 Logistics + PostgreSQL cleanup green              | Logistics context, shopping help          | pending   | complete UI and visual verification    |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
@@ -224,3 +224,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   TypeScript and lint. A rendered 610 px view kept its 595 px document and the 529 px file panel, including long file
   names, within the viewport. The complete repository gate passed in 237.4 seconds with 14 Catering, 28 Files, 29 API
   and 29 React tests plus PostgreSQL RLS/privacy, PWA and help output green; T01 is verified.
+- 2026-08-09: T02 meal planning is now reachable from the Camp food page. Members can keep the Camp default portions
+  or enter one positive override, optionally choose one current ScheduleEntry, select multiple library recipes and
+  create their immutable snapshots with antiforgery. Meal details expose effective/default portions, scaled decimal
+  quantities, source/latest recipe versions and allergen planning notes. An outdated snapshot changes only through
+  its explicit antiforgery plus `If-Match` refresh action, with an actionable concurrency fallback. The red journey
+  failed on the inert meal button; all React journeys now pass 30/30 with strict TypeScript and lint. At 610 px the
+  563 px detail panel stayed inside the 595 px document; the create form uses one column at this width. T02 remains
+  open for meal edit/delete, adding/removing snapshots after creation and the reviewed shopping-list transfer UI. The
+  complete repository gate passed in 333 seconds with 14 Catering, 29 API and 30 React tests plus atomic PostgreSQL,
+  RLS/privacy, PWA and help output green.

@@ -997,6 +997,252 @@ describe("camp workspace", () => {
     });
   });
 
+  it("creates a linked meal and explicitly refreshes an outdated recipe snapshot", async () => {
+    const mealId = "46000000-0000-0000-0000-000000000001";
+    const recipeId = "42000000-0000-0000-0000-000000000001";
+    const snapshotId = "47000000-0000-0000-0000-000000000001";
+    const scheduleEntryId = "40000000-0000-0000-0000-000000000001";
+    const snapshot = {
+      id: snapshotId,
+      sourceRecipeId: recipeId,
+      sourceRecipeVersionNumber: 1,
+      latestRecipeVersionNumber: 2,
+      refreshAvailable: true,
+      name: "Kartoffelsuppe",
+      description: "Wärmende Suppe",
+      preparation: "Kochen und pürieren.",
+      basePortions: 8,
+      ingredients: [
+        {
+          id: "48000000-0000-0000-0000-000000000001",
+          ingredientId: "41000000-0000-0000-0000-000000000001",
+          ingredientName: "Kartoffeln",
+          baseQuantity: { value: 1.5, unit: 1, countUnitName: null },
+          scaledQuantity: { value: 7.5, unit: 1, countUnitName: null },
+          note: null,
+        },
+      ],
+      dietaryTags: ["vegetarisch"],
+      allergenNotes: "Milch prüfen",
+      kitchenNotes: null,
+      capturedAt: "2026-08-09T10:00:00Z",
+    };
+    const meal = {
+      id: mealId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      name: "Mittagessen",
+      campDefaultPortions: 42,
+      portionOverride: 40,
+      effectivePortions: 40,
+      scheduleEntryId,
+      recipeSnapshots: [snapshot],
+      version: 4,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.endsWith(`/meals/${mealId}/recipes/${snapshotId}/refresh`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...meal,
+                recipeSnapshots: [
+                  {
+                    ...snapshot,
+                    sourceRecipeVersionNumber: 2,
+                    latestRecipeVersionNumber: 2,
+                    refreshAvailable: false,
+                  },
+                ],
+                version: 5,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (init?.method === "POST" && path.endsWith("/catering/meals"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...meal,
+                id: "46000000-0000-0000-0000-000000000002",
+                name: "Abendessen",
+                portionOverride: 30,
+                effectivePortions: 30,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/catering/meals/${mealId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(meal), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"4"' },
+            }),
+          );
+        if (path.endsWith("/catering/meals"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: mealId,
+                  organizationId: meal.organizationId,
+                  campId: meal.campId,
+                  name: meal.name,
+                  effectivePortions: 40,
+                  scheduleEntryId,
+                  recipeCount: 1,
+                  version: 4,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/catering/recipes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: recipeId,
+                  organizationId: meal.organizationId,
+                  name: "Kartoffelsuppe",
+                  basePortions: 8,
+                  currentVersionNumber: 2,
+                  version: 2,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes("/schedule?"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: scheduleEntryId,
+                  title: "Abendessen im Speisesaal",
+                  description: "",
+                  location: "Speisesaal",
+                  category: "Mahlzeit",
+                  status: 0,
+                  responsibleUserIds: [],
+                  audience: null,
+                  overlapsAnotherEntry: false,
+                  timing: {
+                    isAllDay: false,
+                    startsAtUtc: "2026-08-03T16:00:00Z",
+                    endsAtUtc: "2026-08-03T17:00:00Z",
+                  },
+                  version: 3,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(screen.getByRole("button", { name: "Mahlzeit planen" }));
+    expect(
+      screen.getByRole("heading", { name: "Neue Mahlzeit" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Camp-Standard: 42 Personen")).toBeInTheDocument();
+    await user.type(
+      screen.getByRole("textbox", { name: "Name der Mahlzeit" }),
+      "Abendessen",
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Personenzahl überschreiben" }),
+    );
+    await user.clear(screen.getByRole("spinbutton", { name: "Personenzahl" }));
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Personenzahl" }),
+      "30",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Zeitplaneintrag" }),
+      scheduleEntryId,
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Kartoffelsuppe als Snapshot hinzufügen",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Mahlzeit speichern" }),
+    );
+    expect(
+      await screen.findByText(
+        "Abendessen wurde mit 30 Personen und 1 Rezept-Snapshot angelegt.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/catering/meals") &&
+        init?.method === "POST",
+    );
+    expect(createCall?.[1]?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    expect(JSON.parse(createCall?.[1]?.body as string)).toMatchObject({
+      name: "Abendessen",
+      portionOverride: 30,
+      scheduleEntryId,
+      recipeIds: [recipeId],
+    });
+
+    await user.click(
+      await screen.findByRole("button", { name: "Mittagessen öffnen" }),
+    );
+    expect(
+      await screen.findByRole("heading", {
+        name: "Mahlzeitdetails: Mittagessen",
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("7,5 Kilogramm Kartoffeln")).toBeInTheDocument();
+    expect(screen.getByText("Rezeptversion 1 von 2")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", {
+        name: "Kartoffelsuppe auf Version 2 aktualisieren",
+      }),
+    );
+    expect(
+      await screen.findByText(
+        "Kartoffelsuppe wurde ausdrücklich auf Rezeptversion 2 aktualisiert.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const refreshCall = fetchMock.mock.calls.find(([request]) =>
+      requestPath(request).endsWith(
+        `/meals/${mealId}/recipes/${snapshotId}/refresh`,
+      ),
+    );
+    expect(refreshCall?.[1]?.headers).toMatchObject({
+      "If-Match": '"4"',
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

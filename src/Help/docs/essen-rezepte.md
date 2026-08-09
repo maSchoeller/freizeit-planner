@@ -53,6 +53,18 @@ Für ein kontrolliertes Zusammenführen wählst du zuerst die doppelte Zutat und
 gespeicherte Mahlzeiten-Snapshots bleiben unverändert. Erst nach der ausdrücklichen Bestätigung kann die doppelte
 Zutat in die Zielzutat überführt werden.
 
+## Mahlzeit planen und Rezeptstand aktualisieren
+
+Mit **Mahlzeit planen** legst du eine Mahlzeit im geöffneten Camp an. Ohne Überschreibung verwendet sie die
+Camp-Standardpersonenzahl. Aktiviere **Personenzahl überschreiben**, wenn diese einzelne Mahlzeit für eine andere
+Gruppengröße skaliert werden soll. Optional kannst du genau einen vorhandenen Zeitplaneintrag verknüpfen und mehrere
+Bibliotheksrezepte auswählen.
+
+Jedes ausgewählte Rezept wird beim Speichern als eigener unveränderlicher Snapshot in die Mahlzeit kopiert. Öffne
+eine Mahlzeit, um die wirksame Personenzahl und die passend skalierten Dezimalmengen zu sehen. Ist inzwischen eine
+neuere Bibliotheksversion verfügbar, bleibt der verwendete Stand zunächst erhalten. Erst mit **Rezeptname auf Version
+… aktualisieren** wird ausdrücklich ein neuer Snapshot aus dem aktuellen Bibliotheksrezept erzeugt.
+
 ## Bibliothek und Camp-Snapshots
 
 Die Suche oberhalb der Bibliothek filtert Rezepte nach ihrem Namen. Wird ein Bibliotheksrezept einer Mahlzeit
