@@ -38,6 +38,10 @@ Beim Öffnen eines Camps übernimmt der Arbeitsbereich automatisch dessen Zeitra
 zeigt auf jeder Fachseite den Hinweis **Archiviert · nur lesen** und deaktiviert dort Änderungen; über
 **Camp-Einstellungen** kann es mit ausreichender Berechtigung reaktiviert werden.
 
+Die **Übersicht** zeigt den heutigen oder nächsten befüllten Tagesplan in der Camp-Zeitzone. Außerdem fasst sie deine
+aktiven Zeitplan-Verantwortungen, noch offenes beziehungsweise geplantes Material, ungeprüfte Einkaufspositionen und
+die jüngsten Aktivitäten zusammen. Bei bereits beendeten Camps wird der letzte befüllte Tag angezeigt.
+
 ## Mitglieder verwalten
 
 Owner und Organisations-Admins öffnen unter **Mein Konto → Organisationen** die Mitgliederverwaltung. Eine Rolle

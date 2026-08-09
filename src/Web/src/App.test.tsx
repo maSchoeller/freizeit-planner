@@ -44,7 +44,7 @@ describe("Dashboard", () => {
       </QueryClientProvider>,
     );
     expect(
-      screen.getByRole("heading", { name: "Heute im Tagesplan" }),
+      screen.getByRole("heading", { name: /Tagesplan$/ }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("navigation", { name: "Camp-Navigation" }),

@@ -281,6 +281,11 @@ h2 {
   font-size: 0.95rem;
   font-weight: 500;
 }
+.metric-detail {
+  margin: -0.55rem 0 0;
+  color: #587270;
+  font-size: 0.9rem;
+}
 .activity-card {
   grid-column: 1 / -1;
 }

@@ -34,6 +34,7 @@ import {
 import { getAntiforgeryToken } from "./api/security";
 
 type AccountMembership = components["schemas"]["AccountMembershipView"];
+type Account = components["schemas"]["AccountView"];
 type WorkspaceCamp = components["schemas"]["CampView"];
 
 type CampRuntime = {
@@ -324,6 +325,62 @@ function scheduleTimingLabel(entry: ScheduleEntry, timeZone: string) {
   return `${start}–${end} Uhr`;
 }
 
+function accountInitials(displayName: string) {
+  const parts = displayName.trim().split(/\s+/).filter(Boolean);
+  return (
+    parts.length > 1
+      ? `${parts[0][0]}${parts.at(-1)?.[0] ?? ""}`
+      : parts[0]?.slice(0, 2) || "K"
+  ).toLocaleUpperCase("de-DE");
+}
+
+function campLocalDate(timeZone: string) {
+  return new Intl.DateTimeFormat("sv-SE", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+function scheduleEntryDate(entry: ScheduleEntry, timeZone: string) {
+  return entry.timing.isAllDay
+    ? entry.timing.startDate
+    : formatCampLocalDateTime(entry.timing.startsAtUtc, timeZone).date;
+}
+
+function scheduleEntryDateTime(entry: ScheduleEntry) {
+  return entry.timing.isAllDay
+    ? entry.timing.startDate
+    : entry.timing.startsAtUtc;
+}
+
+function scheduleEntryTime(entry: ScheduleEntry, timeZone: string) {
+  if (entry.timing.isAllDay) return "Ganztägig";
+  return formatCampLocalDateTime(entry.timing.startsAtUtc, timeZone).time;
+}
+
+function compareScheduleEntries(left: ScheduleEntry, right: ScheduleEntry) {
+  const value = (entry: ScheduleEntry) =>
+    entry.timing.isAllDay
+      ? `${entry.timing.startDate ?? ""}T00:00:00`
+      : (entry.timing.startsAtUtc ?? "");
+  return value(left).localeCompare(value(right));
+}
+
+function formatDashboardDate(localDate: string) {
+  return new Intl.DateTimeFormat("de-DE", {
+    dateStyle: "full",
+    timeZone: "UTC",
+  }).format(new Date(`${localDate}T12:00:00Z`));
+}
+
+const scheduleStatusLabel: Record<number, string> = {
+  0: "Geplant",
+  1: "Bestätigt",
+  2: "Abgesagt",
+};
+
 function ResponsibilityFields({
   candidates,
   selected,
@@ -388,6 +445,17 @@ type ActivityEvent = {
   objectType: string;
   title: string;
   timestamp: string;
+};
+type MaterialRequirementSummary = {
+  id: string;
+  name: string;
+  status: number;
+};
+type ShoppingListSummary = {
+  id: string;
+  name: string;
+  openItemCount: number;
+  checkedItemCount: number;
 };
 type SearchResult = {
   objectType: string;
@@ -528,6 +596,12 @@ function CampWorkspaceShell() {
   const { campBase, camp } = runtime;
   const location = useLocation();
   const [offline, setOffline] = useState(!navigator.onLine);
+  const account = useQuery({
+    queryKey: ["account"],
+    queryFn: () => getJson<Account>("/api/v1/account"),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
   useEffect(() => {
     const online = () => setOffline(false);
     const offlineHandler = () => setOffline(true);
@@ -542,6 +616,7 @@ function CampWorkspaceShell() {
     if (!location.pathname.startsWith(campBase)) clearOfflineSnapshot();
   }, [location.pathname]);
   const readOnly = offline || camp.status === 1;
+  const accountDisplayName = account.data?.displayName?.trim();
 
   return (
     <div className="app-shell">
@@ -572,10 +647,14 @@ function CampWorkspaceShell() {
           </span>
           <Link
             className="profile-button"
-            aria-label="Kontomenü von Miriam öffnen"
+            aria-label={
+              accountDisplayName
+                ? `Kontomenü von ${accountDisplayName} öffnen`
+                : "Kontomenü öffnen"
+            }
             to="/konto"
           >
-            MK
+            {accountDisplayName ? accountInitials(accountDisplayName) : "…"}
           </Link>
         </div>
       </header>
@@ -677,55 +756,147 @@ function QueryState({
 }
 
 function OverviewPage() {
-  const { organizationId, campId } = useCampRuntime();
+  const { organizationId, campId, camp } = useCampRuntime();
+  const account = useQuery({
+    queryKey: ["account"],
+    queryFn: () => getJson<Account>("/api/v1/account"),
+    retry: false,
+    staleTime: 5 * 60 * 1000,
+  });
+  const schedulePath = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`;
+  const schedule = useCampQuery<ScheduleEntry[]>("schedule", schedulePath);
+  const material = useCampQuery<MaterialRequirementSummary[]>(
+    "material",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/material`,
+  );
+  const shopping = useCampQuery<ShoppingListSummary[]>(
+    "shopping-lists",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/shopping-lists`,
+  );
   const activity = useCampQuery<ActivityEvent[]>(
     "activity",
     `/api/v1/organizations/${organizationId}/camps/${campId}/activity?limit=5`,
   );
+  const today = campLocalDate(camp.timeZoneId);
+  const scheduleEntries = schedule.data ?? [];
+  const availableDates = Array.from(
+    new Set(
+      scheduleEntries
+        .map((entry) => scheduleEntryDate(entry, camp.timeZoneId))
+        .filter((date): date is string => Boolean(date)),
+    ),
+  ).sort();
+  const planDate =
+    availableDates.find((date) => date >= today) ??
+    availableDates.at(-1) ??
+    (today < camp.startsOn
+      ? camp.startsOn
+      : today > camp.endsOn
+        ? camp.endsOn
+        : today);
+  const planEntries = scheduleEntries
+    .filter((entry) => scheduleEntryDate(entry, camp.timeZoneId) === planDate)
+    .sort(compareScheduleEntries);
+  const planHeading =
+    planDate === today
+      ? "Heute im Tagesplan"
+      : planDate > today
+        ? "Nächster Tagesplan"
+        : "Letzter Tagesplan";
+  const accountDisplayName = account.data?.displayName?.trim();
+  const accountId = account.data?.id;
+  const responsibilities = accountId
+    ? scheduleEntries.filter(
+        (entry) =>
+          entry.status !== 2 && entry.responsibleUserIds.includes(accountId),
+      )
+    : [];
+  const openMaterial = (material.data ?? []).filter(
+    (requirement) => requirement.status === 0 || requirement.status === 1,
+  ).length;
+  const openShopping = (shopping.data ?? []).reduce(
+    (sum, list) => sum + list.openItemCount,
+    0,
+  );
   return (
     <>
-      <PageHeading eyebrow="Dienstag, 4. August" title="Guten Morgen, Miriam">
-        <p>Hier siehst du, was heute für euer Team wichtig ist.</p>
+      <PageHeading
+        eyebrow={formatDashboardDate(planDate)}
+        title={
+          accountDisplayName ? `Hallo, ${accountDisplayName}` : "Camp-Übersicht"
+        }
+      >
+        <p>Hier siehst du, was als Nächstes für euer Team wichtig ist.</p>
       </PageHeading>
       <section aria-labelledby="today-heading">
         <div className="section-heading">
-          <h2 id="today-heading">Heute im Tagesplan</h2>
+          <h2 id="today-heading">{planHeading}</h2>
           <Link to="tagesplan">Ganzen Plan öffnen</Link>
         </div>
-        <ol className="timeline">
-          <li>
-            <time dateTime="2026-08-04T08:00">08:00</time>
-            <div>
-              <strong>Frühstück</strong>
-              <span>Speisesaal · Küchenteam</span>
-            </div>
-            <span className="status">Geplant</span>
-          </li>
-          <li>
-            <time dateTime="2026-08-04T09:30">09:30</time>
-            <div>
-              <strong>Geländespiel im Wald</strong>
-              <span>Treffpunkt Haupthaus · Miriam, Jonas</span>
-            </div>
-            <span className="status info">Parallel</span>
-          </li>
-          <li>
-            <time dateTime="2026-08-04T19:30">19:30</time>
-            <div>
-              <strong>Abendandacht</strong>
-              <span>Feuerstelle · Samuel</span>
-            </div>
-            <span className="status">Vorbereitet</span>
-          </li>
-        </ol>
+        <QueryState loading={schedule.isLoading} error={schedule.error} />
+        {planEntries.length ? (
+          <ol className="timeline">
+            {planEntries.map((entry) => (
+              <li key={entry.id}>
+                <time dateTime={scheduleEntryDateTime(entry)}>
+                  {scheduleEntryTime(entry, camp.timeZoneId)}
+                </time>
+                <div>
+                  <strong>{entry.title}</strong>
+                  <span>
+                    {[entry.location, entry.category]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </span>
+                </div>
+                <span
+                  className={
+                    entry.overlapsAnotherEntry ? "status info" : "status"
+                  }
+                >
+                  {entry.overlapsAnotherEntry
+                    ? "Parallel"
+                    : scheduleStatusLabel[entry.status]}
+                </span>
+              </li>
+            ))}
+          </ol>
+        ) : (
+          !schedule.isLoading && (
+            <p className="empty-state">
+              Für diesen Tag sind noch keine Einträge geplant.
+            </p>
+          )
+        )}
       </section>
       <div className="dashboard-grid">
         <SummaryCard
           title="Meine Verantwortungen"
-          value="4"
-          text="offene Punkte"
-        />
-        <SummaryCard title="Beschaffung" value="12" text="noch einzukaufen" />
+          value={String(responsibilities.length)}
+          text={
+            responsibilities.length === 1
+              ? "aktiver Zeitplaneintrag"
+              : "aktive Zeitplaneinträge"
+          }
+        >
+          <QueryState
+            loading={account.isLoading || schedule.isLoading}
+            error={account.error ?? schedule.error}
+          />
+        </SummaryCard>
+        <SummaryCard
+          title="Beschaffung"
+          value={String(openMaterial + openShopping)}
+          text="noch zu beschaffen"
+        >
+          <p className="metric-detail">
+            {openMaterial} Material · {openShopping} Einkauf
+          </p>
+          <QueryState
+            loading={material.isLoading || shopping.isLoading}
+            error={material.error ?? shopping.error}
+          />
+        </SummaryCard>
         <section className="card activity-card">
           <h2>Jüngste Aktivitäten</h2>
           <QueryState loading={activity.isLoading} error={activity.error} />
@@ -767,17 +938,21 @@ function SummaryCard({
   title,
   value,
   text,
+  children,
 }: {
   title: string;
   value: string;
   text: string;
+  children?: ReactNode;
 }) {
+  const headingId = `summary-${title.toLocaleLowerCase("de-DE").replace(/[^a-z0-9]+/g, "-")}`;
   return (
-    <section className="card">
-      <h2>{title}</h2>
+    <section className="card" aria-labelledby={headingId}>
+      <h2 id={headingId}>{title}</h2>
       <p className="metric">
         {value} <span>{text}</span>
       </p>
+      {children}
     </section>
   );
 }

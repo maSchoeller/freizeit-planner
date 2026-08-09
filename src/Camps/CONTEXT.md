@@ -37,6 +37,10 @@
   `ICampManagement.GetBySlugAsync`; every module route then uses the returned OrganizationId and CampId rather than
   seed constants. Schedule range, initial calendar date, export range and named IANA zone come from that Camp.
   Archived status disables every visible mutation and remains announced in the content area on narrow layouts.
+- Dashboard composition: the start page reads the account and existing module contracts through their HTTP endpoints.
+  It chooses today's or the next populated schedule day in the Camp zone, derives the signed-in user's active schedule
+  responsibilities, combines open/planned material with unchecked shopping items, and shows recent activities. A
+  completed Camp falls back to its last populated day; each data area retains an explicit loading/error/empty state.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
   `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion

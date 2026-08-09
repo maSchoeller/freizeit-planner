@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -146,6 +146,146 @@ describe("camp workspace", () => {
       initialDate: "2027-01-02",
       timeZone: "Europe/Berlin",
     });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2027-01-02&toDateExclusive=2027-01-10`,
+      ),
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
+  });
+
+  it("renders the next camp dashboard from live planning data", async () => {
+    const organizationId = "21000000-0000-0000-0000-000000000001";
+    const campId = "31000000-0000-0000-0000-000000000001";
+    const userId = "11000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn((request: RequestInfo | URL) => {
+      const path = requestPath(request);
+      let body: unknown = [];
+      if (path === "/api/v1/account/memberships")
+        body = [
+          {
+            organizationId,
+            organizationName: "Nordlicht e. V.",
+            organizationSlug: "nordlicht",
+            role: 3,
+          },
+        ];
+      else if (path.includes("/camps/by-slug/winterfreizeit"))
+        body = {
+          id: campId,
+          organizationId,
+          name: "Winterfreizeit",
+          slug: "winterfreizeit",
+          description: null,
+          startsOn: "2027-01-02",
+          endsOn: "2027-01-09",
+          timeZoneId: "Europe/Berlin",
+          defaultPortions: 24,
+          status: 0,
+          period: 0,
+          version: 3,
+        };
+      else if (path === "/api/v1/account")
+        body = {
+          id: userId,
+          email: "lea@example.test",
+          displayName: "Lea Beispiel",
+          deletionScheduledAt: null,
+          isPlatformAdmin: false,
+        };
+      else if (path.includes("/schedule?"))
+        body = [
+          {
+            id: "32000000-0000-0000-0000-000000000001",
+            title: "Ankommen und Zimmer beziehen",
+            location: "Haupthaus",
+            category: "Programm",
+            status: 1,
+            responsibleUserIds: [userId],
+            overlapsAnotherEntry: false,
+            timing: {
+              isAllDay: false,
+              startsAtUtc: "2027-01-02T14:00:00Z",
+              endsAtUtc: "2027-01-02T15:00:00Z",
+            },
+            version: 1,
+          },
+          {
+            id: "32000000-0000-0000-0000-000000000002",
+            title: "Frühstück am Sonntag",
+            location: "Speisesaal",
+            category: "Essen",
+            status: 0,
+            responsibleUserIds: [],
+            overlapsAnotherEntry: false,
+            timing: {
+              isAllDay: false,
+              startsAtUtc: "2027-01-03T07:00:00Z",
+              endsAtUtc: "2027-01-03T08:00:00Z",
+            },
+            version: 1,
+          },
+        ];
+      else if (path.endsWith("/logistics/material"))
+        body = [
+          { id: "m1", name: "Namensschilder", status: 0 },
+          { id: "m2", name: "Erste-Hilfe-Set", status: 2 },
+        ];
+      else if (path.endsWith("/logistics/shopping-lists"))
+        body = [
+          {
+            id: "s1",
+            name: "Anreise",
+            openItemCount: 3,
+            checkedItemCount: 1,
+            version: 1,
+            changeSequence: 1,
+          },
+        ];
+      else if (path.includes("/activity?"))
+        body = [
+          {
+            id: "a1",
+            actorId: userId,
+            kind: 0,
+            objectType: "ScheduleEntry",
+            title: "Ankommen und Zimmer beziehen",
+            timestamp: "2026-12-20T10:00:00Z",
+          },
+        ];
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    renderRoute("/o/nordlicht/camps/winterfreizeit");
+
+    expect(
+      await screen.findByRole("heading", { name: "Hallo, Lea Beispiel" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Nächster Tagesplan" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Samstag, 2. Januar 2027")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ankommen und Zimmer beziehen"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Frühstück am Sonntag")).not.toBeInTheDocument();
+
+    const responsibilities = screen.getByRole("region", {
+      name: "Meine Verantwortungen",
+    });
+    expect(await within(responsibilities).findByText("1")).toBeInTheDocument();
+    const procurement = screen.getByRole("region", { name: "Beschaffung" });
+    expect(await within(procurement).findByText("4")).toBeInTheDocument();
+    expect(
+      within(procurement).getByText("1 Material · 3 Einkauf"),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Geländespiel im Wald")).not.toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining(
         `/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2027-01-02&toDateExclusive=2027-01-10`,
