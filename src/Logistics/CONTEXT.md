@@ -21,6 +21,10 @@
   lifecycle. Item `Version` protects independent item edits, check actions, deletion and restore.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
+- The host-composed meal transfer UI reads Catering-owned draft lines without exposing module internals, offers any
+  current Camp list as the target, limits the unit selector to the draft's compatible units and never performs
+  package rounding. The reviewed batch reaches `IShoppingTransfer` with antiforgery and the selected list Version;
+  archived Camp workspaces do not expose the mutation.
 - `IShoppingAudit` exposes immutable check/reopen events with server-recorded actor, timestamp and resulting item
   version. Audit rows have no update/delete runtime policy and are not cascaded from items.
 - `LogisticsQuantity` stores positive `numeric(18,6)` values. Only gram/kilogram and millilitre/litre convert;

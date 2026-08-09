@@ -961,6 +961,25 @@ button:disabled {
   border-radius: 0.65rem;
   background: var(--white);
 }
+.meal-shopping-transfer {
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 0;
+}
+.meal-shopping-transfer > .primary-action {
+  justify-self: start;
+}
+.shopping-transfer-line {
+  background: var(--white);
+}
+.shopping-transfer-line small {
+  color: #496766;
+}
+.shopping-transfer-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
 .meal-snapshot-add {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1148,6 +1167,7 @@ button:disabled {
   .schedule-create-grid,
   .recipe-ingredient-row,
   .recipe-detail-grid,
+  .shopping-transfer-fields,
   .meal-create-form .camp-form-grid {
     grid-template-columns: 1fr;
   }

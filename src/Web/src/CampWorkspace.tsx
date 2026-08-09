@@ -581,6 +581,31 @@ type ShoppingListSummary = {
   name: string;
   openItemCount: number;
   checkedItemCount: number;
+  version: number;
+  changeSequence: number;
+};
+type MealShoppingLine = {
+  recipeSnapshotId: string;
+  snapshotIngredientId: string;
+  sourceRecipeId: string;
+  sourceRecipeVersionNumber: number;
+  sourceLabel: string;
+  ingredientName: string;
+  suggestedQuantity: RecipeQuantity;
+  dimension: number;
+  compatibleUnits: number[];
+};
+type MealShoppingDraft = {
+  mealId: string;
+  mealName: string;
+  effectivePortions: number;
+  mealVersion: number;
+  lines: MealShoppingLine[];
+};
+type ShoppingTransferLineDraft = MealShoppingLine & {
+  included: boolean;
+  quantity: string;
+  unit: number;
 };
 type SearchResult = {
   objectType: string;
@@ -3102,6 +3127,302 @@ function RecipeDetailPanel({
   );
 }
 
+const shoppingUnitLabels: Record<number, string> = {
+  0: "Gramm",
+  1: "Kilogramm",
+  2: "Milliliter",
+  3: "Liter",
+  4: "Stück",
+  5: "Benannte Zähleinheit",
+};
+
+function MealShoppingTransferPanel({
+  organizationId,
+  campId,
+  mealId,
+  mealName,
+}: {
+  organizationId: string;
+  campId: string;
+  mealId: string;
+  mealName: string;
+}) {
+  const queryClient = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [targetListId, setTargetListId] = useState("");
+  const [lines, setLines] = useState<ShoppingTransferLineDraft[]>([]);
+  const [status, setStatus] = useState("");
+  const shoppingLists = useQuery({
+    queryKey: [organizationId, campId, "shopping-lists"],
+    queryFn: () =>
+      getJson<ShoppingListSummary[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/shopping-lists`,
+      ),
+    enabled: open,
+    retry: false,
+  });
+  const shoppingDraft = useQuery({
+    queryKey: [organizationId, campId, "meal-shopping-draft", mealId],
+    queryFn: () =>
+      getJson<MealShoppingDraft>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}/shopping-draft`,
+      ),
+    enabled: open,
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!shoppingLists.data?.length || targetListId) return;
+    setTargetListId(shoppingLists.data[0].id);
+  }, [shoppingLists.data, targetListId]);
+
+  useEffect(() => {
+    if (!shoppingDraft.data) return;
+    setLines(
+      shoppingDraft.data.lines.map((line) => ({
+        ...line,
+        included: true,
+        quantity: String(line.suggestedQuantity.value),
+        unit: line.suggestedQuantity.unit,
+      })),
+    );
+  }, [shoppingDraft.data]);
+
+  const selectedList = shoppingLists.data?.find(
+    (list) => list.id === targetListId,
+  );
+  const selectedLines = lines.filter((line) => line.included);
+  const transfer = useMutation({
+    mutationFn: async () => {
+      if (!selectedList)
+        throw new Error("Wähle eine Einkaufsliste für die Übernahme aus.");
+      if (selectedLines.length === 0)
+        throw new Error("Wähle mindestens eine Position aus.");
+      const invalidLine = selectedLines.find(
+        (line) =>
+          !Number.isFinite(Number(line.quantity)) || Number(line.quantity) <= 0,
+      );
+      if (invalidLine)
+        throw new Error(
+          `Gib für ${invalidLine.ingredientName} eine Menge größer als null ein.`,
+        );
+      return mutateCateringJson<unknown>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/shopping-lists/${selectedList.id}/transfer/meal/${mealId}`,
+        "POST",
+        {
+          expectedListVersion: selectedList.version,
+          lines: selectedLines.map((line) => ({
+            recipeSnapshotId: line.recipeSnapshotId,
+            snapshotIngredientId: line.snapshotIngredientId,
+            content: {
+              name: line.ingredientName,
+              quantity: {
+                value: Number(line.quantity),
+                unit: line.unit,
+                customUnitName:
+                  line.unit === 5 ? line.suggestedQuantity.countUnitName : null,
+              },
+              responsibleUserIds: [],
+              store: null,
+              note: null,
+            },
+          })),
+        },
+        selectedList.version,
+        "Die Einkaufsliste wurde zwischenzeitlich geändert. Lade den Entwurf neu und prüfe ihn noch einmal.",
+      );
+    },
+    onSuccess: async () => {
+      const count = selectedLines.length;
+      const listName = selectedList?.name ?? "die Einkaufsliste";
+      setOpen(false);
+      setStatus(
+        `${count} ${count === 1 ? "Position" : "Positionen"} aus ${mealName} ${count === 1 ? "wurde" : "wurden"} in ${listName} übernommen.`,
+      );
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "shopping-lists"],
+      });
+    },
+  });
+
+  if (!open)
+    return (
+      <section className="meal-shopping-transfer">
+        {status ? (
+          <p
+            className="form-feedback"
+            role="status"
+            aria-label="Einkaufsübernahme"
+          >
+            {status}
+          </p>
+        ) : null}
+        <button
+          type="button"
+          className="primary-action"
+          onClick={() => {
+            setStatus("");
+            setTargetListId("");
+            setLines([]);
+            transfer.reset();
+            setOpen(true);
+          }}
+        >
+          In Einkaufsliste übernehmen
+        </button>
+      </section>
+    );
+
+  return (
+    <form
+      className="schedule-create-form meal-shopping-transfer"
+      aria-label="Einkaufsübernahme prüfen"
+      onSubmit={(event) => {
+        event.preventDefault();
+        transfer.mutate();
+      }}
+    >
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Vor der Übernahme prüfen</p>
+          <h3>Einkaufspositionen für {mealName}</h3>
+        </div>
+        <button
+          type="button"
+          className="secondary-action"
+          onClick={() => setOpen(false)}
+        >
+          Übernahme schließen
+        </button>
+      </div>
+      <p className="form-hint">
+        Passe Mengen und Einheiten bewusst an. Es gibt keine automatische
+        Packungsrundung; angeboten werden nur fachlich kompatible Einheiten.
+      </p>
+      <QueryState
+        loading={shoppingLists.isLoading || shoppingDraft.isLoading}
+        error={shoppingLists.error ?? shoppingDraft.error}
+      />
+      {shoppingLists.data?.length === 0 ? (
+        <p className="empty-state">
+          Lege zuerst unter Material &amp; Einkauf eine Einkaufsliste an.
+        </p>
+      ) : null}
+      {shoppingLists.data?.length ? (
+        <label>
+          Ziel-Einkaufsliste
+          <select
+            required
+            value={targetListId}
+            onChange={(event) => setTargetListId(event.target.value)}
+          >
+            {shoppingLists.data.map((list) => (
+              <option key={list.id} value={list.id}>
+                {list.name} · {list.openItemCount} offen
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
+      {lines.map((line) => (
+        <fieldset
+          className="shopping-transfer-line"
+          key={line.snapshotIngredientId}
+        >
+          <legend>{line.ingredientName}</legend>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={line.included}
+              onChange={(event) =>
+                setLines((current) =>
+                  current.map((candidate) =>
+                    candidate.snapshotIngredientId === line.snapshotIngredientId
+                      ? { ...candidate, included: event.target.checked }
+                      : candidate,
+                  ),
+                )
+              }
+            />
+            {line.ingredientName} übernehmen
+          </label>
+          <div className="shopping-transfer-fields">
+            <label>
+              Menge für {line.ingredientName}
+              <input
+                type="number"
+                min="0.000001"
+                step="any"
+                inputMode="decimal"
+                disabled={!line.included}
+                value={line.quantity}
+                onChange={(event) =>
+                  setLines((current) =>
+                    current.map((candidate) =>
+                      candidate.snapshotIngredientId ===
+                      line.snapshotIngredientId
+                        ? { ...candidate, quantity: event.target.value }
+                        : candidate,
+                    ),
+                  )
+                }
+              />
+            </label>
+            <label>
+              Einheit für {line.ingredientName}
+              <select
+                disabled={!line.included}
+                value={line.unit}
+                onChange={(event) =>
+                  setLines((current) =>
+                    current.map((candidate) =>
+                      candidate.snapshotIngredientId ===
+                      line.snapshotIngredientId
+                        ? { ...candidate, unit: Number(event.target.value) }
+                        : candidate,
+                    ),
+                  )
+                }
+              >
+                {line.compatibleUnits.map((unit) => (
+                  <option key={unit} value={unit}>
+                    {unit === 5
+                      ? (line.suggestedQuantity.countUnitName ??
+                        shoppingUnitLabels[unit])
+                      : shoppingUnitLabels[unit]}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <small>Quelle: {line.sourceLabel}</small>
+        </fieldset>
+      ))}
+      {shoppingDraft.data && lines.length === 0 ? (
+        <p className="empty-state">
+          Diese Mahlzeit enthält keine Einkaufspositionen.
+        </p>
+      ) : null}
+      {transfer.error ? (
+        <p role="alert" className="error-message">
+          {transfer.error.message}
+        </p>
+      ) : null}
+      <button
+        type="submit"
+        className="primary-action"
+        disabled={
+          transfer.isPending || !selectedList || selectedLines.length === 0
+        }
+      >
+        {transfer.isPending
+          ? "Positionen werden übernommen …"
+          : `${selectedLines.length} ${selectedLines.length === 1 ? "Position" : "Positionen"} übernehmen`}
+      </button>
+    </form>
+  );
+}
+
 function MealDetailPanel({
   organizationId,
   campId,
@@ -3483,6 +3804,14 @@ function MealDetailPanel({
             <p role="alert" className="error-message">
               {addSnapshot.error?.message ?? removeSnapshot.error?.message}
             </p>
+          ) : null}
+          {!readOnly ? (
+            <MealShoppingTransferPanel
+              organizationId={organizationId}
+              campId={campId}
+              mealId={mealId}
+              mealName={current.name}
+            />
           ) : null}
           {!readOnly && !confirmDelete ? (
             <button

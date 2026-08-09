@@ -71,6 +71,22 @@ entfernen. Jede Änderung prüft die angezeigte Mahlzeitenversion. Bei einem Kon
 erneut. **Mahlzeit in Papierkorb verschieben** verlangt eine zusätzliche Bestätigung; dort bleibt sie 30 Tage
 wiederherstellbar.
 
+## Mahlzeit in eine Einkaufsliste übernehmen
+
+Öffne eine Mahlzeit und wähle **In Einkaufsliste übernehmen**. Der Entwurf verwendet die unveränderlichen
+Rezept-Snapshots und zeigt zu jeder Position die nachvollziehbare Quelle. Wähle eine der vorhandenen Einkaufslisten
+des Camps frei als Ziel. Einzelne Positionen kannst du vor der Übernahme abwählen.
+
+Prüfe Menge und Einheit jeder ausgewählten Position. Es werden nur Einheiten derselben fachlichen Dimension
+angeboten, also Gramm/Kilogramm, Milliliter/Liter oder die jeweilige Zähleinheit. Die Anwendung rechnet weder über
+Dimensionen hinweg noch rundet sie auf Packungsgrößen. Eine gewünschte Umrechnung oder Einkaufsmenge trägst du
+deshalb ausdrücklich selbst ein. **Position übernehmen** beziehungsweise **Positionen übernehmen** speichert alle
+ausgewählten Zeilen gemeinsam in der gewählten Liste und erhält ihre Mahlzeiten-, Snapshot-, Zutaten- und
+Rezeptversionsquelle.
+
+Wurde die Einkaufsliste inzwischen von jemand anderem verändert, lade den Entwurf neu und prüfe Ziel, Mengen und
+Einheiten noch einmal. In einem archivierten Camp ist die Übernahme nicht verfügbar.
+
 ## Bibliothek und Camp-Snapshots
 
 Die Suche oberhalb der Bibliothek filtert Rezepte nach ihrem Namen. Wird ein Bibliotheksrezept einer Mahlzeit

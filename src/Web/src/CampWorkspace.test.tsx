@@ -1468,6 +1468,200 @@ describe("camp workspace", () => {
     );
   });
 
+  it("reviews meal quantities before transferring them to a chosen shopping list", async () => {
+    const mealId = "46000000-0000-0000-0000-000000000001";
+    const snapshotId = "47000000-0000-0000-0000-000000000001";
+    const snapshotIngredientId = "48000000-0000-0000-0000-000000000001";
+    const recipeId = "42000000-0000-0000-0000-000000000001";
+    const targetListId = "49000000-0000-0000-0000-000000000002";
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.endsWith(
+            `/logistics/shopping-lists/${targetListId}/transfer/meal/${mealId}`,
+          )
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: targetListId,
+                listVersion: 10,
+                changeSequence: 18,
+                items: [],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/catering/meals/${mealId}/shopping-draft`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                mealId,
+                mealName: "Mittagessen",
+                effectivePortions: 40,
+                mealVersion: 4,
+                lines: [
+                  {
+                    recipeSnapshotId: snapshotId,
+                    snapshotIngredientId,
+                    sourceRecipeId: recipeId,
+                    sourceRecipeVersionNumber: 2,
+                    sourceLabel: "Kartoffelsuppe · Kartoffeln",
+                    ingredientName: "Kartoffeln",
+                    suggestedQuantity: {
+                      value: 7.5,
+                      unit: 1,
+                      countUnitName: null,
+                    },
+                    dimension: 0,
+                    compatibleUnits: [0, 1],
+                  },
+                ],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/logistics/shopping-lists"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: "49000000-0000-0000-0000-000000000001",
+                  name: "Kleiner Einkauf",
+                  openItemCount: 1,
+                  checkedItemCount: 0,
+                  version: 3,
+                  changeSequence: 4,
+                },
+                {
+                  id: targetListId,
+                  name: "Großeinkauf Dienstag",
+                  openItemCount: 4,
+                  checkedItemCount: 1,
+                  version: 9,
+                  changeSequence: 17,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/catering/meals/${mealId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: mealId,
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                campId: "30000000-0000-0000-0000-000000000001",
+                name: "Mittagessen",
+                campDefaultPortions: 42,
+                portionOverride: 40,
+                effectivePortions: 40,
+                scheduleEntryId: null,
+                recipeSnapshots: [],
+                version: 4,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/catering/meals"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: mealId,
+                  name: "Mittagessen",
+                  effectivePortions: 40,
+                  scheduleEntryId: null,
+                  recipeCount: 1,
+                  version: 4,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Mittagessen öffnen" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "In Einkaufsliste übernehmen" }),
+    );
+    await user.selectOptions(
+      await screen.findByRole("combobox", { name: "Ziel-Einkaufsliste" }),
+      targetListId,
+    );
+    const quantity = screen.getByRole("spinbutton", {
+      name: "Menge für Kartoffeln",
+    });
+    await user.clear(quantity);
+    await user.type(quantity, "8.25");
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Einheit für Kartoffeln" }),
+      "0",
+    );
+    expect(
+      within(
+        screen.getByRole("combobox", { name: "Einheit für Kartoffeln" }),
+      ).queryByRole("option", { name: "Liter" }),
+    ).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "1 Position übernehmen" }),
+    );
+
+    expect(
+      await screen.findByRole("status", { name: "Einkaufsübernahme" }),
+    ).toHaveTextContent(
+      "1 Position aus Mittagessen wurde in Großeinkauf Dienstag übernommen.",
+    );
+    const transferCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(
+          `/logistics/shopping-lists/${targetListId}/transfer/meal/${mealId}`,
+        ) && init?.method === "POST",
+    );
+    expect(transferCall?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"9"',
+    });
+    expect(JSON.parse(transferCall?.[1]?.body as string)).toEqual({
+      expectedListVersion: 9,
+      lines: [
+        {
+          recipeSnapshotId: snapshotId,
+          snapshotIngredientId,
+          content: {
+            name: "Kartoffeln",
+            quantity: { value: 8.25, unit: 0, customUnitName: null },
+            responsibleUserIds: [],
+            store: null,
+            note: null,
+          },
+        },
+      ],
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

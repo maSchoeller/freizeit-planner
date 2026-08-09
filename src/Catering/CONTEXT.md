@@ -45,7 +45,10 @@
   the 30-day trash requires a separate acknowledgement and sends antiforgery plus the latest `If-Match`; archived
   Camp workspaces expose none of these mutations.
 - `IMealShoppingSource` returns source-stable, editable draft lines. The host passes reviewed quantities to the
-  Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items.
+  Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items. The
+  Camp meal detail UI lets a writer choose any current list, include or exclude each draft line, and explicitly edit
+  its positive decimal amount and only a source-compatible unit. The host sends antiforgery and the selected list
+  Version as `If-Match`; a successful atomic transfer invalidates list summaries and confirms the target in German.
 - `Quantity` uses `decimal`. Automatic conversion is limited to g/kg and ml/l. Piece is compatible only with piece;
   a named count unit only with the same normalized name. Density conversion and package rounding do not exist.
 
