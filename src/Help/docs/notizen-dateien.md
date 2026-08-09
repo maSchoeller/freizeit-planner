@@ -13,6 +13,17 @@ Roh-HTML, Tabellen, eingebettete Bilder und unsichere Links sind gesperrt. Nach 
 Freizeit-Cockpit ausschließlich die serverseitig geprüfte Darstellung. Mit **Notiz öffnen** lädst du die vollständige
 Notiz; die Suche filtert Titel, Textauszug und Tags in der aktuellen Liste.
 
+## Notiz bearbeiten oder entfernen
+
+Mit **Notiz bearbeiten** ersetzt du Titel, Markdown-Inhalt, Tags und die Anheftung gemeinsam. Beim Speichern schützt
+die Versionsprüfung davor, Änderungen einer anderen Person unbemerkt zu überschreiben. Wenn die Notiz inzwischen
+geändert wurde, bleiben deine Eingaben im Formular erhalten; öffne den aktuellen Stand neu und wende sie bewusst
+noch einmal an.
+
+**Notiz in Papierkorb verschieben** zeigt zuerst eine Zusammenfassung und verlangt eine ausdrückliche Bestätigung.
+Die Notiz bleibt anschließend 30 Tage im Camp-Papierkorb und kann dort durch eine berechtigte Leitung oder
+Administration wiederhergestellt werden.
+
 ## Dateien
 
 Private Dateien werden direkt am zugehörigen Planungsobjekt verwaltet. Unterstützt werden PDF, JPEG, PNG und WebP bis

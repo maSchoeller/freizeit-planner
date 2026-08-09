@@ -7439,6 +7439,13 @@ function NotesPage({ offline }: { offline: boolean }) {
   const [isPinned, setIsPinned] = useState(false);
   const [searchText, setSearchText] = useState("");
   const [notice, setNotice] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editMarkdown, setEditMarkdown] = useState("");
+  const [editTags, setEditTags] = useState("");
+  const [editPinned, setEditPinned] = useState(false);
+  const [confirmTrash, setConfirmTrash] = useState(false);
+  const [trashConfirmed, setTrashConfirmed] = useState(false);
   const detail = useQuery({
     queryKey: [organizationId, campId, "note", selectedNoteId],
     queryFn: () => getJson<NotebookNote>(`${path}/${selectedNoteId}`),
@@ -7490,6 +7497,87 @@ function NotesPage({ offline }: { offline: boolean }) {
       setSelectedNoteId(created.id);
       setCreating(false);
       setNotice(`${created.title} wurde angelegt.`);
+    },
+  });
+  const reviseNote = useMutation({
+    mutationFn: () => {
+      const current = detail.data;
+      if (!current) throw new Error("Die Notiz ist noch nicht geladen.");
+      return mutateCateringJson<NotebookNote>(
+        `${path}/${current.id}`,
+        "PUT",
+        {
+          title: editTitle,
+          markdown: editMarkdown,
+          tags: editTags
+            .split(",")
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+          isPinned: editPinned,
+          links: current.links.map((link) => ({
+            type: link.type,
+            targetId: link.targetId,
+          })),
+        },
+        current.version,
+        "Die Notiz wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne sie erneut.",
+      );
+    },
+    onSuccess: (revised) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "note", revised.id],
+        revised,
+      );
+      queryClient.setQueryData<NoteSummary[]>(
+        [organizationId, campId, "notes"],
+        (current) =>
+          current?.map((note) =>
+            note.id === revised.id
+              ? {
+                  ...note,
+                  title: revised.title,
+                  plainTextExcerpt: revised.markdown
+                    .replace(/[#*_`[\]()]/g, " ")
+                    .replace(/\s+/g, " ")
+                    .trim()
+                    .slice(0, 180),
+                  tags: revised.tags,
+                  isPinned: revised.isPinned,
+                  linkCount: revised.links.length,
+                  updatedAt: revised.updatedAt,
+                  version: revised.version,
+                }
+              : note,
+          ),
+      );
+      setEditing(false);
+      setNotice(`${revised.title} wurde gespeichert.`);
+    },
+  });
+  const trashNote = useMutation({
+    mutationFn: () => {
+      const current = detail.data;
+      if (!current) throw new Error("Die Notiz ist noch nicht geladen.");
+      return mutateCateringJson<NotebookNote>(
+        `${path}/${current.id}`,
+        "DELETE",
+        {},
+        current.version,
+        "Die Notiz wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+    },
+    onSuccess: (trashed) => {
+      queryClient.setQueryData<NoteSummary[]>(
+        [organizationId, campId, "notes"],
+        (current) => current?.filter((note) => note.id !== trashed.id),
+      );
+      queryClient.removeQueries({
+        queryKey: [organizationId, campId, "note", trashed.id],
+      });
+      setSelectedNoteId(null);
+      setConfirmTrash(false);
+      setTrashConfirmed(false);
+      setNotice(`${trashed.title} wurde in den Papierkorb verschoben.`);
     },
   });
   const appendMarkdown = (value: string) => {
@@ -7665,6 +7753,9 @@ function NotesPage({ offline }: { offline: boolean }) {
               aria-label={`${note.title} öffnen`}
               onClick={() => {
                 setSelectedNoteId(note.id);
+                setEditing(false);
+                setConfirmTrash(false);
+                setTrashConfirmed(false);
                 setNotice("");
               }}
             >
@@ -7691,18 +7782,164 @@ function NotesPage({ offline }: { offline: boolean }) {
                   </p>
                   <h2>{detail.data.title}</h2>
                 </div>
-                <button
-                  type="button"
-                  className="secondary-action"
-                  onClick={() => setSelectedNoteId(null)}
-                >
-                  Notiz schließen
-                </button>
+                <div className="toolbar compact-toolbar">
+                  {!offline ? (
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      onClick={() => {
+                        const current = detail.data;
+                        setEditTitle(current.title);
+                        setEditMarkdown(current.markdown);
+                        setEditTags(current.tags.join(", "));
+                        setEditPinned(current.isPinned);
+                        setEditing(true);
+                        setNotice("");
+                      }}
+                    >
+                      Notiz bearbeiten
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => {
+                      setSelectedNoteId(null);
+                      setEditing(false);
+                      setConfirmTrash(false);
+                    }}
+                  >
+                    Notiz schließen
+                  </button>
+                </div>
               </div>
+              {editing ? (
+                <form
+                  className="schedule-create-form note-edit-form"
+                  aria-label={`${detail.data.title} bearbeiten`}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    reviseNote.mutate();
+                  }}
+                >
+                  <label>
+                    Titel bearbeiten
+                    <input
+                      required
+                      value={editTitle}
+                      onChange={(event) => setEditTitle(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Markdown-Inhalt bearbeiten
+                    <textarea
+                      required
+                      value={editMarkdown}
+                      onChange={(event) => setEditMarkdown(event.target.value)}
+                    />
+                  </label>
+                  <label>
+                    Tags bearbeiten
+                    <input
+                      value={editTags}
+                      onChange={(event) => setEditTags(event.target.value)}
+                    />
+                  </label>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={editPinned}
+                      onChange={(event) => setEditPinned(event.target.checked)}
+                    />
+                    Notiz anheften
+                  </label>
+                  {reviseNote.error ? (
+                    <p role="alert" className="error-message">
+                      {reviseNote.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="submit"
+                      className="primary-action"
+                      disabled={reviseNote.isPending}
+                    >
+                      Notizänderung speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={reviseNote.isPending}
+                      onClick={() => setEditing(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              ) : null}
               <div
                 className="rendered-markdown"
                 dangerouslySetInnerHTML={{ __html: detail.data.renderedHtml }}
               />
+              {!offline && !confirmTrash ? (
+                <button
+                  type="button"
+                  className="danger-action"
+                  onClick={() => {
+                    setConfirmTrash(true);
+                    setTrashConfirmed(false);
+                    setNotice("");
+                  }}
+                >
+                  Notiz in Papierkorb verschieben
+                </button>
+              ) : null}
+              {confirmTrash ? (
+                <section
+                  className="delete-confirmation"
+                  aria-label="Notiz in Papierkorb verschieben"
+                >
+                  <h3>{detail.data.title} wirklich verschieben?</h3>
+                  <p>
+                    Die Notiz bleibt 30 Tage im Camp-Papierkorb und kann dort
+                    wiederhergestellt werden.
+                  </p>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={trashConfirmed}
+                      onChange={(event) =>
+                        setTrashConfirmed(event.target.checked)
+                      }
+                    />
+                    Ich möchte diese Notiz in den Papierkorb verschieben.
+                  </label>
+                  {trashNote.error ? (
+                    <p role="alert" className="error-message">
+                      {trashNote.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={!trashConfirmed || trashNote.isPending}
+                      onClick={() => trashNote.mutate()}
+                    >
+                      Verschieben bestätigen
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={trashNote.isPending}
+                      onClick={() => setConfirmTrash(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </section>
+              ) : null}
             </>
           ) : null}
         </section>

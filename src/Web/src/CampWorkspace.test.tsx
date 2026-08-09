@@ -3644,6 +3644,170 @@ describe("camp workspace", () => {
     });
   });
 
+  it("revises a shared note and moves the current version to the trash", async () => {
+    const noteId = "52000000-0000-0000-0000-000000000002";
+    const existing = {
+      id: noteId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      title: "Packliste",
+      markdown: "## Kleidung\nWarme Jacke",
+      renderedHtml: "<h2>Kleidung</h2><p>Warme Jacke</p>",
+      tags: ["Vorbereitung"],
+      isPinned: false,
+      links: [],
+      state: 0,
+      createdAt: "2026-08-09T18:00:00Z",
+      createdBy: "10000000-0000-0000-0000-000000000001",
+      updatedAt: "2026-08-09T18:00:00Z",
+      updatedBy: "10000000-0000-0000-0000-000000000001",
+      trashedAt: null,
+      trashedBy: null,
+      purgeAfter: null,
+      version: 1,
+    };
+    const revised = {
+      ...existing,
+      title: "Packliste Team",
+      markdown: "## Kleidung\nWarme Jacke und Regenzeug",
+      renderedHtml: "<h2>Kleidung</h2><p>Warme Jacke und Regenzeug</p>",
+      tags: ["Team", "Vorbereitung"],
+      isPinned: true,
+      updatedAt: "2026-08-09T19:00:00Z",
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "PUT" && path.endsWith(`/notes/${noteId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(revised), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"2"' },
+            }),
+          );
+        if (init?.method === "DELETE" && path.endsWith(`/notes/${noteId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...revised,
+                state: 1,
+                trashedAt: "2026-08-09T20:00:00Z",
+                purgeAfter: "2026-09-08T20:00:00Z",
+                version: 3,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/notes/${noteId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(existing), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        if (path.endsWith("/notes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: noteId,
+                  title: existing.title,
+                  plainTextExcerpt: "Kleidung Warme Jacke",
+                  tags: existing.tags,
+                  isPinned: false,
+                  linkCount: 0,
+                  state: 0,
+                  updatedAt: existing.updatedAt,
+                  trashedAt: null,
+                  purgeAfter: null,
+                  version: 1,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/notizen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Packliste öffnen" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Notiz bearbeiten" }),
+    );
+    const title = screen.getByRole("textbox", { name: "Titel bearbeiten" });
+    await user.clear(title);
+    await user.type(title, revised.title);
+    const markdown = screen.getByRole("textbox", {
+      name: "Markdown-Inhalt bearbeiten",
+    });
+    await user.clear(markdown);
+    await user.type(markdown, revised.markdown);
+    const tags = screen.getByRole("textbox", { name: "Tags bearbeiten" });
+    await user.clear(tags);
+    await user.type(tags, "Team, Vorbereitung");
+    await user.click(screen.getByRole("checkbox", { name: "Notiz anheften" }));
+    await user.click(
+      screen.getByRole("button", { name: "Notizänderung speichern" }),
+    );
+    expect(
+      await screen.findByText("Packliste Team wurde gespeichert."),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      screen.getByRole("button", { name: "Notiz in Papierkorb verschieben" }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Ich möchte diese Notiz in den Papierkorb verschieben.",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Verschieben bestätigen" }),
+    );
+    expect(
+      await screen.findByText(
+        "Packliste Team wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const updateCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/notes/${noteId}`) &&
+        init?.method === "PUT",
+    );
+    expect(updateCall?.[1]?.headers).toMatchObject({ "If-Match": '"1"' });
+    expect(JSON.parse(updateCall?.[1]?.body as string)).toMatchObject({
+      title: revised.title,
+      markdown: revised.markdown,
+      tags: revised.tags,
+      isPinned: true,
+      links: [],
+    });
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/notes/${noteId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(
