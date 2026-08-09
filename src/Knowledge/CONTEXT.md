@@ -55,6 +55,9 @@
   renders only server-produced `RenderedHtml`; raw client Markdown is never treated as trusted HTML. The current list
   can be narrowed by title, excerpt or tag.
 - Moving an opened note to trash requires an explicit acknowledgement and the current ETag version. The active list
-  and cached detail are removed only after the server confirms the 30-day soft delete. Typed-link selection, Camp
-  trash restore and private attachments remain later UI slices; no module persistence crosses the Contracts/HTTP
-  boundary.
+  and cached detail are removed only after the server confirms the 30-day soft delete. Camp trash restore and private
+  attachments remain later UI slices; no module persistence crosses the Contracts/HTTP boundary.
+- While a create or revision form is open, the UI composes the authorized Camps, Catering, Logistics and Spiritual
+  read endpoints into a typed target selector. Its write payload carries only `Type` and `TargetId`; Knowledge resolves
+  and stores the trusted title snapshot under the current actor, Organization and Camp scope. Returned links display
+  their German type label and server title. Camp trash restore and private attachments remain later UI slices.

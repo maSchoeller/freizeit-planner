@@ -3808,6 +3808,139 @@ describe("camp workspace", () => {
     expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
   });
 
+  it("links a shared note to typed planning objects", async () => {
+    const noteId = "52000000-0000-0000-0000-000000000003";
+    const scheduleEntryId = "32000000-0000-0000-0000-000000000003";
+    const mealId = "42000000-0000-0000-0000-000000000003";
+    const created = {
+      id: noteId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      title: "Teamabsprachen",
+      markdown: "## Sonntag\nDetails stehen in der Planung.",
+      renderedHtml: "<h2>Sonntag</h2><p>Details stehen in der Planung.</p>",
+      tags: ["Team"],
+      isPinned: false,
+      links: [
+        { type: 0, targetId: scheduleEntryId, targetTitle: "Morgenandacht" },
+        { type: 1, targetId: mealId, targetTitle: "Abendessen" },
+      ],
+      state: 0,
+      createdAt: "2026-08-09T20:00:00Z",
+      createdBy: "10000000-0000-0000-0000-000000000001",
+      updatedAt: "2026-08-09T20:00:00Z",
+      updatedBy: "10000000-0000-0000-0000-000000000001",
+      trashedAt: null,
+      trashedBy: null,
+      purgeAfter: null,
+      version: 1,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/notes"))
+          return Promise.resolve(
+            new Response(JSON.stringify(created), {
+              status: 201,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        let body: unknown = [];
+        if (path.includes("/schedule?"))
+          body = [
+            {
+              id: scheduleEntryId,
+              title: "Morgenandacht",
+              category: "Andacht",
+              status: 0,
+              responsibleUserIds: [],
+              overlapsAnotherEntry: false,
+              timing: {
+                isAllDay: false,
+                startsAtUtc: "2026-08-02T07:00:00Z",
+                endsAtUtc: "2026-08-02T08:00:00Z",
+              },
+              version: 1,
+            },
+          ];
+        else if (path.endsWith("/catering/meals"))
+          body = [
+            {
+              id: mealId,
+              name: "Abendessen",
+              effectivePortions: 42,
+              scheduleEntryId: null,
+              recipeCount: 0,
+              version: 1,
+            },
+          ];
+        else if (path.endsWith("/catering/recipes")) body = [];
+        else if (path.endsWith("/logistics/material")) body = [];
+        else if (path.endsWith("/logistics/shopping-lists")) body = [];
+        else if (path.endsWith("/devotions")) body = [];
+        return Promise.resolve(
+          new Response(JSON.stringify(body), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/notizen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Notiz anlegen" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel" }),
+      created.title,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Markdown-Inhalt" }),
+      created.markdown,
+    );
+    await user.click(
+      await screen.findByRole("checkbox", {
+        name: "Tagesplan: Morgenandacht",
+      }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", { name: "Mahlzeit: Abendessen" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Notiz speichern" }));
+
+    expect(await screen.findByText("Tagesplan · Morgenandacht")).toBeVisible();
+    expect(screen.getByText("Mahlzeit · Abendessen")).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Notiz bearbeiten" }));
+    expect(
+      await screen.findByRole("checkbox", {
+        name: "Tagesplan: Morgenandacht",
+      }),
+    ).toBeChecked();
+    expect(
+      screen.getByRole("checkbox", { name: "Mahlzeit: Abendessen" }),
+    ).toBeChecked();
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/notes") && init?.method === "POST",
+    );
+    expect(JSON.parse(createCall?.[1]?.body as string)).toMatchObject({
+      links: [
+        { type: 0, targetId: scheduleEntryId },
+        { type: 1, targetId: mealId },
+      ],
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

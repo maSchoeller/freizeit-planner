@@ -13,6 +13,11 @@ Roh-HTML, Tabellen, eingebettete Bilder und unsichere Links sind gesperrt. Nach 
 Freizeit-Cockpit ausschließlich die serverseitig geprüfte Darstellung. Mit **Notiz öffnen** lädst du die vollständige
 Notiz; die Suche filtert Titel, Textauszug und Tags in der aktuellen Liste.
 
+Unter **Planungsobjekte verknüpfen** kannst du optional Einträge aus Tagesplan, Mahlzeiten, Rezepten, Material,
+Einkaufslisten und Andachten auswählen. Die Notiz zeigt den Typ und den vom Server geprüften Titel des Ziels. Die
+Verknüpfung dient nur zur Orientierung und vergibt keine zusätzlichen Zugriffsrechte. Beim Bearbeiten kannst du die
+Auswahl gemeinsam mit dem übrigen Notizinhalt ändern.
+
 ## Notiz bearbeiten oder entfernen
 
 Mit **Notiz bearbeiten** ersetzt du Titel, Markdown-Inhalt, Tags und die Anheftung gemeinsam. Beim Speichern schützt

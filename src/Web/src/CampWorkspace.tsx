@@ -568,6 +568,8 @@ type NoteLink = {
   targetId: string;
   targetTitle: string;
 };
+type NoteLinkReference = Pick<NoteLink, "type" | "targetId">;
+type NoteLinkCandidate = NoteLinkReference & { targetTitle: string };
 type NotebookNote = {
   id: string;
   organizationId: string;
@@ -588,6 +590,74 @@ type NotebookNote = {
   purgeAfter: string | null;
   version: number;
 };
+
+const noteLinkTypeLabels: Record<number, string> = {
+  0: "Tagesplan",
+  1: "Mahlzeit",
+  2: "Rezept",
+  3: "Material",
+  4: "Einkaufsliste",
+  5: "Andacht",
+};
+
+function noteLinkKey(link: NoteLinkReference) {
+  return `${link.type}:${link.targetId}`;
+}
+
+function NoteLinkFields({
+  candidates,
+  selected,
+  loading,
+  error,
+  onChange,
+}: {
+  candidates: NoteLinkCandidate[];
+  selected: NoteLinkReference[];
+  loading: boolean;
+  error: Error | null;
+  onChange: (links: NoteLinkReference[]) => void;
+}) {
+  const selectedKeys = new Set(selected.map(noteLinkKey));
+  return (
+    <fieldset className="responsibility-selector note-link-selector">
+      <legend>Planungsobjekte verknüpfen</legend>
+      <p className="form-hint">
+        Optional. Die Verknüpfung verweist auf das gewählte Planungsobjekt,
+        übernimmt aber keine Berechtigungen.
+      </p>
+      <QueryState loading={loading} error={error} />
+      {!loading && !error && candidates.length === 0 ? (
+        <p className="form-hint">Keine Planungsobjekte verfügbar.</p>
+      ) : null}
+      {candidates.map((candidate) => {
+        const key = noteLinkKey(candidate);
+        const label = noteLinkTypeLabels[candidate.type] ?? "Planung";
+        return (
+          <label className="checkbox-label" key={key}>
+            <input
+              type="checkbox"
+              checked={selectedKeys.has(key)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [
+                        ...selected,
+                        {
+                          type: candidate.type,
+                          targetId: candidate.targetId,
+                        },
+                      ]
+                    : selected.filter((link) => noteLinkKey(link) !== key),
+                )
+              }
+            />
+            {label}: {candidate.targetTitle}
+          </label>
+        );
+      })}
+    </fieldset>
+  );
+}
 type Devotion = {
   id: string;
   organizationId?: string;
@@ -7427,7 +7497,7 @@ function DevotionsPage({ offline }: { offline: boolean }) {
 }
 
 function NotesPage({ offline }: { offline: boolean }) {
-  const { organizationId, campId } = useCampRuntime();
+  const { organizationId, campId, camp } = useCampRuntime();
   const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/notes`;
   const query = useCampQuery<NoteSummary[]>("notes", path);
@@ -7437,6 +7507,7 @@ function NotesPage({ offline }: { offline: boolean }) {
   const [markdown, setMarkdown] = useState("");
   const [tagInput, setTagInput] = useState("");
   const [isPinned, setIsPinned] = useState(false);
+  const [selectedLinks, setSelectedLinks] = useState<NoteLinkReference[]>([]);
   const [searchText, setSearchText] = useState("");
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState(false);
@@ -7444,8 +7515,113 @@ function NotesPage({ offline }: { offline: boolean }) {
   const [editMarkdown, setEditMarkdown] = useState("");
   const [editTags, setEditTags] = useState("");
   const [editPinned, setEditPinned] = useState(false);
+  const [editLinks, setEditLinks] = useState<NoteLinkReference[]>([]);
   const [confirmTrash, setConfirmTrash] = useState(false);
   const [trashConfirmed, setTrashConfirmed] = useState(false);
+  const linkSelectionOpen = creating || editing;
+  const scheduleCandidates = useQuery({
+    queryKey: [organizationId, campId, "schedule"],
+    queryFn: () =>
+      getJson<ScheduleEntry[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const mealCandidates = useQuery({
+    queryKey: [organizationId, campId, "meals"],
+    queryFn: () =>
+      getJson<Meal[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const recipeCandidates = useQuery({
+    queryKey: [organizationId, "catering", "recipes"],
+    queryFn: () =>
+      getJson<RecipeSummary[]>(
+        `/api/v1/organizations/${organizationId}/catering/recipes`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const materialCandidates = useQuery({
+    queryKey: [organizationId, campId, "material"],
+    queryFn: () =>
+      getJson<MaterialRequirementSummary[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/material`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const shoppingCandidates = useQuery({
+    queryKey: [organizationId, campId, "shopping-lists"],
+    queryFn: () =>
+      getJson<ShoppingListSummary[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/logistics/shopping-lists`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const devotionCandidates = useQuery({
+    queryKey: [organizationId, campId, "devotions"],
+    queryFn: () =>
+      getJson<Devotion[]>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/devotions`,
+      ),
+    enabled: linkSelectionOpen,
+    retry: false,
+  });
+  const linkCandidates: NoteLinkCandidate[] = [
+    ...(scheduleCandidates.data ?? []).map((entry) => ({
+      type: 0,
+      targetId: entry.id,
+      targetTitle: entry.title,
+    })),
+    ...(mealCandidates.data ?? []).map((meal) => ({
+      type: 1,
+      targetId: meal.id,
+      targetTitle: meal.name,
+    })),
+    ...(recipeCandidates.data ?? []).map((recipe) => ({
+      type: 2,
+      targetId: recipe.id,
+      targetTitle: recipe.name,
+    })),
+    ...(materialCandidates.data ?? []).map((material) => ({
+      type: 3,
+      targetId: material.id,
+      targetTitle: material.name,
+    })),
+    ...(shoppingCandidates.data ?? []).map((list) => ({
+      type: 4,
+      targetId: list.id,
+      targetTitle: list.name,
+    })),
+    ...(devotionCandidates.data ?? []).map((devotion) => ({
+      type: 5,
+      targetId: devotion.id,
+      targetTitle: devotion.topic,
+    })),
+  ];
+  const linkCandidatesLoading =
+    linkSelectionOpen &&
+    [
+      scheduleCandidates,
+      mealCandidates,
+      recipeCandidates,
+      materialCandidates,
+      shoppingCandidates,
+      devotionCandidates,
+    ].some((candidateQuery) => candidateQuery.isLoading);
+  const linkCandidatesError =
+    scheduleCandidates.error ??
+    mealCandidates.error ??
+    recipeCandidates.error ??
+    materialCandidates.error ??
+    shoppingCandidates.error ??
+    devotionCandidates.error;
   const detail = useQuery({
     queryKey: [organizationId, campId, "note", selectedNoteId],
     queryFn: () => getJson<NotebookNote>(`${path}/${selectedNoteId}`),
@@ -7463,7 +7639,7 @@ function NotesPage({ offline }: { offline: boolean }) {
           .map((tag) => tag.trim())
           .filter(Boolean),
         isPinned,
-        links: [],
+        links: selectedLinks,
       }),
     onSuccess: (created) => {
       const excerpt = created.markdown
@@ -7496,6 +7672,7 @@ function NotesPage({ offline }: { offline: boolean }) {
       );
       setSelectedNoteId(created.id);
       setCreating(false);
+      setSelectedLinks([]);
       setNotice(`${created.title} wurde angelegt.`);
     },
   });
@@ -7514,10 +7691,7 @@ function NotesPage({ offline }: { offline: boolean }) {
             .map((tag) => tag.trim())
             .filter(Boolean),
           isPinned: editPinned,
-          links: current.links.map((link) => ({
-            type: link.type,
-            targetId: link.targetId,
-          })),
+          links: editLinks,
         },
         current.version,
         "Die Notiz wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne sie erneut.",
@@ -7616,6 +7790,7 @@ function NotesPage({ offline }: { offline: boolean }) {
           disabled={offline}
           onClick={() => {
             setCreating(true);
+            setSelectedLinks([]);
             setNotice("");
           }}
         >
@@ -7714,6 +7889,13 @@ function NotesPage({ offline }: { offline: boolean }) {
             />
             Notiz anheften
           </label>
+          <NoteLinkFields
+            candidates={linkCandidates}
+            selected={selectedLinks}
+            loading={linkCandidatesLoading}
+            error={linkCandidatesError}
+            onChange={setSelectedLinks}
+          />
           {createNote.error ? (
             <p role="alert" className="error-message">
               {createNote.error.message}
@@ -7793,6 +7975,12 @@ function NotesPage({ offline }: { offline: boolean }) {
                         setEditMarkdown(current.markdown);
                         setEditTags(current.tags.join(", "));
                         setEditPinned(current.isPinned);
+                        setEditLinks(
+                          current.links.map(({ type, targetId }) => ({
+                            type,
+                            targetId,
+                          })),
+                        );
                         setEditing(true);
                         setNotice("");
                       }}
@@ -7854,6 +8042,13 @@ function NotesPage({ offline }: { offline: boolean }) {
                     />
                     Notiz anheften
                   </label>
+                  <NoteLinkFields
+                    candidates={linkCandidates}
+                    selected={editLinks}
+                    loading={linkCandidatesLoading}
+                    error={linkCandidatesError}
+                    onChange={setEditLinks}
+                  />
                   {reviseNote.error ? (
                     <p role="alert" className="error-message">
                       {reviseNote.error.message}
@@ -7882,6 +8077,22 @@ function NotesPage({ offline }: { offline: boolean }) {
                 className="rendered-markdown"
                 dangerouslySetInnerHTML={{ __html: detail.data.renderedHtml }}
               />
+              {detail.data.links.length > 0 ? (
+                <section
+                  className="linked-planning-objects"
+                  aria-label="Verknüpfte Planungsobjekte"
+                >
+                  <h3>Verknüpfte Planung</h3>
+                  <ul>
+                    {detail.data.links.map((link) => (
+                      <li key={noteLinkKey(link)}>
+                        {noteLinkTypeLabels[link.type] ?? "Planung"} ·{" "}
+                        {link.targetTitle}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
               {!offline && !confirmTrash ? (
                 <button
                   type="button"
