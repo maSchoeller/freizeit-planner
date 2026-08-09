@@ -37,4 +37,7 @@
   Schedule and responsibility candidates through public host APIs, then caches the returned versioned detail without
   implicitly fetching a Bible text. Manual snapshot entry reuses the devotion reference and translation, requires
   antiforgery and `If-Match`, and replaces the cached detail only after the server has attached license, attribution,
-  retrieval date, and manual origin. No module persistence crosses the HTTP/Contracts boundary.
+  retrieval date, and manual origin. The edit form exposes every devotion field and chains the returned Version into
+  its detail and summary caches. Moving a devotion to the 30-day aggregate trash requires an explicit confirmation
+  and the latest `If-Match`, then removes both active cache entries without bypassing the lifecycle endpoint. No
+  module persistence crosses the HTTP/Contracts boundary.

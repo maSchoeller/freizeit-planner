@@ -3090,6 +3090,167 @@ describe("camp workspace", () => {
     });
   });
 
+  it("edits a devotion and moves the current version to the trash", async () => {
+    const devotionId = "51000000-0000-0000-0000-000000000002";
+    const existing = {
+      id: devotionId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      topic: "Hoffnung",
+      bibleReference: "Römer 15,13",
+      translation: 0,
+      coreMessage: "Gott schenkt Hoffnung.",
+      markdownContent: "## Gespräch",
+      responsibleUserIds: [],
+      materialNotes: "",
+      scheduleEntryId: null,
+      bibleSnapshot: null,
+      createdAt: "2026-08-09T18:00:00Z",
+      updatedAt: "2026-08-09T18:00:00Z",
+      deletedAt: null,
+      version: 2,
+    };
+    const updated = {
+      ...existing,
+      topic: "Hoffnung trägt",
+      coreMessage: "Gott trägt durch schwere Zeiten.",
+      updatedAt: "2026-08-09T19:00:00Z",
+      version: 3,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "PUT" && path.endsWith(`/devotions/${devotionId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(updated), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"3"' },
+            }),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/devotions/${devotionId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith(`/devotions/${devotionId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(existing), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"2"' },
+            }),
+          );
+        if (path.endsWith("/devotions/translations"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  translation: 0,
+                  technicalId: "deu1951",
+                  displayName: "Schlachter 1951",
+                  license: "CC BY 4.0",
+                  attribution: "Genfer Bibelgesellschaft",
+                  isDefault: true,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/devotions"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: devotionId,
+                  topic: existing.topic,
+                  bibleReference: existing.bibleReference,
+                  translation: 0,
+                  responsibleUserIds: [],
+                  scheduleEntryId: null,
+                  hasBibleSnapshot: false,
+                  version: 2,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Hoffnung öffnen" }),
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Andacht bearbeiten" }),
+    );
+    const topic = screen.getByRole("textbox", { name: "Thema bearbeiten" });
+    await user.clear(topic);
+    await user.type(topic, updated.topic);
+    const coreMessage = screen.getByRole("textbox", {
+      name: "Ziel oder Kerngedanke bearbeiten",
+    });
+    await user.clear(coreMessage);
+    await user.type(coreMessage, updated.coreMessage);
+    await user.click(
+      screen.getByRole("button", { name: "Andachtsänderung speichern" }),
+    );
+    expect(
+      await screen.findByText("Hoffnung trägt wurde gespeichert."),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Andacht in Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      screen.getByRole("checkbox", {
+        name: "Ich möchte diese Andacht in den Papierkorb verschieben.",
+      }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Verschieben bestätigen" }),
+    );
+    expect(
+      await screen.findByText(
+        "Hoffnung trägt wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(screen.queryByText("Hoffnung trägt", { selector: "h2" })).toBeNull();
+
+    const updateCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/devotions/${devotionId}`) &&
+        init?.method === "PUT",
+    );
+    expect(updateCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+    expect(JSON.parse(updateCall?.[1]?.body as string)).toMatchObject({
+      topic: updated.topic,
+      coreMessage: updated.coreMessage,
+    });
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/devotions/${devotionId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"3"' });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

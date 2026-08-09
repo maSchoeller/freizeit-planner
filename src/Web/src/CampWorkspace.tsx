@@ -6612,6 +6612,19 @@ function DevotionsPage({ offline }: { offline: boolean }) {
   const [scheduleEntryId, setScheduleEntryId] = useState("");
   const [manualSnapshotOpen, setManualSnapshotOpen] = useState(false);
   const [manualText, setManualText] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editTopic, setEditTopic] = useState("");
+  const [editBibleReference, setEditBibleReference] = useState("");
+  const [editTranslation, setEditTranslation] = useState("0");
+  const [editCoreMessage, setEditCoreMessage] = useState("");
+  const [editMarkdownContent, setEditMarkdownContent] = useState("");
+  const [editMaterialNotes, setEditMaterialNotes] = useState("");
+  const [editResponsibleUserIds, setEditResponsibleUserIds] = useState<
+    string[]
+  >([]);
+  const [editScheduleEntryId, setEditScheduleEntryId] = useState("");
+  const [confirmTrash, setConfirmTrash] = useState(false);
+  const [trashConfirmed, setTrashConfirmed] = useState(false);
   const [notice, setNotice] = useState("");
   const detail = useQuery({
     queryKey: [organizationId, campId, "devotion", selectedDevotionId],
@@ -6701,6 +6714,81 @@ function DevotionsPage({ offline }: { offline: boolean }) {
       setNotice(
         "Der manuelle Bibeltext wurde als unveränderter Snapshot gespeichert.",
       );
+    },
+  });
+  const updateDevotion = useMutation({
+    mutationFn: () => {
+      const current = detail.data;
+      if (!current) throw new Error("Die Andacht ist noch nicht geladen.");
+      return mutateCateringJson<DevotionDetail>(
+        `${path}/${current.id}`,
+        "PUT",
+        {
+          topic: editTopic,
+          bibleReference: editBibleReference,
+          translation: Number(editTranslation),
+          coreMessage: editCoreMessage,
+          markdownContent: editMarkdownContent,
+          responsibleUserIds: editResponsibleUserIds,
+          materialNotes: editMaterialNotes,
+          scheduleEntryId: editScheduleEntryId || null,
+        },
+        current.version,
+        "Die Andacht wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne sie erneut.",
+      );
+    },
+    onSuccess: (updated) => {
+      queryClient.setQueryData(
+        [organizationId, campId, "devotion", updated.id],
+        updated,
+      );
+      queryClient.setQueryData<Devotion[]>(
+        [organizationId, campId, "devotions"],
+        (current) =>
+          current?.map((devotion) =>
+            devotion.id === updated.id
+              ? {
+                  ...devotion,
+                  topic: updated.topic,
+                  bibleReference: updated.bibleReference,
+                  translation: updated.translation,
+                  responsibleUserIds: updated.responsibleUserIds,
+                  scheduleEntryId: updated.scheduleEntryId,
+                  hasBibleSnapshot: updated.bibleSnapshot !== null,
+                  version: updated.version,
+                }
+              : devotion,
+          ),
+      );
+      setEditing(false);
+      setNotice(`${updated.topic} wurde gespeichert.`);
+    },
+  });
+  const trashDevotion = useMutation({
+    mutationFn: async () => {
+      const current = detail.data;
+      if (!current) throw new Error("Die Andacht ist noch nicht geladen.");
+      await mutateCateringJson<void>(
+        `${path}/${current.id}`,
+        "DELETE",
+        {},
+        current.version,
+        "Die Andacht wurde zwischenzeitlich geändert. Öffne den aktuellen Stand erneut.",
+      );
+      return { id: current.id, topic: current.topic };
+    },
+    onSuccess: ({ id, topic: deletedTopic }) => {
+      queryClient.setQueryData<Devotion[]>(
+        [organizationId, campId, "devotions"],
+        (current) => current?.filter((devotion) => devotion.id !== id),
+      );
+      queryClient.removeQueries({
+        queryKey: [organizationId, campId, "devotion", id],
+      });
+      setSelectedDevotionId(null);
+      setConfirmTrash(false);
+      setTrashConfirmed(false);
+      setNotice(`${deletedTopic} wurde in den Papierkorb verschoben.`);
     },
   });
   const refreshSnapshot = useMutation({
@@ -6904,6 +6992,10 @@ function DevotionsPage({ offline }: { offline: boolean }) {
               aria-expanded={selectedDevotionId === devotion.id}
               onClick={() => {
                 setSelectedDevotionId(devotion.id);
+                setEditing(false);
+                setManualSnapshotOpen(false);
+                setConfirmTrash(false);
+                setTrashConfirmed(false);
                 setNotice("");
               }}
             >
@@ -6930,6 +7022,25 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                     <>
                       <button
                         type="button"
+                        className="secondary-action"
+                        onClick={() => {
+                          const current = detail.data;
+                          setEditTopic(current.topic);
+                          setEditBibleReference(current.bibleReference);
+                          setEditTranslation(String(current.translation));
+                          setEditCoreMessage(current.coreMessage);
+                          setEditMarkdownContent(current.markdownContent);
+                          setEditMaterialNotes(current.materialNotes);
+                          setEditResponsibleUserIds(current.responsibleUserIds);
+                          setEditScheduleEntryId(current.scheduleEntryId ?? "");
+                          setEditing(true);
+                          setNotice("");
+                        }}
+                      >
+                        Andacht bearbeiten
+                      </button>
+                      <button
+                        type="button"
                         className="primary-action"
                         disabled={refreshSnapshot.isPending}
                         onClick={() => {
@@ -6954,12 +7065,140 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                   <button
                     type="button"
                     className="secondary-action"
-                    onClick={() => setSelectedDevotionId(null)}
+                    onClick={() => {
+                      setSelectedDevotionId(null);
+                      setEditing(false);
+                      setManualSnapshotOpen(false);
+                      setConfirmTrash(false);
+                    }}
                   >
                     Andacht schließen
                   </button>
                 </div>
               </div>
+              {editing ? (
+                <form
+                  className="schedule-create-form devotion-edit-form"
+                  aria-label={`${detail.data.topic} bearbeiten`}
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    updateDevotion.mutate();
+                  }}
+                >
+                  <h3>Andacht bearbeiten</h3>
+                  <div className="camp-form-grid">
+                    <label>
+                      Thema bearbeiten
+                      <input
+                        required
+                        value={editTopic}
+                        onChange={(event) => setEditTopic(event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      Bibelstelle bearbeiten
+                      <input
+                        required
+                        value={editBibleReference}
+                        onChange={(event) =>
+                          setEditBibleReference(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Bibelübersetzung bearbeiten
+                      <select
+                        value={editTranslation}
+                        onChange={(event) =>
+                          setEditTranslation(event.target.value)
+                        }
+                      >
+                        {translations.data?.map((item) => (
+                          <option
+                            key={item.translation}
+                            value={String(item.translation)}
+                          >
+                            {item.displayName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Tagesplan-Verknüpfung bearbeiten
+                      <select
+                        value={editScheduleEntryId}
+                        onChange={(event) =>
+                          setEditScheduleEntryId(event.target.value)
+                        }
+                      >
+                        <option value="">Keine Verknüpfung</option>
+                        {scheduleEntries.data?.map((entry) => (
+                          <option key={entry.id} value={entry.id}>
+                            {entry.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="full-width">
+                      Ziel oder Kerngedanke bearbeiten
+                      <textarea
+                        required
+                        value={editCoreMessage}
+                        onChange={(event) =>
+                          setEditCoreMessage(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="full-width">
+                      Markdown-Inhalt oder Gliederung bearbeiten
+                      <textarea
+                        required
+                        value={editMarkdownContent}
+                        onChange={(event) =>
+                          setEditMarkdownContent(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="full-width">
+                      Materialhinweise bearbeiten
+                      <textarea
+                        value={editMaterialNotes}
+                        onChange={(event) =>
+                          setEditMaterialNotes(event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                  <ResponsibilityFields
+                    candidates={members.data ?? []}
+                    selected={editResponsibleUserIds}
+                    onChange={setEditResponsibleUserIds}
+                  />
+                  {updateDevotion.error ? (
+                    <p role="alert" className="error-message">
+                      {updateDevotion.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="submit"
+                      className="primary-action"
+                      disabled={updateDevotion.isPending}
+                    >
+                      Andachtsänderung speichern
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={updateDevotion.isPending}
+                      onClick={() => setEditing(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              ) : null}
               <h3>Kerngedanke</h3>
               <p>{detail.data.coreMessage}</p>
               <h3>Entwurf</h3>
@@ -7074,6 +7313,64 @@ function DevotionsPage({ offline }: { offline: boolean }) {
                     </button>
                   </div>
                 </form>
+              ) : null}
+              {!offline && !confirmTrash ? (
+                <button
+                  type="button"
+                  className="danger-action"
+                  onClick={() => {
+                    setConfirmTrash(true);
+                    setTrashConfirmed(false);
+                    setNotice("");
+                  }}
+                >
+                  Andacht in Papierkorb verschieben
+                </button>
+              ) : null}
+              {confirmTrash ? (
+                <section
+                  className="delete-confirmation"
+                  aria-label="Andacht in Papierkorb verschieben"
+                >
+                  <h3>{detail.data.topic} wirklich verschieben?</h3>
+                  <p>
+                    Die Andacht bleibt 30 Tage im Camp-Papierkorb und kann dort
+                    wiederhergestellt werden.
+                  </p>
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={trashConfirmed}
+                      onChange={(event) =>
+                        setTrashConfirmed(event.target.checked)
+                      }
+                    />
+                    Ich möchte diese Andacht in den Papierkorb verschieben.
+                  </label>
+                  {trashDevotion.error ? (
+                    <p role="alert" className="error-message">
+                      {trashDevotion.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      className="danger-action"
+                      disabled={!trashConfirmed || trashDevotion.isPending}
+                      onClick={() => trashDevotion.mutate()}
+                    >
+                      Verschieben bestätigen
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={trashDevotion.isPending}
+                      onClick={() => setConfirmTrash(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </section>
               ) : null}
               {refreshSnapshot.error ? (
                 <p role="alert" className="error-message">

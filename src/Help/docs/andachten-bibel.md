@@ -11,6 +11,16 @@ Materialhinweise. Du kannst Verantwortliche auswählen und die Andacht mit einem
 verknüpfen. Das Speichern der Andacht lädt noch keinen Bibeltext: Referenz und Entwurf bleiben damit auch bei einem
 Provider-Ausfall nutzbar.
 
+## Andacht bearbeiten oder entfernen
+
+Öffne eine Andacht und wähle **Andacht bearbeiten**, um Thema, Bibelstelle, Übersetzung, Kerngedanke, Inhalt,
+Materialhinweise, Verantwortliche oder Tagesplan-Verknüpfung zu ändern. Eine zwischenzeitliche Änderung wird nicht
+überschrieben; öffne in diesem Fall den aktuellen Stand erneut.
+
+Mit **Andacht in Papierkorb verschieben** entfernst du den Entwurf erst nach einer ausdrücklichen Bestätigung aus der
+aktiven Liste. Die Andacht und ihre Bibel-Snapshots bleiben 30 Tage im Camp-Papierkorb und können dort
+wiederhergestellt werden.
+
 ## Gespeicherter Bibel-Snapshot
 
 Ein Snapshot enthält die Bibelstelle und den Textauszug zusammen mit technischer Übersetzungs-ID, Anzeigename,
