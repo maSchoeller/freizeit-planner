@@ -3162,6 +3162,44 @@ export interface paths {
     };
     trace?: never;
   };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/logistics/shopping-lists/{listId}/items/{itemId}/restore": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          listId: string;
+          itemId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/organizations/{organizationId}/camps/{campId}/logistics/shopping-lists/{listId}/items/{itemId}/audit": {
     parameters: {
       query?: never;

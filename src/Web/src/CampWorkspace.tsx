@@ -90,7 +90,12 @@ type SearchResult = {
 };
 type CampTrashItem = {
   objectType:
-    "Note" | "Devotion" | "Attachment" | "MaterialRequirement" | "ShoppingList";
+    | "Note"
+    | "Devotion"
+    | "Attachment"
+    | "MaterialRequirement"
+    | "ShoppingList"
+    | "ShoppingItem";
   objectId: string;
   title: string;
   deletedAt: string;
@@ -876,6 +881,7 @@ const searchTypeLabel: Record<string, string> = {
   Meal: "Mahlzeit",
   MaterialRequirement: "Material",
   ShoppingList: "Einkaufsliste",
+  ShoppingItem: "Einkaufsposition",
   Devotion: "Andacht",
   Note: "Notiz",
   Attachment: "Datei",

@@ -26,6 +26,7 @@ internal static class LogisticsEndpoints
         group.MapPut("/shopping-lists/{listId:guid}/items/{itemId:guid}", UpdateShoppingItemAsync);
         group.MapPatch("/shopping-lists/{listId:guid}/items/{itemId:guid}/checked", CheckShoppingItemAsync);
         group.MapDelete("/shopping-lists/{listId:guid}/items/{itemId:guid}", DeleteShoppingItemAsync);
+        group.MapPost("/shopping-lists/{listId:guid}/items/{itemId:guid}/restore", RestoreShoppingItemAsync);
         group.MapGet("/shopping-lists/{listId:guid}/items/{itemId:guid}/audit", ListAuditAsync);
         group.MapPost("/shopping-lists/{listId:guid}/transfer/material/{materialId:guid}", TransferMaterialAsync);
         group.MapPost("/shopping-lists/{listId:guid}/transfer/meal/{mealId:guid}", TransferMealAsync);
@@ -222,6 +223,34 @@ internal static class LogisticsEndpoints
             await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
                 cancellationToken);
             return Results.Ok(result);
+        });
+    }
+
+    private static async Task<IResult> RestoreShoppingItemAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid listId,
+        Guid itemId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        IShoppingPlanning planning,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var restored = await planning.RestoreItemAsync(
+                new RestoreShoppingItem(actorId, organizationId, campId, listId, itemId, version),
+                cancellationToken);
+            await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
+                cancellationToken);
+            context.Response.Headers["X-Change-Sequence"] = restored.ChangeSequence.ToString(
+                System.Globalization.CultureInfo.InvariantCulture);
+            return Results.Ok(restored);
         });
     }
 

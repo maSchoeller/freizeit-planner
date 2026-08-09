@@ -49,11 +49,12 @@ public sealed class CleanupJob(
                 + "{AttachmentMetadata} attachment records, {AttachmentBlobs} blobs, "
                 + "{ReadGrants} read grants, {Devotions} devotions.");
 
-    private static readonly Action<ILogger, int, int, Exception?> LogLogisticsCompleted =
-        LoggerMessage.Define<int, int>(
+    private static readonly Action<ILogger, int, int, int, Exception?> LogLogisticsCompleted =
+        LoggerMessage.Define<int, int, int>(
             LogLevel.Information,
             new EventId(1002, "LogisticsCleanupCompleted"),
-            "Logistics cleanup completed: {Materials} material requirements, {ShoppingLists} shopping lists.");
+            "Logistics cleanup completed: {Materials} material requirements, {ShoppingLists} shopping lists, "
+                + "{ShoppingItems} shopping items.");
 
     public async Task<CleanupResult> RunAsync(CancellationToken cancellationToken)
     {
@@ -95,7 +96,12 @@ public sealed class CleanupJob(
             expiredReadGrants,
             devotions.PurgedDevotions,
             null);
-        LogLogisticsCompleted(logger, logistics.PurgedMaterials, logistics.PurgedShoppingLists, null);
+        LogLogisticsCompleted(
+            logger,
+            logistics.PurgedMaterials,
+            logistics.PurgedShoppingLists,
+            logistics.PurgedShoppingItems,
+            null);
 
         var retryableFailures = attachments.RetryableFailures + erasureFailures;
         if (retryableFailures > 0)

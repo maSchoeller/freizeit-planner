@@ -103,6 +103,7 @@ public sealed class LogisticsDbContext(DbContextOptions<LogisticsDbContext> opti
             .HasPrincipalKey(x => new { x.OrganizationId, x.CampId, x.Id })
             .OnDelete(DeleteBehavior.Cascade);
         entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.ShoppingListId, x.IsChecked });
+        entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.PurgeAt });
     }
 
     private static void ConfigureShoppingResponsibility(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<ShoppingItemResponsibilityEntity> entity)
@@ -185,6 +186,8 @@ internal sealed class ShoppingItemEntity : ITenantCampEntity
     public Guid? CheckedByUserId { get; set; }
     public DateTimeOffset? CheckedAt { get; set; }
     public long Version { get; set; } = 1;
+    public DateTimeOffset? DeletedAt { get; set; }
+    public DateTimeOffset? PurgeAt { get; set; }
 }
 internal sealed class ShoppingItemResponsibilityEntity : ITenantCampEntity { public Guid ShoppingListId { get; set; } public Guid ShoppingItemId { get; set; } public Guid UserId { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } }
 internal sealed class ShoppingCheckEventEntity : ITenantCampEntity { public Guid Id { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } public Guid ShoppingListId { get; set; } public Guid ShoppingItemId { get; set; } public ShoppingCheckAction Action { get; set; } public Guid ActorId { get; set; } public DateTimeOffset OccurredAt { get; set; } public long ResultingItemVersion { get; set; } }

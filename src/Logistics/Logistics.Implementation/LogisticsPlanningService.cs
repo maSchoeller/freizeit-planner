@@ -213,10 +213,40 @@ public sealed class LogisticsPlanningService(
         await RequireWriteAsync(command.ActorId, command.OrganizationId, command.CampId, cancellationToken);
         var list = await RequireListAsync(command.OrganizationId, command.CampId, command.ShoppingListId, cancellationToken);
         var item = RequireItem(list, command.ShoppingItemId);
-        item.RequireVersion(command.ExpectedItemVersion);
-        list.RemoveItem(item);
+        item.MoveToTrash(command.ExpectedItemVersion, timeProvider.GetUtcNow());
+        list.AdvanceItemLifecycle();
         await state.DeleteShoppingItemAsync(list, item, command.ExpectedItemVersion, cancellationToken);
         return Change(list, null);
+    }
+
+    public async Task<IReadOnlyList<TrashedShoppingItem>> ListItemTrashAsync(
+        ShoppingItemTrashQuery query,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(query.ActorId, query.OrganizationId, query.CampId,
+            CampAction.ManageCamp, false, cancellationToken);
+        return (await state.ListDeletedShoppingItemsAsync(query.OrganizationId, query.CampId, cancellationToken))
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedShoppingItem(item.Id, item.ShoppingListId, item.OrganizationId,
+                item.CampId, item.Name, item.DeletedAt!.Value, item.PurgeAt!.Value, item.Version))
+            .ToArray();
+    }
+
+    public async Task<ShoppingListChange> RestoreItemAsync(
+        RestoreShoppingItem command,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(command.ActorId, command.OrganizationId, command.CampId,
+            CampAction.ManageCamp, true, cancellationToken);
+        var list = await RequireListAsync(command.OrganizationId, command.CampId, command.ShoppingListId,
+            cancellationToken);
+        var item = await state.FindDeletedShoppingItemAsync(command.OrganizationId, command.CampId,
+            command.ShoppingListId, command.ShoppingItemId, cancellationToken)
+            ?? throw Rule("shopping_item_not_found", "Die Einkaufsposition wurde nicht gefunden.");
+        item.Restore(command.ExpectedItemVersion, timeProvider.GetUtcNow());
+        list.AdvanceItemLifecycle();
+        await state.DeleteShoppingItemAsync(list, item, command.ExpectedItemVersion, cancellationToken);
+        return Change(list, item);
     }
 
     public async Task<ShoppingTransferResult> TransferCateringAsync(TransferCateringShoppingItems command, CancellationToken cancellationToken)
@@ -327,13 +357,13 @@ public sealed class LogisticsPlanningService(
     private static ShoppingItemRecord NewItem(ShoppingListRecord list, ShoppingItemContent content, ShoppingItemSource source) => new(Guid.NewGuid(), list.OrganizationId, list.CampId, list.Id, content, source);
     private async Task<MaterialRequirementRecord> RequireMaterialAsync(Guid organizationId, Guid campId, Guid id, CancellationToken ct) => await state.FindMaterialAsync(organizationId, campId, id, ct) ?? throw Rule("material_not_found", "Der Materialbedarf wurde nicht gefunden.");
     private async Task<ShoppingListRecord> RequireListAsync(Guid organizationId, Guid campId, Guid id, CancellationToken ct) => await state.FindShoppingListAsync(organizationId, campId, id, ct) ?? throw Rule("shopping_list_not_found", "Die Einkaufsliste wurde nicht gefunden.");
-    private static ShoppingItemRecord RequireItem(ShoppingListRecord list, Guid id) => list.Items.SingleOrDefault(item => item.Id == id) ?? throw Rule("shopping_item_not_found", "Die Einkaufsposition wurde nicht gefunden.");
+    private static ShoppingItemRecord RequireItem(ShoppingListRecord list, Guid id) => list.Items.SingleOrDefault(item => item.Id == id && item.DeletedAt is null) ?? throw Rule("shopping_item_not_found", "Die Einkaufsposition wurde nicht gefunden.");
 
     private static MaterialRequirement ToView(MaterialRequirementRecord x) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Description, x.Quantity, x.ResponsibleUserIds, x.ProcurementSource, x.Note, x.Status, x.ScheduleEntryId, x.Version);
     private static MaterialRequirementSummary ToSummary(MaterialRequirementRecord x) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Quantity, x.Status, x.ScheduleEntryId, x.Version);
-    private static ShoppingList ToView(ShoppingListRecord x) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Items.Select(ToView).ToArray(), x.Version, x.ChangeSequence);
+    private static ShoppingList ToView(ShoppingListRecord x) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Items.Where(item => item.DeletedAt is null).Select(ToView).ToArray(), x.Version, x.ChangeSequence);
     private static ShoppingItem ToView(ShoppingItemRecord x) => new(x.Id, x.ShoppingListId, x.Name, x.Quantity, x.ResponsibleUserIds, x.Store, x.Note, x.Source, x.IsChecked, x.CheckedByUserId, x.CheckedAt, x.Version);
-    private static ShoppingListSummary ToSummary(ShoppingListRecord x) => new(x.Id, x.Name, x.Items.Count(item => !item.IsChecked), x.Items.Count(item => item.IsChecked), x.Version, x.ChangeSequence);
+    private static ShoppingListSummary ToSummary(ShoppingListRecord x) => new(x.Id, x.Name, x.Items.Count(item => item.DeletedAt is null && !item.IsChecked), x.Items.Count(item => item.DeletedAt is null && item.IsChecked), x.Version, x.ChangeSequence);
     private static ShoppingListChange Change(ShoppingListRecord list, ShoppingItemRecord? item) => new(list.Id, list.Version, list.ChangeSequence, item is null ? null : ToView(item));
     private static ShoppingTransferResult TransferResult(ShoppingListRecord list, IReadOnlyList<ShoppingItemRecord> items) => new(list.Id, list.Version, list.ChangeSequence, items.Select(ToView).ToArray());
     private static LogisticsRuleException Rule(string code, string message) => new(code, message);

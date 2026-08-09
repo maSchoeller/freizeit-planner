@@ -100,6 +100,18 @@ internal static class TrashEndpoints
                 item.Version,
                 $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/logistics/shopping-lists/{item.Id:D}/restore")));
 
+            var trashedShoppingItems = await shopping.ListItemTrashAsync(
+                new ShoppingItemTrashQuery(actorId, organizationId, campId),
+                cancellationToken);
+            result.AddRange(trashedShoppingItems.Select(item => new CampTrashItem(
+                "ShoppingItem",
+                item.Id,
+                item.Name,
+                item.DeletedAt,
+                item.PurgeAt,
+                item.Version,
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/logistics/shopping-lists/{item.ShoppingListId:D}/items/{item.Id:D}/restore")));
+
             var ordered = result
                 .OrderByDescending(item => item.DeletedAt)
                 .ThenBy(item => item.ObjectType, StringComparer.Ordinal)

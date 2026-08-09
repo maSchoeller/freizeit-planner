@@ -20,5 +20,8 @@ public interface ILogisticsState
     ValueTask AddShoppingItemsAsync(ShoppingListRecord list, IReadOnlyList<ShoppingItemRecord> items, long expectedListVersion, CancellationToken cancellationToken);
     ValueTask SaveShoppingItemAsync(ShoppingListRecord list, ShoppingItemRecord item, long expectedItemVersion, ShoppingCheckEventRecord? auditEvent, CancellationToken cancellationToken);
     ValueTask DeleteShoppingItemAsync(ShoppingListRecord list, ShoppingItemRecord item, long expectedItemVersion, CancellationToken cancellationToken);
+    ValueTask<IReadOnlyList<ShoppingItemRecord>> ListDeletedShoppingItemsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken);
+    ValueTask<ShoppingItemRecord?> FindDeletedShoppingItemAsync(Guid organizationId, Guid campId, Guid shoppingListId, Guid shoppingItemId, CancellationToken cancellationToken);
+    ValueTask<int> PurgeDueShoppingItemsAsync(DateTimeOffset now, int batchSize, CancellationToken cancellationToken);
     ValueTask<IReadOnlyList<ShoppingCheckEventRecord>> ListCheckEventsAsync(Guid organizationId, Guid campId, Guid listId, Guid itemId, CancellationToken cancellationToken);
 }

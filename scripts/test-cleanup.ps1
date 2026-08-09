@@ -120,7 +120,27 @@ INSERT INTO logistics.shopping_lists
 VALUES
     ('76000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
      '30000000-0000-0000-0000-000000000002', 'Abgelaufener Einkauf', 2, 2,
+     now() - interval '31 days', now() - interval '1 day'),
+    ('76000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', 'Bleibender Einkauf', 2, 2, NULL, NULL);
+
+INSERT INTO logistics.shopping_items
+    ("Id", organization_id, camp_id, shopping_list_id, "Name", "QuantityValue", "QuantityUnit",
+     "SourceKind", "SourceLabel", "IsChecked", "Version", "DeletedAt", "PurgeAt")
+VALUES
+    ('77000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', '76000000-0000-0000-0000-000000000002',
+     'Abgelaufene Einkaufsposition', 1, 4, 0, 'Spontan', false, 2,
      now() - interval '31 days', now() - interval '1 day');
+
+INSERT INTO logistics.shopping_check_events
+    ("Id", organization_id, camp_id, shopping_list_id, shopping_item_id, "Action", actor_id,
+     "OccurredAt", "ResultingItemVersion")
+VALUES
+    ('78000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', '76000000-0000-0000-0000-000000000002',
+     '77000000-0000-0000-0000-000000000001', 0, '10000000-0000-0000-0000-000000000001',
+     now() - interval '31 days', 2);
 '@ | Out-Null
 
         dotnet run --project src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj `
@@ -184,6 +204,18 @@ BEGIN
     IF EXISTS (SELECT FROM logistics.shopping_lists
                WHERE "Id" = '76000000-0000-0000-0000-000000000001') THEN
         RAISE EXCEPTION 'expired shopping list remained';
+    END IF;
+    IF NOT EXISTS (SELECT FROM logistics.shopping_lists
+                   WHERE "Id" = '76000000-0000-0000-0000-000000000002') THEN
+        RAISE EXCEPTION 'active shopping list was removed';
+    END IF;
+    IF EXISTS (SELECT FROM logistics.shopping_items
+               WHERE "Id" = '77000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired shopping item remained';
+    END IF;
+    IF EXISTS (SELECT FROM logistics.shopping_check_events
+               WHERE shopping_item_id = '77000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired shopping item audit remained';
     END IF;
 END
 $assert$;

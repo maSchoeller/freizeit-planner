@@ -252,6 +252,49 @@ public sealed class ShoppingPlanningTests
         Assert.Empty(fixture.State.Audit);
     }
 
+    [Fact]
+    public async Task CampManagerCanRestoreAnIndividuallyDeletedShoppingItem()
+    {
+        var fixture = LogisticsFixture.Create();
+        var list = await fixture.AddListAsync();
+        var added = await fixture.Subject.AddSpontaneousItemAsync(
+            new AddSpontaneousShoppingItem(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                Content("Brot", 2m, LogisticsUnit.Piece),
+                list.Version),
+            TestContext.Current.CancellationToken);
+        await fixture.Subject.DeleteItemAsync(
+            new DeleteShoppingItem(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                added.Item!.Id,
+                added.Item.Version),
+            TestContext.Current.CancellationToken);
+
+        var hidden = await fixture.Subject.GetAsync(
+            new ShoppingListRequest(LogisticsFixture.ActorId, LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId, list.Id),
+            TestContext.Current.CancellationToken);
+        var trash = await fixture.Subject.ListItemTrashAsync(
+            new ShoppingItemTrashQuery(LogisticsFixture.ActorId, LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId),
+            TestContext.Current.CancellationToken);
+        var deleted = Assert.Single(trash);
+        var restored = await fixture.Subject.RestoreItemAsync(
+            new RestoreShoppingItem(LogisticsFixture.ActorId, LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId, list.Id, deleted.Id, deleted.Version),
+            TestContext.Current.CancellationToken);
+
+        Assert.Empty(hidden!.Items);
+        Assert.Equal("Brot", restored.Item!.Name);
+        Assert.Equal(added.Item.Version + 2, restored.Item.Version);
+    }
+
     private static ShoppingItemContent Content(
         string name,
         decimal value,

@@ -175,6 +175,12 @@ public sealed class ShoppingListRecord
         ChangeSequence++;
     }
 
+    public void AdvanceItemLifecycle()
+    {
+        Version++;
+        ChangeSequence++;
+    }
+
     public void SynchronizeRevision(long version, long changeSequence)
     {
         Version = version;
@@ -222,7 +228,9 @@ public sealed class ShoppingItemRecord
         bool isChecked = false,
         Guid? checkedByUserId = null,
         DateTimeOffset? checkedAt = null,
-        long version = 1)
+        long version = 1,
+        DateTimeOffset? deletedAt = null,
+        DateTimeOffset? purgeAt = null)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -234,6 +242,8 @@ public sealed class ShoppingItemRecord
         CheckedByUserId = checkedByUserId;
         CheckedAt = checkedAt;
         Version = version;
+        DeletedAt = deletedAt;
+        PurgeAt = purgeAt;
     }
 
     public Guid Id { get; }
@@ -250,6 +260,8 @@ public sealed class ShoppingItemRecord
     public Guid? CheckedByUserId { get; private set; }
     public DateTimeOffset? CheckedAt { get; private set; }
     public long Version { get; private set; }
+    public DateTimeOffset? DeletedAt { get; private set; }
+    public DateTimeOffset? PurgeAt { get; private set; }
 
     public void Update(ShoppingItemContent content, long expectedVersion)
     {
@@ -284,6 +296,25 @@ public sealed class ShoppingItemRecord
     public void RequireVersion(long expectedVersion)
     {
         if (Version != expectedVersion) throw Rule("version_conflict", "Die Einkaufsposition wurde zwischenzeitlich geändert.");
+    }
+
+    public void MoveToTrash(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is not null) throw Rule("shopping_item_already_trashed", "Die Einkaufsposition befindet sich bereits im Papierkorb.");
+        DeletedAt = now;
+        PurgeAt = now.AddDays(30);
+        Version++;
+    }
+
+    public void Restore(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is null || PurgeAt is null) throw Rule("shopping_item_not_trashed", "Die Einkaufsposition befindet sich nicht im Papierkorb.");
+        if (PurgeAt <= now) throw Rule("shopping_item_restore_expired", "Die Aufbewahrungsfrist ist abgelaufen.");
+        DeletedAt = null;
+        PurgeAt = null;
+        Version++;
     }
 
     private void Apply(ShoppingItemContent content)

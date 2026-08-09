@@ -139,6 +139,21 @@ internal sealed class TestLogisticsState : ILogisticsState
 
     public ValueTask DeleteShoppingItemAsync(ShoppingListRecord list, ShoppingItemRecord item, long expectedItemVersion, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
+    public ValueTask<IReadOnlyList<ShoppingItemRecord>> ListDeletedShoppingItemsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<ShoppingItemRecord>>(Lists.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt is null).SelectMany(x => x.Items).Where(x => x.DeletedAt is not null).ToArray());
+
+    public ValueTask<ShoppingItemRecord?> FindDeletedShoppingItemAsync(Guid organizationId, Guid campId, Guid shoppingListId, Guid shoppingItemId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(Lists.SingleOrDefault(x => x.Id == shoppingListId && x.DeletedAt is null)?.Items.SingleOrDefault(x => x.Id == shoppingItemId && x.DeletedAt is not null));
+
+    public ValueTask<int> PurgeDueShoppingItemsAsync(DateTimeOffset now, int batchSize, CancellationToken cancellationToken)
+    {
+        var due = Lists.SelectMany(x => x.Items).Where(x => x.PurgeAt <= now).Take(batchSize).ToArray();
+        var ids = due.Select(x => x.Id).ToHashSet();
+        foreach (var list in Lists) list.Items.RemoveAll(x => ids.Contains(x.Id));
+        Audit.RemoveAll(x => ids.Contains(x.ShoppingItemId));
+        return ValueTask.FromResult(due.Length);
+    }
+
     public ValueTask<IReadOnlyList<ShoppingCheckEventRecord>> ListCheckEventsAsync(Guid organizationId, Guid campId, Guid listId, Guid itemId, CancellationToken cancellationToken) =>
         ValueTask.FromResult<IReadOnlyList<ShoppingCheckEventRecord>>(Audit.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.ShoppingListId == listId && x.ShoppingItemId == itemId).ToArray());
 }

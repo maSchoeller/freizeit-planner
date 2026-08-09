@@ -63,7 +63,7 @@ public sealed class CampTrashApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
-        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf"],
+        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf", "Brot"],
             items.Select(item => item.GetProperty("title").GetString()));
         Assert.All(items, item => Assert.EndsWith(
             "/restore",
@@ -180,6 +180,22 @@ public sealed class CampTrashApiTests
             return Task.FromResult(result);
         }
 
+        public Task<IReadOnlyList<TrashedShoppingItem>> ListItemTrashAsync(
+            ShoppingItemTrashQuery query,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<TrashedShoppingItem> result = [new TrashedShoppingItem(
+                Guid.Parse("40000000-0000-0000-0000-000000000006"),
+                Guid.Parse("40000000-0000-0000-0000-000000000005"),
+                OrganizationId,
+                CampId,
+                "Brot",
+                ParseTimestamp("2026-08-04T10:00:00Z"),
+                ParseTimestamp("2026-09-03T10:00:00Z"),
+                7)];
+            return Task.FromResult(result);
+        }
+
         public Task<Note?> GetNoteAsync(NoteRequest request, CancellationToken cancellationToken) => Unsupported<Note?>();
         public Task<Note> CreateNoteAsync(CreateNote request, CancellationToken cancellationToken) => Unsupported<Note>();
         public Task<Note> ReviseNoteAsync(ReviseNote request, CancellationToken cancellationToken) => Unsupported<Note>();
@@ -215,6 +231,7 @@ public sealed class CampTrashApiTests
         public Task<ShoppingListChange> UpdateItemAsync(UpdateShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
         public Task<ShoppingListChange> SetItemCheckedAsync(SetShoppingItemChecked command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
         public Task<ShoppingListChange> DeleteItemAsync(DeleteShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
+        public Task<ShoppingListChange> RestoreItemAsync(RestoreShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
 
         private static Task Unsupported() => throw new NotSupportedException();
 

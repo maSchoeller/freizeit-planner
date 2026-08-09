@@ -41,6 +41,14 @@ public interface IShoppingPlanning
     Task<ShoppingListChange> DeleteItemAsync(
         DeleteShoppingItem command,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TrashedShoppingItem>> ListItemTrashAsync(
+        ShoppingItemTrashQuery query,
+        CancellationToken cancellationToken);
+
+    Task<ShoppingListChange> RestoreItemAsync(
+        RestoreShoppingItem command,
+        CancellationToken cancellationToken);
 }
 
 public interface IShoppingTransfer
@@ -144,6 +152,26 @@ public sealed record DeleteShoppingItem(
     Guid ShoppingListId,
     Guid ShoppingItemId,
     long ExpectedItemVersion);
+
+public sealed record ShoppingItemTrashQuery(Guid ActorId, Guid OrganizationId, Guid CampId);
+
+public sealed record RestoreShoppingItem(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid ShoppingListId,
+    Guid ShoppingItemId,
+    long ExpectedItemVersion);
+
+public sealed record TrashedShoppingItem(
+    Guid Id,
+    Guid ShoppingListId,
+    Guid OrganizationId,
+    Guid CampId,
+    string Name,
+    DateTimeOffset DeletedAt,
+    DateTimeOffset PurgeAt,
+    long Version);
 
 public sealed record ShoppingListSummary(
     Guid Id,

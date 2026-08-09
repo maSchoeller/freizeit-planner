@@ -43,6 +43,7 @@ public sealed class CleanupJobTests
         Assert.Equal(8, result.Devotions.PurgedDevotions);
         Assert.Equal(9, result.Logistics.PurgedMaterials);
         Assert.Equal(10, result.Logistics.PurgedShoppingLists);
+        Assert.Equal(11, result.Logistics.PurgedShoppingItems);
         Assert.Equal(7, result.ExpiredAttachmentReadGrants);
     }
 
@@ -241,7 +242,7 @@ public sealed class CleanupJobTests
             CancellationToken cancellationToken)
         {
             BatchSize = batchSize;
-            return Task.FromResult(new LogisticsRetentionResult(9, 10));
+            return Task.FromResult(new LogisticsRetentionResult(9, 10, 11));
         }
     }
 }
