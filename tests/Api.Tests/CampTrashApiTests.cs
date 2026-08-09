@@ -36,12 +36,14 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<IDevotionPlanning>();
                 services.RemoveAll<IAttachmentCatalog>();
                 services.RemoveAll<IMaterialPlanning>();
+                services.RemoveAll<IShoppingPlanning>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
                 services.AddSingleton<IDevotionPlanning>(trash);
                 services.AddSingleton<IAttachmentCatalog>(trash);
                 services.AddSingleton<IMaterialPlanning>(trash);
+                services.AddSingleton<IShoppingPlanning>(trash);
             });
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -61,7 +63,7 @@ public sealed class CampTrashApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
-        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material"],
+        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf"],
             items.Select(item => item.GetProperty("title").GetString()));
         Assert.All(items, item => Assert.EndsWith(
             "/restore",
@@ -115,7 +117,7 @@ public sealed class CampTrashApiTests
         }
     }
 
-    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning
+    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning, IShoppingPlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -168,6 +170,16 @@ public sealed class CampTrashApiTests
             return Task.FromResult(result);
         }
 
+        public Task<IReadOnlyList<TrashedShoppingList>> ListTrashAsync(
+            ShoppingTrashQuery query,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<TrashedShoppingList> result = [new TrashedShoppingList(
+                Guid.Parse("40000000-0000-0000-0000-000000000005"), OrganizationId, CampId, "Einkauf",
+                ParseTimestamp("2026-08-05T10:00:00Z"), ParseTimestamp("2026-09-04T10:00:00Z"), 6)];
+            return Task.FromResult(result);
+        }
+
         public Task<Note?> GetNoteAsync(NoteRequest request, CancellationToken cancellationToken) => Unsupported<Note?>();
         public Task<Note> CreateNoteAsync(CreateNote request, CancellationToken cancellationToken) => Unsupported<Note>();
         public Task<Note> ReviseNoteAsync(ReviseNote request, CancellationToken cancellationToken) => Unsupported<Note>();
@@ -193,6 +205,16 @@ public sealed class CampTrashApiTests
         public Task<MaterialRequirement> UpdateAsync(UpdateMaterialRequirement command, CancellationToken cancellationToken) => Unsupported<MaterialRequirement>();
         public Task DeleteAsync(DeleteMaterialRequirement command, CancellationToken cancellationToken) => Unsupported();
         public Task<MaterialRequirement> RestoreAsync(RestoreMaterialRequirement command, CancellationToken cancellationToken) => Unsupported<MaterialRequirement>();
+        public Task<IReadOnlyList<ShoppingListSummary>> ListAsync(ShoppingListsQuery query, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<ShoppingListSummary>>();
+        public Task<ShoppingList?> GetAsync(ShoppingListRequest request, CancellationToken cancellationToken) => Unsupported<ShoppingList?>();
+        public Task<ShoppingList> CreateListAsync(CreateShoppingList command, CancellationToken cancellationToken) => Unsupported<ShoppingList>();
+        public Task<ShoppingList> RenameListAsync(RenameShoppingList command, CancellationToken cancellationToken) => Unsupported<ShoppingList>();
+        public Task DeleteListAsync(DeleteShoppingList command, CancellationToken cancellationToken) => Unsupported();
+        public Task<ShoppingList> RestoreListAsync(RestoreShoppingList command, CancellationToken cancellationToken) => Unsupported<ShoppingList>();
+        public Task<ShoppingListChange> AddSpontaneousItemAsync(AddSpontaneousShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
+        public Task<ShoppingListChange> UpdateItemAsync(UpdateShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
+        public Task<ShoppingListChange> SetItemCheckedAsync(SetShoppingItemChecked command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
+        public Task<ShoppingListChange> DeleteItemAsync(DeleteShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
 
         private static Task Unsupported() => throw new NotSupportedException();
 

@@ -101,10 +101,10 @@ internal sealed class TestLogisticsState : ILogisticsState
     }
 
     public ValueTask<IReadOnlyList<ShoppingListRecord>> ListShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
-        ValueTask.FromResult<IReadOnlyList<ShoppingListRecord>>(Lists.Where(x => x.OrganizationId == organizationId && x.CampId == campId).ToArray());
+        ValueTask.FromResult<IReadOnlyList<ShoppingListRecord>>(Lists.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt is null).ToArray());
 
     public ValueTask<ShoppingListRecord?> FindShoppingListAsync(Guid organizationId, Guid campId, Guid shoppingListId, CancellationToken cancellationToken) =>
-        ValueTask.FromResult(Lists.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == shoppingListId));
+        ValueTask.FromResult(Lists.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == shoppingListId && x.DeletedAt is null));
 
     public ValueTask AddShoppingListAsync(ShoppingListRecord list, CancellationToken cancellationToken)
     {
@@ -114,10 +114,19 @@ internal sealed class TestLogisticsState : ILogisticsState
 
     public ValueTask SaveShoppingListAsync(ShoppingListRecord list, long expectedVersion, CancellationToken cancellationToken) => ValueTask.CompletedTask;
 
-    public ValueTask DeleteShoppingListAsync(ShoppingListRecord list, long expectedVersion, CancellationToken cancellationToken)
+    public ValueTask<IReadOnlyList<ShoppingListRecord>> ListDeletedShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<ShoppingListRecord>>(Lists.Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt is not null).ToArray());
+
+    public ValueTask<ShoppingListRecord?> FindDeletedShoppingListAsync(Guid organizationId, Guid campId, Guid shoppingListId, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(Lists.SingleOrDefault(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == shoppingListId && x.DeletedAt is not null));
+
+    public ValueTask<int> PurgeDueShoppingListsAsync(DateTimeOffset now, int batchSize, CancellationToken cancellationToken)
     {
-        Lists.Remove(list);
-        return ValueTask.CompletedTask;
+        var due = Lists.Where(x => x.PurgeAt <= now).Take(batchSize).ToArray();
+        var dueIds = due.Select(x => x.Id).ToHashSet();
+        Audit.RemoveAll(x => dueIds.Contains(x.ShoppingListId));
+        var removed = Lists.RemoveAll(due.Contains);
+        return ValueTask.FromResult(removed);
     }
 
     public ValueTask AddShoppingItemsAsync(ShoppingListRecord list, IReadOnlyList<ShoppingItemRecord> items, long expectedListVersion, CancellationToken cancellationToken) => ValueTask.CompletedTask;

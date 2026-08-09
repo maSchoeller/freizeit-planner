@@ -173,6 +173,85 @@ public sealed class ShoppingPlanningTests
         Assert.Equal(5, checkedSecond.ChangeSequence);
     }
 
+    [Fact]
+    public async Task CampManagerCanRestoreADeletedShoppingListWithItsItems()
+    {
+        var fixture = LogisticsFixture.Create();
+        var list = await fixture.AddListAsync();
+        _ = await fixture.Subject.AddSpontaneousItemAsync(
+            new AddSpontaneousShoppingItem(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                Content("Brot", 2m, LogisticsUnit.Piece),
+                list.Version),
+            TestContext.Current.CancellationToken);
+        await fixture.Subject.DeleteListAsync(
+            new DeleteShoppingList(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                list.Version + 1),
+            TestContext.Current.CancellationToken);
+
+        var trash = await fixture.Subject.ListTrashAsync(
+            new ShoppingTrashQuery(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId),
+            TestContext.Current.CancellationToken);
+        var deleted = Assert.Single(trash);
+        var restored = await fixture.Subject.RestoreListAsync(
+            new RestoreShoppingList(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                deleted.Version),
+            TestContext.Current.CancellationToken);
+
+        Assert.Single(restored.Items);
+        Assert.Equal(list.Version + 3, restored.Version);
+    }
+
+    [Fact]
+    public async Task RetentionPurgesShoppingListItemsAndCheckAuditAtThirtyDays()
+    {
+        var fixture = LogisticsFixture.Create();
+        var list = await fixture.AddListAsync();
+        var added = await fixture.Subject.AddSpontaneousItemAsync(
+            new AddSpontaneousShoppingItem(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                Content("Brot", 2m, LogisticsUnit.Piece),
+                list.Version),
+            TestContext.Current.CancellationToken);
+        _ = await fixture.Subject.SetItemCheckedAsync(
+            Check(list.Id, added.Item!.Id, true, added.Item.Version),
+            TestContext.Current.CancellationToken);
+        await fixture.Subject.DeleteListAsync(
+            new DeleteShoppingList(
+                LogisticsFixture.ActorId,
+                LogisticsFixture.OrganizationId,
+                LogisticsFixture.CampId,
+                list.Id,
+                added.ListVersion),
+            TestContext.Current.CancellationToken);
+        fixture.Clock.Advance(TimeSpan.FromDays(30));
+
+        var result = await new Logistics.Implementation.LogisticsRetentionService(
+            fixture.State,
+            fixture.Clock).PurgeExpiredAsync(10, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, result.PurgedShoppingLists);
+        Assert.Empty(fixture.State.Lists);
+        Assert.Empty(fixture.State.Audit);
+    }
+
     private static ShoppingItemContent Content(
         string name,
         decimal value,

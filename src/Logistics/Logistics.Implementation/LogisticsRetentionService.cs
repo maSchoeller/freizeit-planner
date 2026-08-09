@@ -19,6 +19,10 @@ public sealed class LogisticsRetentionService(
             timeProvider.GetUtcNow(),
             batchSize,
             cancellationToken);
-        return new LogisticsRetentionResult(materials);
+        var shoppingLists = await state.PurgeDueShoppingListsAsync(
+            timeProvider.GetUtcNow(),
+            batchSize,
+            cancellationToken);
+        return new LogisticsRetentionResult(materials, shoppingLists);
     }
 }

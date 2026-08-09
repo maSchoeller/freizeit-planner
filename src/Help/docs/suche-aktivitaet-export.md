@@ -22,7 +22,7 @@ bearbeitet werden.
 ## Papierkorb
 
 Gelöschte Fachinhalte werden zunächst als gelöscht markiert. Berechtigte Leitungs- und Administrationsrollen
-können Notizen, Andachten, Dateien und Materialbedarf dort gemeinsam sehen und während der 30-tägigen Aufbewahrungsfrist mit
+können Notizen, Andachten, Dateien, Materialbedarf und Einkaufslisten dort gemeinsam sehen und während der 30-tägigen Aufbewahrungsfrist mit
 **Wiederherstellen** zurückholen. Das angezeigte Datum nennt den Tag der endgültigen Löschung. Im Offlinezustand ist
 die Wiederherstellung gesperrt. Nach Ablauf der Frist entfernt der Bereinigungsprozess die Daten einschließlich
 zugehöriger Bibel-Snapshots beziehungsweise privater Datei-Blobs endgültig.

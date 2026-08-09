@@ -125,7 +125,9 @@ public sealed class ShoppingListRecord
         string name,
         IReadOnlyList<ShoppingItemRecord>? items = null,
         long version = 1,
-        long changeSequence = 1)
+        long changeSequence = 1,
+        DateTimeOffset? deletedAt = null,
+        DateTimeOffset? purgeAt = null)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -134,6 +136,8 @@ public sealed class ShoppingListRecord
         Items = items?.ToList() ?? [];
         Version = version;
         ChangeSequence = changeSequence;
+        DeletedAt = deletedAt;
+        PurgeAt = purgeAt;
     }
 
     public Guid Id { get; }
@@ -143,6 +147,8 @@ public sealed class ShoppingListRecord
     public List<ShoppingItemRecord> Items { get; }
     public long Version { get; private set; }
     public long ChangeSequence { get; private set; }
+    public DateTimeOffset? DeletedAt { get; private set; }
+    public DateTimeOffset? PurgeAt { get; private set; }
 
     public void Rename(string name, long expectedVersion)
     {
@@ -178,6 +184,27 @@ public sealed class ShoppingListRecord
     public void RequireVersion(long expectedVersion)
     {
         if (Version != expectedVersion) throw Rule("version_conflict", "Die Einkaufsliste wurde zwischenzeitlich geändert.");
+    }
+
+    public void MoveToTrash(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is not null) throw Rule("shopping_list_already_trashed", "Die Einkaufsliste befindet sich bereits im Papierkorb.");
+        DeletedAt = now;
+        PurgeAt = now.AddDays(30);
+        Version++;
+        ChangeSequence++;
+    }
+
+    public void Restore(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is null || PurgeAt is null) throw Rule("shopping_list_not_trashed", "Die Einkaufsliste befindet sich nicht im Papierkorb.");
+        if (PurgeAt <= now) throw Rule("shopping_list_restore_expired", "Die Aufbewahrungsfrist ist abgelaufen.");
+        DeletedAt = null;
+        PurgeAt = null;
+        Version++;
+        ChangeSequence++;
     }
 
     private static LogisticsRuleException Rule(string code, string message) => new(code, message);

@@ -114,6 +114,13 @@ VALUES
     ('75000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
      '30000000-0000-0000-0000-000000000002', 'Abgelaufenes Material', 1, 4, 0, 2,
      now() - interval '31 days', now() - interval '1 day');
+
+INSERT INTO logistics.shopping_lists
+    ("Id", organization_id, camp_id, "Name", "Version", "ChangeSequence", "DeletedAt", "PurgeAt")
+VALUES
+    ('76000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', 'Abgelaufener Einkauf', 2, 2,
+     now() - interval '31 days', now() - interval '1 day');
 '@ | Out-Null
 
         dotnet run --project src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj `
@@ -173,6 +180,10 @@ BEGIN
     IF EXISTS (SELECT FROM logistics.material_requirements
                WHERE "Id" = '75000000-0000-0000-0000-000000000001') THEN
         RAISE EXCEPTION 'expired material requirement remained';
+    END IF;
+    IF EXISTS (SELECT FROM logistics.shopping_lists
+               WHERE "Id" = '76000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired shopping list remained';
     END IF;
 END
 $assert$;

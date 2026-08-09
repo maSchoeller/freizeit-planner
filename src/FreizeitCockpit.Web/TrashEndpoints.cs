@@ -25,6 +25,7 @@ internal static class TrashEndpoints
         IDevotionPlanning devotions,
         IAttachmentCatalog attachments,
         IMaterialPlanning materials,
+        IShoppingPlanning shopping,
         CancellationToken cancellationToken)
     {
         if (!PlanningEndpointSupport.TryActor(context.User, out var actorId))
@@ -86,6 +87,18 @@ internal static class TrashEndpoints
                 item.PurgeAt,
                 item.Version,
                 $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/logistics/material/{item.Id:D}/restore")));
+
+            var trashedShoppingLists = await shopping.ListTrashAsync(
+                new ShoppingTrashQuery(actorId, organizationId, campId),
+                cancellationToken);
+            result.AddRange(trashedShoppingLists.Select(item => new CampTrashItem(
+                "ShoppingList",
+                item.Id,
+                item.Name,
+                item.DeletedAt,
+                item.PurgeAt,
+                item.Version,
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/logistics/shopping-lists/{item.Id:D}/restore")));
 
             var ordered = result
                 .OrderByDescending(item => item.DeletedAt)

@@ -143,8 +143,35 @@ public sealed class LogisticsPlanningService(
     {
         await RequireWriteAsync(command.ActorId, command.OrganizationId, command.CampId, cancellationToken);
         var list = await RequireListAsync(command.OrganizationId, command.CampId, command.ShoppingListId, cancellationToken);
-        list.RequireVersion(command.ExpectedListVersion);
-        await state.DeleteShoppingListAsync(list, command.ExpectedListVersion, cancellationToken);
+        list.MoveToTrash(command.ExpectedListVersion, timeProvider.GetUtcNow());
+        await state.SaveShoppingListAsync(list, command.ExpectedListVersion, cancellationToken);
+    }
+
+    public async Task<IReadOnlyList<TrashedShoppingList>> ListTrashAsync(
+        ShoppingTrashQuery query,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(query.ActorId, query.OrganizationId, query.CampId,
+            CampAction.ManageCamp, false, cancellationToken);
+        return (await state.ListDeletedShoppingListsAsync(query.OrganizationId, query.CampId, cancellationToken))
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedShoppingList(item.Id, item.OrganizationId, item.CampId, item.Name,
+                item.DeletedAt!.Value, item.PurgeAt!.Value, item.Version))
+            .ToArray();
+    }
+
+    public async Task<ShoppingList> RestoreListAsync(
+        RestoreShoppingList command,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(command.ActorId, command.OrganizationId, command.CampId,
+            CampAction.ManageCamp, true, cancellationToken);
+        var list = await state.FindDeletedShoppingListAsync(
+            command.OrganizationId, command.CampId, command.ShoppingListId, cancellationToken)
+            ?? throw Rule("shopping_list_not_found", "Die Einkaufsliste wurde nicht gefunden.");
+        list.Restore(command.ExpectedListVersion, timeProvider.GetUtcNow());
+        await state.SaveShoppingListAsync(list, command.ExpectedListVersion, cancellationToken);
+        return ToView(list);
     }
 
     public async Task<ShoppingListChange> AddSpontaneousItemAsync(AddSpontaneousShoppingItem command, CancellationToken cancellationToken)

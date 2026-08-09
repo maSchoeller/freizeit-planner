@@ -98,7 +98,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
 
     public async ValueTask<IReadOnlyList<ShoppingListRecord>> ListShoppingListsAsync(Guid organizationId, Guid campId, CancellationToken cancellationToken)
     {
-        var lists = await dbContext.ShoppingLists.AsNoTracking().Where(x => x.OrganizationId == organizationId && x.CampId == campId).ToArrayAsync(cancellationToken);
+        var lists = await dbContext.ShoppingLists.AsNoTracking().Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt == null).ToArrayAsync(cancellationToken);
         var result = new List<ShoppingListRecord>(lists.Length);
         foreach (var list in lists) result.Add(await ToRecordAsync(list, cancellationToken));
         return result;
@@ -106,7 +106,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
 
     public async ValueTask<ShoppingListRecord?> FindShoppingListAsync(Guid organizationId, Guid campId, Guid shoppingListId, CancellationToken cancellationToken)
     {
-        var entity = await dbContext.ShoppingLists.AsNoTracking().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == shoppingListId, cancellationToken);
+        var entity = await dbContext.ShoppingLists.AsNoTracking().SingleOrDefaultAsync(x => x.OrganizationId == organizationId && x.CampId == campId && x.Id == shoppingListId && x.DeletedAt == null, cancellationToken);
         return entity is null ? null : await ToRecordAsync(entity, cancellationToken);
     }
 
@@ -125,13 +125,48 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
         await SaveAsync(cancellationToken);
     }
 
-    public async ValueTask DeleteShoppingListAsync(ShoppingListRecord list, long expectedVersion, CancellationToken cancellationToken)
+    public async ValueTask<IReadOnlyList<ShoppingListRecord>> ListDeletedShoppingListsAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
     {
-        var entity = ToEntity(list);
-        dbContext.ShoppingLists.Attach(entity);
-        dbContext.Entry(entity).Property(x => x.Version).OriginalValue = expectedVersion;
-        dbContext.ShoppingLists.Remove(entity);
-        await SaveAsync(cancellationToken);
+        var entities = await dbContext.ShoppingLists.AsNoTracking()
+            .Where(x => x.OrganizationId == organizationId && x.CampId == campId && x.DeletedAt != null)
+            .ToArrayAsync(cancellationToken);
+        var result = new List<ShoppingListRecord>(entities.Length);
+        foreach (var entity in entities) result.Add(await ToRecordAsync(entity, cancellationToken));
+        return result;
+    }
+
+    public async ValueTask<ShoppingListRecord?> FindDeletedShoppingListAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid shoppingListId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.ShoppingLists.AsNoTracking().SingleOrDefaultAsync(
+            x => x.OrganizationId == organizationId && x.CampId == campId
+                && x.Id == shoppingListId && x.DeletedAt != null,
+            cancellationToken);
+        return entity is null ? null : await ToRecordAsync(entity, cancellationToken);
+    }
+
+    public async ValueTask<int> PurgeDueShoppingListsAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        var ids = await dbContext.ShoppingLists.Where(x => x.PurgeAt != null && x.PurgeAt <= now)
+            .OrderBy(x => x.PurgeAt).ThenBy(x => x.Id).Select(x => x.Id).Take(batchSize)
+            .ToArrayAsync(cancellationToken);
+        if (ids.Length == 0) return 0;
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await dbContext.ShoppingCheckEvents.Where(x => ids.Contains(x.ShoppingListId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var deleted = await dbContext.ShoppingLists.Where(x => ids.Contains(x.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return deleted;
     }
 
     public async ValueTask AddShoppingItemsAsync(ShoppingListRecord list, IReadOnlyList<ShoppingItemRecord> items, long expectedListVersion, CancellationToken cancellationToken)
@@ -229,7 +264,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
         var items = await dbContext.ShoppingItems.AsNoTracking().Where(x => x.ShoppingListId == entity.Id && x.OrganizationId == entity.OrganizationId && x.CampId == entity.CampId).ToArrayAsync(cancellationToken);
         var ids = items.Select(x => x.Id).ToArray();
         var responsibilities = await dbContext.ShoppingItemResponsibilities.AsNoTracking().Where(x => ids.Contains(x.ShoppingItemId)).ToArrayAsync(cancellationToken);
-        return new ShoppingListRecord(entity.Id, entity.OrganizationId, entity.CampId, entity.Name, items.Select(x => ToRecord(x, responsibilities.Where(r => r.ShoppingItemId == x.Id).Select(r => r.UserId).ToArray())).ToArray(), entity.Version, entity.ChangeSequence);
+        return new ShoppingListRecord(entity.Id, entity.OrganizationId, entity.CampId, entity.Name, items.Select(x => ToRecord(x, responsibilities.Where(r => r.ShoppingItemId == x.Id).Select(r => r.UserId).ToArray())).ToArray(), entity.Version, entity.ChangeSequence, entity.DeletedAt, entity.PurgeAt);
     }
 
     private async Task SaveAsync(CancellationToken cancellationToken)
@@ -241,7 +276,7 @@ public sealed class EfLogisticsState(LogisticsDbContext dbContext) : ILogisticsS
     private static MaterialRequirementRecord ToRecord(MaterialRequirementEntity x, IReadOnlyList<Guid> users) => new(x.Id, x.OrganizationId, x.CampId, x.Name, x.Description, new LogisticsQuantity(x.QuantityValue, x.QuantityUnit, x.CustomUnitName), users, x.ProcurementSource, x.Note, x.Status, x.ScheduleEntryId, x.Version, x.DeletedAt, x.PurgeAt);
     private static MaterialRequirementEntity ToEntity(MaterialRequirementRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Description = x.Description, QuantityValue = x.Quantity.Value, QuantityUnit = x.Quantity.Unit, CustomUnitName = x.Quantity.CustomUnitName, ProcurementSource = x.ProcurementSource, Note = x.Note, Status = x.Status, ScheduleEntryId = x.ScheduleEntryId, Version = x.Version, DeletedAt = x.DeletedAt, PurgeAt = x.PurgeAt };
     private static IEnumerable<MaterialResponsibilityEntity> MaterialResponsibilities(MaterialRequirementRecord x) => x.ResponsibleUserIds.Select(userId => new MaterialResponsibilityEntity { MaterialRequirementId = x.Id, UserId = userId, OrganizationId = x.OrganizationId, CampId = x.CampId });
-    private static ShoppingListEntity ToEntity(ShoppingListRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Version = x.Version, ChangeSequence = x.ChangeSequence };
+    private static ShoppingListEntity ToEntity(ShoppingListRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, Name = x.Name, Version = x.Version, ChangeSequence = x.ChangeSequence, DeletedAt = x.DeletedAt, PurgeAt = x.PurgeAt };
     private static ShoppingItemRecord ToRecord(ShoppingItemEntity x, IReadOnlyList<Guid> users) => new(x.Id, x.OrganizationId, x.CampId, x.ShoppingListId, new ShoppingItemContent(x.Name, new LogisticsQuantity(x.QuantityValue, x.QuantityUnit, x.CustomUnitName), users, x.Store, x.Note), ToSource(x), x.IsChecked, x.CheckedByUserId, x.CheckedAt, x.Version);
     private static ShoppingItemEntity ToEntity(ShoppingItemRecord x) => new() { Id = x.Id, OrganizationId = x.OrganizationId, CampId = x.CampId, ShoppingListId = x.ShoppingListId, Name = x.Name, QuantityValue = x.Quantity.Value, QuantityUnit = x.Quantity.Unit, CustomUnitName = x.Quantity.CustomUnitName, Store = x.Store, Note = x.Note, SourceKind = x.Source.Kind, SourceLabel = x.Source.Label, CateringMealId = x.Source.Catering?.MealId, CateringRecipeSnapshotId = x.Source.Catering?.RecipeSnapshotId, CateringSnapshotIngredientId = x.Source.Catering?.SnapshotIngredientId, CateringSourceRecipeId = x.Source.Catering?.SourceRecipeId, CateringSourceRecipeVersionNumber = x.Source.Catering?.SourceRecipeVersionNumber, MaterialRequirementId = x.Source.Material?.MaterialRequirementId, MaterialRequirementVersion = x.Source.Material?.RequirementVersion, IsChecked = x.IsChecked, CheckedByUserId = x.CheckedByUserId, CheckedAt = x.CheckedAt, Version = x.Version };
     private static ShoppingItemSource ToSource(ShoppingItemEntity x) => new(x.SourceKind, x.SourceLabel, x.SourceKind == ShoppingSourceKind.Catering ? new CateringSourceReference(x.CateringMealId!.Value, x.CateringRecipeSnapshotId!.Value, x.CateringSnapshotIngredientId!.Value, x.CateringSourceRecipeId!.Value, x.CateringSourceRecipeVersionNumber!.Value) : null, x.SourceKind == ShoppingSourceKind.MaterialRequirement ? new MaterialSourceReference(x.MaterialRequirementId!.Value, x.MaterialRequirementVersion!.Value) : null);

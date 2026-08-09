@@ -16,7 +16,8 @@
   requirements disappear from active reads and can be listed/restored only with `CampAction.ManageCamp`.
 - `IShoppingPlanning` owns multiple named lists and one unified item shape for spontaneous, catering and material
   sources. List `Version` protects structural mutations; `ChangeSequence` changes for every list or item mutation
-  and is the polling/ETag value. Item `Version` protects independent item edits and check actions.
+  and is the polling/ETag value. List deletion is a 30-day soft delete that retains every item; only managers can
+  browse or restore it. Item `Version` protects independent item edits and check actions.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
 - `IShoppingAudit` exposes immutable check/reopen events with server-recorded actor, timestamp and resulting item
@@ -32,4 +33,5 @@
 - Privacy maintenance deletes all Organization-owned logistics aggregates and check events. Account erasure removes
   responsibility rows and replaces required check/audit actor identifiers with the shared pseudonymous UUID.
 - `ILogisticsRetention` is cleanup-only. It permanently removes material requirements at their deterministic
-  30-day deadline in bounded batches; interactive restore also rechecks the current Camp archive state and deadline.
+  30-day deadline and due shopping-list aggregates in bounded batches. List purge removes items, responsibilities,
+  and immutable check audit in one transaction; interactive restore rechecks the Camp archive state and deadline.

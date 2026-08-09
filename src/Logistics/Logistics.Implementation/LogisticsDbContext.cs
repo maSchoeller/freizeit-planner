@@ -73,6 +73,7 @@ public sealed class LogisticsDbContext(DbContextOptions<LogisticsDbContext> opti
         entity.Property(x => x.Name).HasMaxLength(160);
         entity.Property(x => x.Version).IsConcurrencyToken();
         entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.Name });
+        entity.HasIndex(x => new { x.OrganizationId, x.CampId, x.PurgeAt });
     }
 
     private static void ConfigureShoppingItem(Microsoft.EntityFrameworkCore.Metadata.Builders.EntityTypeBuilder<ShoppingItemEntity> entity)
@@ -158,7 +159,7 @@ internal sealed class MaterialRequirementEntity : ITenantCampEntity
     public long Version { get; set; } = 1;
 }
 internal sealed class MaterialResponsibilityEntity : ITenantCampEntity { public Guid MaterialRequirementId { get; set; } public Guid UserId { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } }
-internal sealed class ShoppingListEntity : ITenantCampEntity { public Guid Id { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } public required string Name { get; set; } public long Version { get; set; } = 1; public long ChangeSequence { get; set; } = 1; }
+internal sealed class ShoppingListEntity : ITenantCampEntity { public Guid Id { get; set; } public Guid OrganizationId { get; set; } public Guid CampId { get; set; } public required string Name { get; set; } public long Version { get; set; } = 1; public long ChangeSequence { get; set; } = 1; public DateTimeOffset? DeletedAt { get; set; } public DateTimeOffset? PurgeAt { get; set; } }
 internal sealed class ShoppingItemEntity : ITenantCampEntity
 {
     public Guid Id { get; set; }

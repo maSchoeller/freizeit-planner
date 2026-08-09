@@ -89,7 +89,8 @@ type SearchResult = {
   version: number;
 };
 type CampTrashItem = {
-  objectType: "Note" | "Devotion" | "Attachment" | "MaterialRequirement";
+  objectType:
+    "Note" | "Devotion" | "Attachment" | "MaterialRequirement" | "ShoppingList";
   objectId: string;
   title: string;
   deletedAt: string;
