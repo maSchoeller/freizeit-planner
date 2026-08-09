@@ -33,6 +33,10 @@
   Camps by upcoming/ongoing/past, and links only readable results. Owner/Admin creation uses antiforgery; settings
   update, archive, and reactivate use antiforgery plus the current numeric Version in `If-Match`. Archived fields are
   disabled in the browser while the API remains authoritative.
+- Workspace runtime: speaking Organization/Camp slugs are resolved through the signed-in memberships and
+  `ICampManagement.GetBySlugAsync`; every module route then uses the returned OrganizationId and CampId rather than
+  seed constants. Schedule range, initial calendar date, export range and named IANA zone come from that Camp.
+  Archived status disables every visible mutation and remains announced in the content area on narrow layouts.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
   `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion

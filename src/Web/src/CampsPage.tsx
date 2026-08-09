@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import { SettingsLayout } from "./OrganizationMembersPage";
@@ -243,6 +244,7 @@ export function CampsPage() {
 export function CampSettingsPage() {
   const { organizationSlug = "", campSlug = "" } = useParams();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [membership, setMembership] = useState<Membership | null>(null);
   const [camp, setCamp] = useState<CampView | null>(null);
   const [loading, setLoading] = useState(true);
@@ -317,6 +319,9 @@ export function CampSettingsPage() {
         );
       const updated = (await response.json()) as CampView;
       setCamp(updated);
+      await queryClient.invalidateQueries({
+        queryKey: ["camp-workspace", organizationSlug],
+      });
       setNotice("Camp-Einstellungen wurden gespeichert.");
       if (updated.slug !== campSlug)
         void navigate(
@@ -359,6 +364,9 @@ export function CampSettingsPage() {
         );
       const updated = (await response.json()) as CampView;
       setCamp(updated);
+      await queryClient.invalidateQueries({
+        queryKey: ["camp-workspace", organizationSlug],
+      });
       setNotice(
         status === 1
           ? "Das Camp wurde archiviert."

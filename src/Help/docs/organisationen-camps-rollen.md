@@ -34,6 +34,10 @@ Camp schreibgeschützt; Lesen, Drucken und Exportieren bleiben möglich. Berecht
 Einstellungen mit **Camp reaktivieren** wieder für Änderungen öffnen. Wird zwischenzeitlich eine neuere Version
 gespeichert, lade die Seite neu und wiederhole deine Änderung auf Basis des aktuellen Stands.
 
+Beim Öffnen eines Camps übernimmt der Arbeitsbereich automatisch dessen Zeitraum und Zeitzone. Ein archiviertes Camp
+zeigt auf jeder Fachseite den Hinweis **Archiviert · nur lesen** und deaktiviert dort Änderungen; über
+**Camp-Einstellungen** kann es mit ausreichender Berechtigung reaktiviert werden.
+
 ## Mitglieder verwalten
 
 Owner und Organisations-Admins öffnen unter **Mein Konto → Organisationen** die Mitgliederverwaltung. Eine Rolle

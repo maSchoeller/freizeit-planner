@@ -20,6 +20,8 @@ const calendarMock = vi.hoisted(() => ({
     | {
         eventDrop?: (info: CalendarMutationInfo) => void;
         eventResize?: (info: CalendarMutationInfo) => void;
+        initialDate?: string;
+        timeZone?: string;
       }
     | undefined,
 }));
@@ -35,6 +37,33 @@ function renderRoute(path: string) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  if (path.includes("/o/sonnenhoehe/camps/sommerfreizeit-2026")) {
+    queryClient.setQueryData(
+      ["camp-workspace", "sonnenhoehe", "sommerfreizeit-2026"],
+      {
+        organizationId: "20000000-0000-0000-0000-000000000001",
+        organizationName: "Sonnenhöhe e. V.",
+        organizationSlug: "sonnenhoehe",
+        campId: "30000000-0000-0000-0000-000000000001",
+        campSlug: "sommerfreizeit-2026",
+        campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",
+        camp: {
+          id: "30000000-0000-0000-0000-000000000001",
+          organizationId: "20000000-0000-0000-0000-000000000001",
+          name: "Sommerfreizeit 2026",
+          slug: "sommerfreizeit-2026",
+          description: "Gemeinsame Woche am See",
+          startsOn: "2026-08-01",
+          endsOn: "2026-08-08",
+          timeZoneId: "Europe/Berlin",
+          defaultPortions: 42,
+          status: 0,
+          period: 1,
+          version: 4,
+        },
+      },
+    );
+  }
   return render(
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[path]}>
@@ -55,6 +84,74 @@ describe("camp workspace", () => {
     vi.unstubAllGlobals();
     localStorage.clear();
     calendarMock.props = undefined;
+  });
+
+  it("resolves a speaking camp route and keeps an archived camp read-only", async () => {
+    const organizationId = "21000000-0000-0000-0000-000000000001";
+    const campId = "31000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn((request: RequestInfo | URL) => {
+      const path = requestPath(request);
+      if (path === "/api/v1/account/memberships")
+        return Promise.resolve(
+          new Response(
+            JSON.stringify([
+              {
+                organizationId,
+                organizationName: "Nordlicht e. V.",
+                organizationSlug: "nordlicht",
+                role: 4,
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      if (path.includes("/camps/by-slug/winterfreizeit"))
+        return Promise.resolve(
+          new Response(
+            JSON.stringify({
+              id: campId,
+              organizationId,
+              name: "Winterfreizeit",
+              slug: "winterfreizeit",
+              description: null,
+              startsOn: "2027-01-02",
+              endsOn: "2027-01-09",
+              timeZoneId: "Europe/Berlin",
+              defaultPortions: 24,
+              status: 1,
+              period: 0,
+              version: 3,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          ),
+        );
+      return Promise.resolve(
+        new Response(JSON.stringify([]), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    renderRoute("/o/nordlicht/camps/winterfreizeit/tagesplan");
+
+    expect(await screen.findByText("Winterfreizeit")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Archiviert · nur lesen\. Inhalte bleiben lesbar/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Eintrag erstellen" }),
+    ).toBeDisabled();
+    expect(calendarMock.props).toMatchObject({
+      initialDate: "2027-01-02",
+      timeZone: "Europe/Berlin",
+    });
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining(
+        `/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2027-01-02&toDateExclusive=2027-01-10`,
+      ),
+      expect.objectContaining({ credentials: "same-origin" }),
+    );
   });
 
   it("offers every planning area as a real route", () => {
@@ -444,8 +541,8 @@ describe("camp workspace", () => {
       isAllDay: true,
       localStart: null,
       localEnd: null,
-      startDate: "2026-08-03",
-      endDateExclusive: "2026-08-04",
+      startDate: "2026-08-01",
+      endDateExclusive: "2026-08-02",
       startChoice: 0,
       endChoice: 0,
     });

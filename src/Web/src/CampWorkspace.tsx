@@ -15,9 +15,17 @@ import {
   Settings,
   ShoppingCart,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { Link, NavLink, Route, Routes, useLocation } from "react-router-dom";
+import {
+  Link,
+  NavLink,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
+import type { components } from "./api/schema";
 import {
   clearOfflineSnapshot,
   loadOfflineSnapshot,
@@ -25,9 +33,26 @@ import {
 } from "./offlineSnapshot";
 import { getAntiforgeryToken } from "./api/security";
 
-const organizationId = "20000000-0000-0000-0000-000000000001";
-const campId = "30000000-0000-0000-0000-000000000001";
-const campBase = "/o/sonnenhoehe/camps/sommerfreizeit-2026";
+type AccountMembership = components["schemas"]["AccountMembershipView"];
+type WorkspaceCamp = components["schemas"]["CampView"];
+
+type CampRuntime = {
+  organizationId: string;
+  organizationName: string;
+  organizationSlug: string;
+  campId: string;
+  campSlug: string;
+  campBase: string;
+  camp: WorkspaceCamp;
+};
+
+const CampRuntimeContext = createContext<CampRuntime | null>(null);
+
+function useCampRuntime() {
+  const runtime = useContext(CampRuntimeContext);
+  if (!runtime) throw new Error("Camp-Kontext fehlt.");
+  return runtime;
+}
 
 const navigation = [
   { to: "", label: "Übersicht", icon: ClipboardList, end: true },
@@ -105,12 +130,10 @@ class ScheduleUpdateError extends Error {
   }
 }
 
-const campTimeZone = "Europe/Berlin";
-
-function formatCampLocalDateTime(value?: string) {
+function formatCampLocalDateTime(value: string | undefined, timeZone: string) {
   if (!value) return { date: "", time: "" };
   const parts = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: campTimeZone,
+    timeZone,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -126,13 +149,16 @@ function formatCampLocalDateTime(value?: string) {
   };
 }
 
-function createScheduleEditDraft(entry: ScheduleEntry): ScheduleEditDraft {
+function createScheduleEditDraft(
+  entry: ScheduleEntry,
+  timeZone: string,
+): ScheduleEditDraft {
   const start = entry.timing.isAllDay
     ? { date: entry.timing.startDate ?? "", time: "" }
-    : formatCampLocalDateTime(entry.timing.startsAtUtc);
+    : formatCampLocalDateTime(entry.timing.startsAtUtc, timeZone);
   const end = entry.timing.isAllDay
     ? { date: entry.timing.endDateExclusive ?? "", time: "" }
-    : formatCampLocalDateTime(entry.timing.endsAtUtc);
+    : formatCampLocalDateTime(entry.timing.endsAtUtc, timeZone);
   return {
     isAllDay: entry.timing.isAllDay,
     startDate: start.date,
@@ -274,11 +300,11 @@ function optimisticEntryFromCalendar(
   };
 }
 
-function scheduleTimingLabel(entry: ScheduleEntry) {
+function scheduleTimingLabel(entry: ScheduleEntry, timeZone: string) {
   if (entry.timing.isAllDay)
     return `${entry.timing.startDate ?? ""} · ganztägig`;
   const formatter = new Intl.DateTimeFormat("de-DE", {
-    timeZone: campTimeZone,
+    timeZone,
     weekday: "short",
     day: "2-digit",
     month: "2-digit",
@@ -290,7 +316,7 @@ function scheduleTimingLabel(entry: ScheduleEntry) {
     : "";
   const end = entry.timing.endsAtUtc
     ? new Intl.DateTimeFormat("de-DE", {
-        timeZone: campTimeZone,
+        timeZone,
         hour: "2-digit",
         minute: "2-digit",
       }).format(new Date(entry.timing.endsAtUtc))
@@ -401,6 +427,7 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 function useCampQuery<T>(key: string, path: string) {
+  const { organizationId, campId } = useCampRuntime();
   return useQuery({
     queryKey: [organizationId, campId, key],
     queryFn: () => getJson<T>(path),
@@ -409,6 +436,96 @@ function useCampQuery<T>(key: string, path: string) {
 }
 
 export function CampWorkspace() {
+  const { organizationSlug = "", campSlug = "" } = useParams();
+  const workspace = useQuery({
+    queryKey: ["camp-workspace", organizationSlug, campSlug],
+    queryFn: () => resolveCampRuntime(organizationSlug, campSlug),
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+
+  if (workspace.isLoading)
+    return (
+      <div className="account-layout">
+        <header className="topbar">
+          <Link className="brand" to="/konto">
+            <span className="brand-mark" aria-hidden="true">
+              F
+            </span>
+            <span>Freizeit-Cockpit</span>
+          </Link>
+        </header>
+        <main id="main" className="account-page">
+          <p role="status">Camp wird geladen …</p>
+        </main>
+      </div>
+    );
+  if (workspace.error || !workspace.data)
+    return (
+      <div className="account-layout">
+        <header className="topbar">
+          <Link className="brand" to={`/o/${organizationSlug}/camps`}>
+            <span className="brand-mark" aria-hidden="true">
+              F
+            </span>
+            <span>Freizeit-Cockpit</span>
+          </Link>
+        </header>
+        <main id="main" className="account-page">
+          <h1>Camp nicht verfügbar</h1>
+          <p role="alert" className="error-message">
+            {workspace.error instanceof Error
+              ? workspace.error.message
+              : "Das Camp konnte nicht geladen werden."}
+          </p>
+        </main>
+      </div>
+    );
+
+  return (
+    <CampRuntimeContext.Provider value={workspace.data}>
+      <CampWorkspaceShell />
+    </CampRuntimeContext.Provider>
+  );
+}
+
+async function resolveCampRuntime(
+  organizationSlug: string,
+  campSlug: string,
+): Promise<CampRuntime> {
+  const membershipsResponse = await fetch("/api/v1/account/memberships", {
+    credentials: "same-origin",
+  });
+  if (!membershipsResponse.ok)
+    throw new Error("Deine Organisationen konnten nicht geladen werden.");
+  const memberships = (await membershipsResponse.json()) as AccountMembership[];
+  const membership = memberships.find(
+    (item) => item.organizationSlug === organizationSlug,
+  );
+  if (!membership)
+    throw new Error("Du hast keinen Zugriff auf diese Organisation.");
+
+  const campResponse = await fetch(
+    `/api/v1/organizations/${membership.organizationId}/camps/by-slug/${encodeURIComponent(campSlug)}`,
+    { credentials: "same-origin" },
+  );
+  if (!campResponse.ok)
+    throw new Error("Das Camp wurde nicht gefunden oder ist nicht zugänglich.");
+  const camp = (await campResponse.json()) as WorkspaceCamp;
+  return {
+    organizationId: membership.organizationId,
+    organizationName: membership.organizationName,
+    organizationSlug,
+    campId: camp.id,
+    campSlug: camp.slug,
+    campBase: `/o/${organizationSlug}/camps/${camp.slug}`,
+    camp,
+  };
+}
+
+function CampWorkspaceShell() {
+  const runtime = useCampRuntime();
+  const { campBase, camp } = runtime;
   const location = useLocation();
   const [offline, setOffline] = useState(!navigator.onLine);
   useEffect(() => {
@@ -424,6 +541,7 @@ export function CampWorkspace() {
   useEffect(() => {
     if (!location.pathname.startsWith(campBase)) clearOfflineSnapshot();
   }, [location.pathname]);
+  const readOnly = offline || camp.status === 1;
 
   return (
     <div className="app-shell">
@@ -446,7 +564,11 @@ export function CampWorkspace() {
             className={offline ? "connection offline" : "connection"}
             role="status"
           >
-            {offline ? "Offline · nur gespeicherter Stand" : "Online"}
+            {offline
+              ? "Offline · nur gespeicherter Stand"
+              : camp.status === 1
+                ? "Archiviert · nur lesen"
+                : "Online"}
           </span>
           <Link
             className="profile-button"
@@ -459,8 +581,8 @@ export function CampWorkspace() {
       </header>
       <div className="workspace">
         <aside className="sidebar" aria-label="Camp-Navigation">
-          <p className="eyebrow">Sonnenhöhe e. V.</p>
-          <p className="camp-name">Sommerfreizeit 2026</p>
+          <p className="eyebrow">{runtime.organizationName}</p>
+          <p className="camp-name">{camp.name}</p>
           <nav aria-label="Camp-Navigation">
             <ul>
               {navigation.map(({ to, label, icon: Icon, end }) => (
@@ -478,26 +600,32 @@ export function CampWorkspace() {
           </a>
         </aside>
         <main id="main" tabIndex={-1}>
+          {camp.status === 1 ? (
+            <p className="notice" role="status">
+              Archiviert · nur lesen. Inhalte bleiben lesbar und exportierbar;
+              Änderungen sind erst nach der Reaktivierung möglich.
+            </p>
+          ) : null}
           <Routes>
             <Route index element={<OverviewPage />} />
             <Route
               path="tagesplan"
-              element={<SchedulePage offline={offline} />}
+              element={<SchedulePage offline={readOnly} />}
             />
-            <Route path="essen" element={<MealsPage offline={offline} />} />
+            <Route path="essen" element={<MealsPage offline={readOnly} />} />
             <Route
               path="logistik"
-              element={<LogisticsPage offline={offline} />}
+              element={<LogisticsPage offline={readOnly} />}
             />
             <Route
               path="andachten"
-              element={<DevotionsPage offline={offline} />}
+              element={<DevotionsPage offline={readOnly} />}
             />
-            <Route path="notizen" element={<NotesPage offline={offline} />} />
-            <Route path="dateien" element={<FilesPage offline={offline} />} />
+            <Route path="notizen" element={<NotesPage offline={readOnly} />} />
+            <Route path="dateien" element={<FilesPage offline={readOnly} />} />
             <Route
               path="suche"
-              element={<SearchTrashPage offline={offline} />}
+              element={<SearchTrashPage offline={readOnly} />}
             />
           </Routes>
         </main>
@@ -549,6 +677,7 @@ function QueryState({
 }
 
 function OverviewPage() {
+  const { organizationId, campId } = useCampRuntime();
   const activity = useCampQuery<ActivityEvent[]>(
     "activity",
     `/api/v1/organizations/${organizationId}/camps/${campId}/activity?limit=5`,
@@ -654,7 +783,9 @@ function SummaryCard({
 }
 
 function SchedulePage({ offline }: { offline: boolean }) {
-  const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2026-08-01&toDateExclusive=2026-08-09`;
+  const { organizationId, campId, camp } = useCampRuntime();
+  const toDateExclusive = nextLocalDate(camp.endsOn);
+  const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${toDateExclusive}`;
   const query = useCampQuery<ScheduleEntry[]>("schedule", path);
   const candidatesQuery = useCampQuery<CampMemberSummary[]>(
     "responsibility-candidates",
@@ -674,8 +805,10 @@ function SchedulePage({ offline }: { offline: boolean }) {
   const [scheduleTitle, setScheduleTitle] = useState("");
   const [scheduleDescription, setScheduleDescription] = useState("");
   const [scheduleAllDay, setScheduleAllDay] = useState(false);
-  const [scheduleDate, setScheduleDate] = useState("2026-08-03");
-  const [scheduleEndDate, setScheduleEndDate] = useState("2026-08-04");
+  const [scheduleDate, setScheduleDate] = useState(camp.startsOn);
+  const [scheduleEndDate, setScheduleEndDate] = useState(
+    nextLocalDate(camp.startsOn),
+  );
   const [scheduleStart, setScheduleStart] = useState("12:00");
   const [scheduleEnd, setScheduleEnd] = useState("13:00");
   const [scheduleLocation, setScheduleLocation] = useState("");
@@ -935,7 +1068,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
       <PageHeading eyebrow="Planung" title="Tages- und Wochenplan">
         <p>
           Überlappungen sind erlaubt und werden informativ markiert. Alle Zeiten
-          gelten für Europe/Berlin.
+          gelten für {camp.timeZoneId}.
         </p>
       </PageHeading>
       <QueryState
@@ -977,7 +1110,8 @@ function SchedulePage({ offline }: { offline: boolean }) {
             luxonPlugin,
           ]}
           initialView="timeGridWeek"
-          timeZone={campTimeZone}
+          initialDate={camp.startsOn}
+          timeZone={camp.timeZoneId}
           locale="de"
           firstDay={1}
           allDayText="Ganztägig"
@@ -1481,7 +1615,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   <span>
                     {entry.location ?? "Kein Ort"} · {entry.category}
                   </span>
-                  <span>{scheduleTimingLabel(entry)}</span>
+                  <span>{scheduleTimingLabel(entry, camp.timeZoneId)}</span>
                 </div>
                 {entry.overlapsAnotherEntry && (
                   <span className="status info">Überschneidung</span>
@@ -1493,7 +1627,9 @@ function SchedulePage({ offline }: { offline: boolean }) {
                   onClick={() => {
                     setUpdateStatus("");
                     setEditCandidate(entry);
-                    setEditDraft(createScheduleEditDraft(entry));
+                    setEditDraft(
+                      createScheduleEditDraft(entry, camp.timeZoneId),
+                    );
                   }}
                 >
                   Bearbeiten
@@ -1583,6 +1719,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
 }
 
 function MealsPage({ offline }: { offline: boolean }) {
+  const { organizationId, campId } = useCampRuntime();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals`;
   const query = useCampQuery<Meal[]>("meals", path);
   const meals =
@@ -1719,6 +1856,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
 }
 
 function DevotionsPage({ offline }: { offline: boolean }) {
+  const { organizationId, campId } = useCampRuntime();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/devotions`;
   const query = useCampQuery<Devotion[]>("devotions", path);
   return (
@@ -1767,6 +1905,7 @@ function DevotionsPage({ offline }: { offline: boolean }) {
 }
 
 function NotesPage({ offline }: { offline: boolean }) {
+  const { organizationId, campId } = useCampRuntime();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/notes`;
   const query = useCampQuery<Note[]>("notes", path);
   return (
@@ -1856,6 +1995,7 @@ function FilesPage({ offline }: { offline: boolean }) {
 }
 
 function SearchTrashPage({ offline }: { offline: boolean }) {
+  const { organizationId, campId, camp } = useCampRuntime();
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState("");
   const queryClient = useQueryClient();
@@ -1996,7 +2136,7 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
       <div className="toolbar">
         <a
           className="secondary-action"
-          href={`${exportBase}/schedule.csv?fromDate=2026-08-01&toDateExclusive=2026-08-09`}
+          href={`${exportBase}/schedule.csv?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`}
         >
           Zeitplan als CSV
         </a>

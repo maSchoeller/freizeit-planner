@@ -9,6 +9,31 @@ describe("Dashboard", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
     });
+    queryClient.setQueryData(
+      ["camp-workspace", "sonnenhoehe", "sommerfreizeit-2026"],
+      {
+        organizationId: "20000000-0000-0000-0000-000000000001",
+        organizationName: "Sonnenhöhe e. V.",
+        organizationSlug: "sonnenhoehe",
+        campId: "30000000-0000-0000-0000-000000000001",
+        campSlug: "sommerfreizeit-2026",
+        campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",
+        camp: {
+          id: "30000000-0000-0000-0000-000000000001",
+          organizationId: "20000000-0000-0000-0000-000000000001",
+          name: "Sommerfreizeit 2026",
+          slug: "sommerfreizeit-2026",
+          description: "Gemeinsame Woche am See",
+          startsOn: "2026-08-01",
+          endsOn: "2026-08-08",
+          timeZoneId: "Europe/Berlin",
+          defaultPortions: 42,
+          status: 0,
+          period: 1,
+          version: 4,
+        },
+      },
+    );
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter
