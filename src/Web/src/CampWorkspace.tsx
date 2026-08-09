@@ -484,6 +484,26 @@ type RecipeDetail = {
   };
   version: number;
 };
+type RecipeAttachment = {
+  id: string;
+  originalFileName: string;
+  mediaType: number;
+  contentType: string;
+  sizeBytes: number;
+  version: number;
+};
+type RecipeAttachmentQuota = {
+  limitBytes: number;
+  usedBytes: number;
+  pendingBytes: number;
+  availableBytes: number;
+};
+type AttachmentReadGrant = {
+  token: string;
+  attachmentId: string;
+  expiresAt: string;
+  disposition: number;
+};
 type IngredientMergePreview = {
   source: Ingredient;
   target: Ingredient;
@@ -2363,6 +2383,218 @@ function formatRecipeQuantity(quantity: RecipeQuantity) {
   return `${value} ${unit}`;
 }
 
+function formatFileSize(bytes: number) {
+  const mebibytes = bytes / (1024 * 1024);
+  if (mebibytes >= 1)
+    return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 }).format(mebibytes)} MiB`;
+  return `${new Intl.NumberFormat("de-DE", { maximumFractionDigits: 0 }).format(bytes / 1024)} KiB`;
+}
+
+function RecipeAttachmentsPanel({
+  organizationId,
+  recipeId,
+  recipeName,
+  canUpload,
+}: {
+  organizationId: string;
+  recipeId: string;
+  recipeName: string;
+  canUpload: boolean;
+}) {
+  const queryClient = useQueryClient();
+  const basePath = `/api/v1/organizations/${organizationId}/recipe-files`;
+  const attachmentQueryKey = [organizationId, "recipe-files", recipeId];
+  const quotaQueryKey = [organizationId, "recipe-files", "quota"];
+  const attachments = useQuery({
+    queryKey: attachmentQueryKey,
+    queryFn: () =>
+      getJson<RecipeAttachment[]>(`${basePath}?ownerId=${recipeId}`),
+    retry: false,
+  });
+  const quota = useQuery({
+    queryKey: quotaQueryKey,
+    queryFn: () => getJson<RecipeAttachmentQuota>(`${basePath}/quota`),
+    retry: false,
+  });
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [inputKey, setInputKey] = useState(0);
+  const [notice, setNotice] = useState("");
+  const uploadAttachment = useMutation({
+    mutationFn: async () => {
+      if (!selectedFile) throw new Error("Wähle zuerst eine Datei aus.");
+      if (selectedFile.size > 10 * 1024 * 1024)
+        throw new Error("Eine Datei darf höchstens zehn MiB groß sein.");
+      const token = await getAntiforgeryToken();
+      const body = new FormData();
+      body.append("file", selectedFile);
+      const response = await fetch(`${basePath}?ownerId=${recipeId}`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-TOKEN": token },
+        body,
+      });
+      if (!response.ok) {
+        const problem = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(
+          problem?.detail ?? "Die Datei konnte nicht hochgeladen werden.",
+        );
+      }
+      return (await response.json()) as RecipeAttachment;
+    },
+    onSuccess: async (uploaded) => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: attachmentQueryKey }),
+        queryClient.invalidateQueries({ queryKey: quotaQueryKey }),
+      ]);
+      setNotice(`${uploaded.originalFileName} wurde sicher hochgeladen.`);
+      setSelectedFile(null);
+      setInputKey((current) => current + 1);
+    },
+  });
+  const openAttachment = useMutation({
+    mutationFn: async (attachment: RecipeAttachment) => {
+      const viewer = window.open("", "_blank", "noopener,noreferrer");
+      try {
+        if (!viewer)
+          throw new Error(
+            "Die Datei konnte nicht geöffnet werden. Erlaube Pop-ups für diese Seite und versuche es erneut.",
+          );
+        const token = await getAntiforgeryToken();
+        const response = await fetch(
+          `${basePath}/${attachment.id}/read-grant`,
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "X-CSRF-TOKEN": token },
+          },
+        );
+        if (!response.ok) {
+          const problem = (await response.json().catch(() => null)) as {
+            detail?: string;
+          } | null;
+          throw new Error(
+            problem?.detail ?? "Die Datei konnte nicht geöffnet werden.",
+          );
+        }
+        const grant = (await response.json()) as AttachmentReadGrant;
+        viewer.location.href = `${basePath}/content?token=${encodeURIComponent(grant.token)}`;
+        return attachment;
+      } catch (error) {
+        viewer?.close();
+        throw error;
+      }
+    },
+  });
+
+  return (
+    <section
+      className="recipe-attachments"
+      aria-label={`Dateien zu ${recipeName}`}
+    >
+      <div className="section-heading">
+        <div>
+          <h3>Dateien</h3>
+          <p className="form-hint">
+            PDF, JPEG, PNG oder WebP · höchstens 10 MiB pro Datei
+          </p>
+        </div>
+        {quota.data ? (
+          <p className="quota-usage">
+            {formatFileSize(quota.data.usedBytes)} von{" "}
+            {formatFileSize(quota.data.limitBytes)} belegt
+          </p>
+        ) : null}
+      </div>
+      <QueryState loading={attachments.isLoading} error={attachments.error} />
+      {quota.error ? (
+        <p role="alert" className="error-message">
+          {quota.error.message}
+        </p>
+      ) : null}
+      {attachments.data?.length ? (
+        <ul className="recipe-attachment-list">
+          {attachments.data.map((attachment) => (
+            <li key={attachment.id}>
+              <span>
+                <strong>{attachment.originalFileName}</strong>
+                <small>{formatFileSize(attachment.sizeBytes)}</small>
+              </span>
+              <button
+                type="button"
+                className="secondary-action"
+                disabled={
+                  openAttachment.isPending &&
+                  openAttachment.variables?.id === attachment.id
+                }
+                onClick={() => openAttachment.mutate(attachment)}
+              >
+                {attachment.originalFileName} öffnen
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : !attachments.isLoading && !attachments.error ? (
+        <p className="empty-state">Noch keine Datei am Rezept.</p>
+      ) : null}
+      {openAttachment.error ? (
+        <p role="alert" className="error-message">
+          {openAttachment.error.message}
+        </p>
+      ) : null}
+      {canUpload ? (
+        <form
+          className="recipe-attachment-upload"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNotice("");
+            uploadAttachment.mutate();
+          }}
+        >
+          <label>
+            Datei für das Rezept
+            <input
+              key={inputKey}
+              type="file"
+              accept="application/pdf,image/jpeg,image/png,image/webp"
+              onChange={(event) => {
+                setSelectedFile(event.target.files?.[0] ?? null);
+                setNotice("");
+                uploadAttachment.reset();
+              }}
+            />
+          </label>
+          <button
+            type="submit"
+            className="primary-action"
+            disabled={!selectedFile || uploadAttachment.isPending}
+          >
+            {uploadAttachment.isPending
+              ? `${selectedFile?.name ?? "Datei"} wird hochgeladen …`
+              : `${selectedFile?.name ?? "Datei"} hochladen`}
+          </button>
+        </form>
+      ) : null}
+      {uploadAttachment.error ? (
+        <p role="alert" className="error-message">
+          {uploadAttachment.error.message}
+        </p>
+      ) : null}
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
+      <p className="muted">
+        Dateien bleiben privat und werden erst nach einer aktuellen
+        Berechtigungsprüfung kurzzeitig ausgeliefert. Eine Malware-Prüfung ist
+        nicht enthalten; lade nur vertrauenswürdige Dateien hoch.
+      </p>
+    </section>
+  );
+}
+
 function RecipeDetailPanel({
   organizationId,
   recipeId,
@@ -2819,6 +3051,14 @@ function RecipeDetailPanel({
             </button>
           </div>
         </form>
+      ) : null}
+      {current ? (
+        <RecipeAttachmentsPanel
+          organizationId={organizationId}
+          recipeId={recipeId}
+          recipeName={current.name}
+          canUpload={canManage && !readOnly}
+        />
       ) : null}
     </section>
   );

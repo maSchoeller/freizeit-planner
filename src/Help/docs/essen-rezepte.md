@@ -31,6 +31,16 @@ an. Bereits in Mahlzeiten verwendete Rezept-Snapshots bleiben unverändert. Wurd
 Bearbeitung bereits von jemand anderem geändert, schließe die Bearbeitung, öffne den aktuellen Stand erneut und
 prüfe deine Änderungen, bevor du sie noch einmal speicherst.
 
+## Dateien am Rezept
+
+Im geöffneten Rezept zeigt **Dateien** alle bereits hinterlegten Anhänge und die Belegung der gemeinsamen
+100-MiB-Rezeptbibliotheksquote. Owner und Organisations-Admins können PDF-, JPEG-, PNG- oder WebP-Dateien bis
+höchstens zehn MiB auswählen und hochladen. Andere Formate werden nicht akzeptiert.
+
+**Dateiname öffnen** fordert zuerst eine kurzlebige, nur für dein Konto gültige Leseberechtigung an. Bilder werden
+sicher angezeigt, PDFs nur heruntergeladen; die Produktionsdateien bleiben privat. Die Anwendung führt bewusst
+keine Malware-Prüfung durch. Lade deshalb ausschließlich Dateien aus vertrauenswürdigen Quellen hoch.
+
 ## Zutaten verwalten
 
 Owner und Organisations-Admins öffnen **Zutaten verwalten**. Neue Namen werden vereinheitlicht; Schreibweise,

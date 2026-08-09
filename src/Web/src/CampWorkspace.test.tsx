@@ -448,6 +448,12 @@ describe("camp workspace", () => {
   it("opens a recipe and saves edits as a version-safe revision", async () => {
     const recipeId = "42000000-0000-0000-0000-000000000001";
     const ingredientId = "41000000-0000-0000-0000-000000000001";
+    const attachmentId = "45000000-0000-0000-0000-000000000001";
+    const readWindow = {
+      location: { href: "" },
+      close: vi.fn(),
+    } as unknown as Window;
+    const openWindow = vi.spyOn(window, "open").mockReturnValue(readWindow);
     const recipe = {
       id: recipeId,
       organizationId: "20000000-0000-0000-0000-000000000001",
@@ -483,6 +489,70 @@ describe("camp workspace", () => {
               status: 200,
               headers: { "Content-Type": "application/json" },
             }),
+          );
+        if (path.endsWith(`/recipe-files/${attachmentId}/read-grant`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                token: "single-use-token",
+                attachmentId,
+                expiresAt: "2026-08-09T10:01:00Z",
+                disposition: 1,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (init?.method === "POST" && path.includes("/recipe-files?ownerId="))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: "45000000-0000-0000-0000-000000000002",
+                originalFileName: "Küchenplan.png",
+                mediaType: 2,
+                contentType: "image/png",
+                sizeBytes: 8,
+                state: 1,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/recipe-files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                scope: 1,
+                limitBytes: 104857600,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 103809024,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes(`/recipe-files?ownerId=${recipeId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: attachmentId,
+                  organizationId: recipe.organizationId,
+                  campId: null,
+                  owner: { type: 2, id: recipeId },
+                  originalFileName: "Ablauf.pdf",
+                  mediaType: 0,
+                  contentType: "application/pdf",
+                  sizeBytes: 204800,
+                  state: 1,
+                  createdBy: "10000000-0000-0000-0000-000000000001",
+                  createdAt: "2026-08-09T10:00:00Z",
+                  deletedAt: null,
+                  purgeAt: null,
+                  version: 2,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
           );
         if (init?.method === "PUT" && path.endsWith(`/recipes/${recipeId}`))
           return Promise.resolve(
@@ -556,6 +626,62 @@ describe("camp workspace", () => {
     expect(screen.getByText("1,5 Kilogramm Kartoffeln")).toBeInTheDocument();
     expect(screen.getByText("mehligkochend")).toBeInTheDocument();
     expect(screen.getByText("Milch prüfen")).toBeInTheDocument();
+    const attachments = screen.getByRole("region", {
+      name: "Dateien zu Kartoffelsuppe",
+    });
+    expect(
+      await within(attachments).findByText("Ablauf.pdf"),
+    ).toBeInTheDocument();
+    expect(
+      within(attachments).getByText("1 MiB von 100 MiB belegt"),
+    ).toBeInTheDocument();
+
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Küchenplan.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(attachments).getByLabelText("Datei für das Rezept"),
+      upload,
+    );
+    await user.click(
+      within(attachments).getByRole("button", {
+        name: "Küchenplan.png hochladen",
+      }),
+    );
+    expect(
+      await within(attachments).findByText(
+        "Küchenplan.png wurde sicher hochgeladen.",
+      ),
+    ).toHaveAttribute("role", "status");
+    await user.click(
+      within(attachments).getByRole("button", { name: "Ablauf.pdf öffnen" }),
+    );
+    expect(openWindow).toHaveBeenCalledWith(
+      "",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    expect(readWindow.location.href).toContain(
+      "/recipe-files/content?token=single-use-token",
+    );
+
+    const readGrantCall = fetchMock.mock.calls.find(([request]) =>
+      requestPath(request).endsWith(`/recipe-files/${attachmentId}/read-grant`),
+    );
+    expect(readGrantCall?.[1]?.headers).toEqual({
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    const uploadCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).includes(`/recipe-files?ownerId=${recipeId}`) &&
+        init?.method === "POST",
+    );
+    expect(uploadCall?.[1]?.headers).toEqual({
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    expect(uploadCall?.[1]?.body).toBeInstanceOf(FormData);
 
     await user.click(screen.getByRole("button", { name: "Rezept bearbeiten" }));
     const name = screen.getByRole("textbox", { name: "Rezeptname bearbeiten" });

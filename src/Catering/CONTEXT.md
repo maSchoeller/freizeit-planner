@@ -22,6 +22,10 @@
   Owner/Admin edits start from that version and send antiforgery plus the aggregate Version as `If-Match`; a success
   displays the newly appended immutable version, while a precondition conflict keeps the form visible and directs
   the user to reopen the current state. Existing meal snapshots are explicitly described as unchanged.
+- Recipe details compose the Files-owned organization-library endpoints without crossing module internals. Every
+  reader can list and open attachments through an actor-bound single-use read grant; Owner/Admin users can upload
+  validated multipart files with antiforgery while seeing the shared 100 MiB recipe-library quota. Archived Camp
+  workspaces remain read-only even though the recipe library itself is Organization-scoped.
 - Owner/Admin ingredient management lists active normalized names, creates and renames through antiforgery, and sends
   the current numeric Version as `If-Match` for rename. Merge remains a two-step workflow: preview returns current
   source/target versions and affected recipes; the destructive confirmation uses exactly those CAS versions and
