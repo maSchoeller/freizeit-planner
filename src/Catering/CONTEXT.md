@@ -18,8 +18,9 @@
 - `ICampMealPlanning` owns meal CRUD, nullable portion overrides, copied recipe snapshots and the only explicit
   snapshot refresh operation. Meal deletion is a versioned 30-day soft delete; manager-only trash browsing and
   restore recheck Camp archive state, deadline and optimistic concurrency. `ICampCateringContext` is the inbound
-  host adapter for current default portions and archive state, so this module does not depend on Camps internals or
-  Contracts. Every meal mutation rejects an archived Camp.
+  host adapter for current default portions, archive state, and writable ScheduleEntry references, so this module
+  does not depend on Camps internals or Contracts. Create, update, and restore reject foreign, missing, deleted, or
+  archived-Camp schedule links. Every meal mutation rejects an archived Camp.
 - `IMealShoppingSource` returns source-stable, editable draft lines. The host passes reviewed quantities to the
   Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items.
 - `Quantity` uses `decimal`. Automatic conversion is limited to g/kg and ml/l. Piece is compatible only with piece;
@@ -38,7 +39,7 @@
   including their immutable recipe snapshots and snapshot ingredients, in bounded batches.
 - Dietary tags and manually maintained allergen/kitchen notes are planning information, never a medical guarantee.
   The Web host composes linked ScheduleEntry deletion across Camps, Catering and Spiritual and requires an explicit
-  unlink-versus-common-trash decision. Attachments and the atomic linked-create workflow remain host composition
-  seams.
+  unlink-versus-common-trash decision. The host's atomic linked-create endpoint persists ScheduleEntry and Meal in
+  one local Npgsql transaction; attachment composition remains a host seam.
 - Privacy maintenance deletes meals/snapshots, recipes/versions and ingredients for a claimed Organization in bounded,
   idempotent batches. Catering stores no user audit identifiers that require account pseudonymization.

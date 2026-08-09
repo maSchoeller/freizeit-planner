@@ -25,9 +25,11 @@
   uses EF concurrency tokens. Stable `CampsRuleException.ErrorCode` values map to German RFC-9457 responses in the
   host.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
-  `ScheduleEntryReference` to Catering or Spiritual. Linked deletion is composed outside Camps: the user must choose
-  unlink or common trash first; the Web host performs the selected Catering/Spiritual changes before moving the
-  ScheduleEntry to trash in the same request transaction. Camps never cascades into another module.
+  identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
+  `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion
+  is composed outside Camps: the user must choose unlink or common trash first; the Web host performs the selected
+  Catering/Spiritual changes before moving the ScheduleEntry to trash in the same request transaction. Camps never
+  cascades into another module.
 - Trash: active schedule reads hide soft-deleted entries. `ListTrashAsync` and restore require
   `CampAction.ManageCamp`; restore rejects archived Camps and elapsed 30-day deadlines. `IScheduleRetention` is
   cleanup-only and permanently deletes due entries plus responsibility rows in bounded batches.

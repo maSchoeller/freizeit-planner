@@ -1496,6 +1496,90 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/with-meal": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["LinkedScheduleMealBody"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LinkedScheduleMealResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/with-devotion": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["LinkedScheduleDevotionBody"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["LinkedScheduleDevotionResponse"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/{scheduleEntryId}": {
     parameters: {
       query?: never;
@@ -4117,6 +4201,18 @@ export interface components {
       role: components["schemas"]["TenantRole"];
     };
     AttachmentOwnerType: number;
+    BibleSnapshot: {
+      reference: string;
+      textExcerpt: string;
+      technicalTranslationId: string;
+      translationDisplayName: string;
+      license: string;
+      attribution: string;
+      /** Format: date-time */
+      retrievedAt: string;
+      origin: components["schemas"]["BibleSnapshotOrigin"];
+    };
+    BibleSnapshotOrigin: number;
     BibleTranslation: number;
     CampAssignmentView: {
       /** Format: uuid */
@@ -4238,6 +4334,32 @@ export interface components {
       /** Format: uuid */
       scheduleEntryId: null | string;
     };
+    DevotionDetails: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      organizationId: string;
+      /** Format: uuid */
+      campId: string;
+      topic: string;
+      bibleReference: string;
+      translation: components["schemas"]["BibleTranslation"];
+      coreMessage: string;
+      markdownContent: string;
+      responsibleUserIds: string[];
+      materialNotes: string;
+      /** Format: uuid */
+      scheduleEntryId: null | string;
+      bibleSnapshot: null | components["schemas"]["BibleSnapshot"];
+      /** Format: date-time */
+      createdAt: string;
+      /** Format: date-time */
+      updatedAt: string;
+      /** Format: date-time */
+      deletedAt: null | string;
+      /** Format: int64 */
+      version: number | string;
+    };
     EmailChangeOutcome: number;
     EmailChangeResult: {
       outcome: components["schemas"]["EmailChangeOutcome"];
@@ -4291,7 +4413,38 @@ export interface components {
       /** Format: date-time */
       expiresAt: string;
     };
+    LinkedDevotionBody: {
+      topic: string;
+      bibleReference: string;
+      translation: components["schemas"]["BibleTranslation"];
+      coreMessage: string;
+      markdownContent: string;
+      responsibleUserIds: string[];
+      materialNotes: string;
+    };
+    LinkedMealBody: {
+      name: string;
+      /** Format: int32 */
+      portionOverride: null | number | string;
+      recipeIds: string[];
+    };
     LinkedScheduleDeleteBehavior: number;
+    LinkedScheduleDevotionBody: {
+      schedule: components["schemas"]["ScheduleEntryBody"];
+      devotion: components["schemas"]["LinkedDevotionBody"];
+    };
+    LinkedScheduleDevotionResponse: {
+      scheduleEntry: components["schemas"]["ScheduleEntryView"];
+      devotion: components["schemas"]["DevotionDetails"];
+    };
+    LinkedScheduleMealBody: {
+      schedule: components["schemas"]["ScheduleEntryBody"];
+      meal: components["schemas"]["LinkedMealBody"];
+    };
+    LinkedScheduleMealResponse: {
+      scheduleEntry: components["schemas"]["ScheduleEntryView"];
+      meal: components["schemas"]["Meal"];
+    };
     LogisticsQuantity: {
       /** Format: double */
       value: number | string;
@@ -4314,6 +4467,26 @@ export interface components {
       status: components["schemas"]["ProcurementStatus"];
       /** Format: uuid */
       scheduleEntryId: null | string;
+    };
+    Meal: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      organizationId: string;
+      /** Format: uuid */
+      campId: string;
+      name: string;
+      /** Format: int32 */
+      campDefaultPortions: number | string;
+      /** Format: int32 */
+      portionOverride: null | number | string;
+      /** Format: int32 */
+      effectivePortions: number | string;
+      /** Format: uuid */
+      scheduleEntryId: null | string;
+      recipeSnapshots: components["schemas"]["RecipeSnapshot"][];
+      /** Format: int64 */
+      version: number | string;
     };
     MealBody: {
       name: string;
@@ -4415,6 +4588,28 @@ export interface components {
       /** Format: uuid */
       recipeId: string;
     };
+    RecipeSnapshot: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      sourceRecipeId: string;
+      /** Format: int32 */
+      sourceRecipeVersionNumber: number | string;
+      /** Format: int32 */
+      latestRecipeVersionNumber: number | string;
+      refreshAvailable: boolean;
+      name: string;
+      description: string;
+      preparation: string;
+      /** Format: int32 */
+      basePortions: number | string;
+      ingredients: components["schemas"]["SnapshotIngredient"][];
+      dietaryTags: string[];
+      allergenNotes: null | string;
+      kitchenNotes: null | string;
+      /** Format: date-time */
+      capturedAt: string;
+    };
     RequestEmailChangeBody: {
       email: null | string;
     };
@@ -4488,6 +4683,16 @@ export interface components {
       quantity: components["schemas"]["LogisticsQuantity"];
       responsibleUserIds: string[];
       store: null | string;
+      note: null | string;
+    };
+    SnapshotIngredient: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      ingredientId: string;
+      ingredientName: string;
+      baseQuantity: components["schemas"]["Quantity"];
+      scaledQuantity: components["schemas"]["Quantity"];
       note: null | string;
     };
     TeamInvitationBody: {

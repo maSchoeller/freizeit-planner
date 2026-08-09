@@ -14,7 +14,10 @@
   deadlines to the root aggregate trash. `IDevotionRetention` is cleanup-only and permanently removes due devotions
   plus every related immutable Bible snapshot in one transaction without materializing or validating domain content.
 - `IDevotionCampContext` is a host-provided Camps adapter. Every mutation rechecks the authoritative archive state;
-  archived Camps remain readable but cannot create, edit, trash, restore, or refresh devotion content.
+  archived Camps remain readable but cannot create, edit, trash, restore, or refresh devotion content. Create,
+  update, and restore also validate every optional ScheduleEntry through the narrow writable-reference adapter, so
+  missing, deleted, foreign, and archived-Camp links are rejected. The host atomically creates a ScheduleEntry and
+  linked Devotion in one local Npgsql transaction and defaults an empty responsibility selection to the actor.
 - Persistence: `SpiritualDbContext` stores versioned devotions and append-only Bible snapshots in schema `spiritual`.
   Both tables carry `organization_id` and `camp_id`; forced PostgreSQL RLS uses request-local Identity context, denies
   Platform Admin content access, and grants the runtime role no snapshot update/delete privilege.

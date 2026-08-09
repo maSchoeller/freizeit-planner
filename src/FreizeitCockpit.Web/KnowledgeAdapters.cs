@@ -17,7 +17,9 @@ internal sealed class KnowledgeCampContextAdapter(ICampPlanningDefaults camps) :
     }
 }
 
-internal sealed class DevotionCampContextAdapter(ICampPlanningDefaults camps) : IDevotionCampContext
+internal sealed class DevotionCampContextAdapter(
+    ICampPlanningDefaults camps,
+    IScheduleReferenceAccess scheduleReferences) : IDevotionCampContext
 {
     public async Task<DevotionCampContext> GetAsync(
         DevotionCampContextRequest request,
@@ -27,6 +29,28 @@ internal sealed class DevotionCampContextAdapter(ICampPlanningDefaults camps) : 
             new CampAccessQuery(request.ActorId, request.OrganizationId, request.CampId),
             cancellationToken);
         return new DevotionCampContext(camp.Status == CampStatus.Archived);
+    }
+
+    public async Task<bool> IsScheduleEntryWritableAsync(
+        DevotionScheduleReference request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            _ = await scheduleReferences.RequireAsync(
+                new ScheduleEntryReferenceRequest(
+                    request.ActorId,
+                    request.OrganizationId,
+                    request.CampId,
+                    request.ScheduleEntryId,
+                    ScheduleReferencePurpose.LinkForWrite),
+                cancellationToken);
+            return true;
+        }
+        catch (CampsRuleException)
+        {
+            return false;
+        }
     }
 }
 

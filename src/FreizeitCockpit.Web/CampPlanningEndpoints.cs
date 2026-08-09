@@ -26,6 +26,10 @@ internal static class CampPlanningEndpoints
             .Produces<IReadOnlyList<ScheduleEntryView>>();
         camps.MapPost("/{campId:guid}/schedule", CreateScheduleEntryAsync)
             .Produces<ScheduleEntryView>(StatusCodes.Status201Created);
+        camps.MapPost("/{campId:guid}/schedule/with-meal", CreateScheduleWithMealAsync)
+            .Produces<LinkedScheduleMealResponse>(StatusCodes.Status201Created);
+        camps.MapPost("/{campId:guid}/schedule/with-devotion", CreateScheduleWithDevotionAsync)
+            .Produces<LinkedScheduleDevotionResponse>(StatusCodes.Status201Created);
         camps.MapGet("/{campId:guid}/schedule/{scheduleEntryId:guid}", GetScheduleEntryAsync)
             .Produces<ScheduleEntryView>();
         camps.MapPut("/{campId:guid}/schedule/{scheduleEntryId:guid}", UpdateScheduleEntryAsync)
@@ -254,6 +258,116 @@ internal static class CampPlanningEndpoints
         });
     }
 
+    private static async Task<IResult> CreateScheduleWithMealAsync(
+        Guid organizationId,
+        Guid campId,
+        LinkedScheduleMealBody body,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ISchedulePlanning planning,
+        ICampMealPlanning meals,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        return await ExecuteAsync(async () =>
+        {
+            var schedule = await planning.CreateAsync(
+                new CreateScheduleEntry(
+                    actorId,
+                    organizationId,
+                    campId,
+                    body.Schedule.Timing,
+                    body.Schedule.Title,
+                    body.Schedule.Description,
+                    body.Schedule.Location,
+                    body.Schedule.Category,
+                    body.Schedule.Status,
+                    body.Schedule.ResponsibleUserIds,
+                    body.Schedule.Audience),
+                cancellationToken);
+            var meal = await meals.CreateMealAsync(
+                new CreateMeal(actorId, organizationId, campId, body.Meal.Name,
+                    body.Meal.PortionOverride, schedule.Id, body.Meal.RecipeIds),
+                cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Created,
+                "ScheduleEntry", schedule.Id, schedule.Title,
+                string.Join(' ', schedule.Title, schedule.Description, schedule.Location, schedule.Category,
+                    schedule.Audience),
+                new Dictionary<string, string>
+                {
+                    ["category"] = schedule.Category,
+                    ["status"] = schedule.Status.ToString()
+                },
+                schedule.Version,
+                cancellationToken);
+            await RecordMealActivityAsync(activity, actorId, meal, ActivityKind.Created, cancellationToken);
+            WriteEtag(context.Response, schedule.Version);
+            return Results.Created(
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/schedule/{schedule.Id:D}",
+                new LinkedScheduleMealResponse(schedule, meal));
+        });
+    }
+
+    private static async Task<IResult> CreateScheduleWithDevotionAsync(
+        Guid organizationId,
+        Guid campId,
+        LinkedScheduleDevotionBody body,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ISchedulePlanning planning,
+        IDevotionPlanning devotions,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        return await ExecuteAsync(async () =>
+        {
+            var schedule = await planning.CreateAsync(
+                new CreateScheduleEntry(
+                    actorId,
+                    organizationId,
+                    campId,
+                    body.Schedule.Timing,
+                    body.Schedule.Title,
+                    body.Schedule.Description,
+                    body.Schedule.Location,
+                    body.Schedule.Category,
+                    body.Schedule.Status,
+                    body.Schedule.ResponsibleUserIds,
+                    body.Schedule.Audience),
+                cancellationToken);
+            var responsibleUserIds = body.Devotion.ResponsibleUserIds.Count > 0
+                ? body.Devotion.ResponsibleUserIds
+                : [actorId];
+            var devotion = await devotions.CreateAsync(
+                new CreateDevotion(actorId, organizationId, campId, body.Devotion.Topic,
+                    body.Devotion.BibleReference, body.Devotion.Translation, body.Devotion.CoreMessage,
+                    body.Devotion.MarkdownContent, responsibleUserIds,
+                    body.Devotion.MaterialNotes, schedule.Id),
+                cancellationToken);
+            await activity.UpsertAsync(actorId, organizationId, campId, ActivityKind.Created,
+                "ScheduleEntry", schedule.Id, schedule.Title,
+                string.Join(' ', schedule.Title, schedule.Description, schedule.Location, schedule.Category,
+                    schedule.Audience),
+                new Dictionary<string, string>
+                {
+                    ["category"] = schedule.Category,
+                    ["status"] = schedule.Status.ToString()
+                },
+                schedule.Version,
+                cancellationToken);
+            await RecordDevotionActivityAsync(
+                activity, actorId, devotion, ActivityKind.Created, cancellationToken);
+            WriteEtag(context.Response, schedule.Version);
+            return Results.Created(
+                $"/api/v1/organizations/{organizationId:D}/camps/{campId:D}/schedule/{schedule.Id:D}",
+                new LinkedScheduleDevotionResponse(schedule, devotion));
+        });
+    }
+
     private static async Task<IResult> UpdateScheduleEntryAsync(
         Guid organizationId,
         Guid campId,
@@ -354,7 +468,8 @@ internal static class CampPlanningEndpoints
                     var unlinked = await meals.ReviseMealAsync(
                         new ReviseMeal(actorId, organizationId, campId, meal.Id, details.Name,
                             details.PortionOverride, null, details.Version), cancellationToken);
-                    await RecordMealUpdateAsync(activity, actorId, unlinked, cancellationToken);
+                    await RecordMealActivityAsync(
+                        activity, actorId, unlinked, ActivityKind.Updated, cancellationToken);
                 }
             }
             foreach (var devotion in linkedDevotions)
@@ -377,7 +492,8 @@ internal static class CampPlanningEndpoints
                             details.BibleReference, details.Translation, details.CoreMessage,
                             details.MarkdownContent, details.ResponsibleUserIds, details.MaterialNotes, null,
                             details.Version), cancellationToken);
-                    await RecordDevotionUpdateAsync(activity, actorId, unlinked, cancellationToken);
+                    await RecordDevotionActivityAsync(
+                        activity, actorId, unlinked, ActivityKind.Updated, cancellationToken);
                 }
             }
             var deleted = await planning.DeleteAsync(
@@ -389,15 +505,16 @@ internal static class CampPlanningEndpoints
         });
     }
 
-    private static Task RecordMealUpdateAsync(
+    private static Task RecordMealActivityAsync(
         PlanningActivityWriter activity,
         Guid actorId,
         Meal meal,
+        ActivityKind kind,
         CancellationToken cancellationToken) => activity.UpsertAsync(
         actorId,
         meal.OrganizationId,
         meal.CampId,
-        ActivityKind.Updated,
+        kind,
         "Meal",
         meal.Id,
         meal.Name,
@@ -413,15 +530,16 @@ internal static class CampPlanningEndpoints
         meal.Version,
         cancellationToken);
 
-    private static Task RecordDevotionUpdateAsync(
+    private static Task RecordDevotionActivityAsync(
         PlanningActivityWriter activity,
         Guid actorId,
         DevotionDetails devotion,
+        ActivityKind kind,
         CancellationToken cancellationToken) => activity.UpsertAsync(
         actorId,
         devotion.OrganizationId,
         devotion.CampId,
-        ActivityKind.Updated,
+        kind,
         "Devotion",
         devotion.Id,
         devotion.Topic,
@@ -569,6 +687,23 @@ internal static class CampPlanningEndpoints
         ScheduleEntryStatus Status,
         IReadOnlyList<Guid> ResponsibleUserIds,
         string? Audience);
+
+    private sealed record LinkedScheduleMealBody(ScheduleEntryBody Schedule, LinkedMealBody Meal);
+
+    private sealed record LinkedMealBody(string Name, int? PortionOverride, IReadOnlyList<Guid> RecipeIds);
+
+    private sealed record LinkedScheduleDevotionBody(
+        ScheduleEntryBody Schedule,
+        LinkedDevotionBody Devotion);
+
+    private sealed record LinkedDevotionBody(
+        string Topic,
+        string BibleReference,
+        BibleTranslation Translation,
+        string CoreMessage,
+        string MarkdownContent,
+        IReadOnlyList<Guid> ResponsibleUserIds,
+        string MaterialNotes);
 }
 
 internal enum LinkedScheduleDeleteBehavior
@@ -576,3 +711,9 @@ internal enum LinkedScheduleDeleteBehavior
     Unlink,
     MoveLinkedToTrash
 }
+
+internal sealed record LinkedScheduleMealResponse(ScheduleEntryView ScheduleEntry, Meal Meal);
+
+internal sealed record LinkedScheduleDevotionResponse(
+    ScheduleEntryView ScheduleEntry,
+    DevotionDetails Devotion);

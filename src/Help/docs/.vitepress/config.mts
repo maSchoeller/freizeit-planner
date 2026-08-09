@@ -27,6 +27,10 @@ export default defineConfig({
         text: "Planung",
         items: [
           {
+            text: "Tages- und Wochenplan",
+            link: "/tagesplanung",
+          },
+          {
             text: "Suche, Aktivität, Druck und CSV",
             link: "/suche-aktivitaet-export",
           },

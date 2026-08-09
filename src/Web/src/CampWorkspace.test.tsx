@@ -215,4 +215,152 @@ describe("camp workspace", () => {
       await screen.findByRole("status", { name: "Löschstatus" }),
     ).toHaveTextContent("Geländespiel“ wurde in den Papierkorb verschoben.");
   });
+
+  it("creates a schedule entry and meal through one visible workflow", async () => {
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "POST")
+          return Promise.resolve(
+            new Response(JSON.stringify({}), {
+              status: 201,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(screen.getByRole("button", { name: "Eintrag erstellen" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel des Zeitplaneintrags" }),
+      "Mittagessen",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Gemeinsam anlegen" }),
+      "Meal",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Name der Mahlzeit" }),
+      "Kartoffelsuppe",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Zeitplaneintrag anlegen" }),
+    );
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/schedule/with-meal") &&
+        init?.method === "POST",
+    );
+    const serializedBody = createCall?.[1]?.body;
+    if (typeof serializedBody !== "string")
+      throw new Error("Der Request enthält keinen JSON-Text.");
+    const payload = JSON.parse(serializedBody) as {
+      schedule: { title: string };
+      meal: { name: string };
+    };
+    expect(createCall?.[1]?.headers).toEqual({
+      "Content-Type": "application/json",
+      "X-CSRF-TOKEN": "csrf-token",
+    });
+    expect(payload.schedule.title).toBe("Mittagessen");
+    expect(payload.meal.name).toBe("Kartoffelsuppe");
+  });
+
+  it("creates a schedule entry and devotion through one visible workflow", async () => {
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (init?.method === "POST")
+          return Promise.resolve(
+            new Response(JSON.stringify({}), {
+              status: 201,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(screen.getByRole("button", { name: "Eintrag erstellen" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel des Zeitplaneintrags" }),
+      "Abendandacht",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Gemeinsam anlegen" }),
+      "Devotion",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Thema der Andacht" }),
+      "Vertrauen",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Bibelstelle" }),
+      "Psalm 23",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Kernaussage" }),
+      "Gott begleitet uns.",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Inhalt der Andacht" }),
+      "## Impuls",
+    );
+    expect(
+      screen.getByText("Du wirst zunächst als verantwortlich eingetragen."),
+    ).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Zeitplaneintrag anlegen" }),
+    );
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/schedule/with-devotion") &&
+        init?.method === "POST",
+    );
+    const serializedBody = createCall?.[1]?.body;
+    if (typeof serializedBody !== "string")
+      throw new Error("Der Request enthält keinen JSON-Text.");
+    const payload = JSON.parse(serializedBody) as {
+      schedule: { title: string };
+      devotion: { topic: string; bibleReference: string };
+    };
+    expect(payload.schedule.title).toBe("Abendandacht");
+    expect(payload.devotion.topic).toBe("Vertrauen");
+    expect(payload.devotion.bibleReference).toBe("Psalm 23");
+  });
 });

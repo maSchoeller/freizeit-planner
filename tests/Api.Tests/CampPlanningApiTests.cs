@@ -139,6 +139,115 @@ public sealed class CampPlanningApiTests
     }
 
     [Fact]
+    public async Task ScheduleAndMealCanBeCreatedAsOneLinkedWorkflow()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/schedule/with-meal";
+            var body = new
+            {
+                schedule = new
+                {
+                    timing = new
+                    {
+                        isAllDay = false,
+                        localStart = new DateTime(2027, 8, 1, 12, 0, 0),
+                        localEnd = new DateTime(2027, 8, 1, 13, 0, 0),
+                        startDate = (DateOnly?)null,
+                        endDateExclusive = (DateOnly?)null,
+                        startChoice = AmbiguousLocalTimeChoice.Reject,
+                        endChoice = AmbiguousLocalTimeChoice.Reject
+                    },
+                    title = "Mittagessen",
+                    description = "Gemeinsames Essen",
+                    location = "Speisesaal",
+                    category = "Essen",
+                    status = ScheduleEntryStatus.Confirmed,
+                    responsibleUserIds = Array.Empty<Guid>(),
+                    audience = "Alle"
+                },
+                meal = new
+                {
+                    name = "Kartoffelsuppe",
+                    portionOverride = (int?)null,
+                    recipeIds = Array.Empty<Guid>()
+                }
+            };
+            using var request = CreateJsonRequest(HttpMethod.Post, uri, body, csrf);
+
+            using var response = await client.SendAsync(request, cancellationToken);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<LinkedScheduleMealResponse>(cancellationToken);
+            Assert.Equal(planning.ScheduleEntryId, result?.ScheduleEntry.Id);
+            Assert.Equal(planning.ScheduleEntryId, result?.Meal.ScheduleEntryId);
+            Assert.Equal("Kartoffelsuppe", result?.Meal.Name);
+        }
+    }
+
+    [Fact]
+    public async Task ScheduleAndDevotionCanBeCreatedAsOneLinkedWorkflow()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/schedule/with-devotion";
+            var body = new
+            {
+                schedule = new
+                {
+                    timing = new
+                    {
+                        isAllDay = false,
+                        localStart = new DateTime(2027, 8, 1, 20, 0, 0),
+                        localEnd = new DateTime(2027, 8, 1, 20, 30, 0),
+                        startDate = (DateOnly?)null,
+                        endDateExclusive = (DateOnly?)null,
+                        startChoice = AmbiguousLocalTimeChoice.Reject,
+                        endChoice = AmbiguousLocalTimeChoice.Reject
+                    },
+                    title = "Abendandacht",
+                    description = "Gemeinsamer Abschluss",
+                    location = "Kapelle",
+                    category = "Andacht",
+                    status = ScheduleEntryStatus.Confirmed,
+                    responsibleUserIds = Array.Empty<Guid>(),
+                    audience = "Alle"
+                },
+                devotion = new
+                {
+                    topic = "Vertrauen",
+                    bibleReference = "Psalm 23",
+                    translation = BibleTranslation.Luther1912,
+                    coreMessage = "Gott begleitet uns.",
+                    markdownContent = "# Vertrauen",
+                    responsibleUserIds = Array.Empty<Guid>(),
+                    materialNotes = "Kerze"
+                }
+            };
+            using var request = CreateJsonRequest(HttpMethod.Post, uri, body, csrf);
+
+            using var response = await client.SendAsync(request, cancellationToken);
+            Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<LinkedScheduleDevotionResponse>(cancellationToken);
+            Assert.Equal(planning.ScheduleEntryId, result?.ScheduleEntry.Id);
+            Assert.Equal(planning.ScheduleEntryId, result?.Devotion.ScheduleEntryId);
+            Assert.Equal("Vertrauen", result?.Devotion.Topic);
+            Assert.Equal(
+                [Guid.Parse("10000000-0000-0000-0000-000000000001")],
+                result?.Devotion.ResponsibleUserIds);
+        }
+    }
+
+    [Fact]
     public async Task ActivityFailureRollsBackThePlanningResponse()
     {
         var planning = new PlanningFake { FailActivity = true };
@@ -316,6 +425,12 @@ public sealed class CampPlanningApiTests
     }
 
     private sealed record AntiforgeryResponse(string Token);
+
+    private sealed record LinkedScheduleMealResponse(ScheduleEntryView ScheduleEntry, Meal Meal);
+
+    private sealed record LinkedScheduleDevotionResponse(
+        ScheduleEntryView ScheduleEntry,
+        DevotionDetails Devotion);
 
     private sealed class CapturingSender : ILoginCodeSender
     {
@@ -523,7 +638,18 @@ public sealed class CampPlanningApiTests
             return Task.CompletedTask;
         }
 
-        public Task<Meal> CreateMealAsync(CreateMeal request, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<Meal> CreateMealAsync(CreateMeal request, CancellationToken cancellationToken) =>
+            Task.FromResult(new Meal(
+                Guid.Parse("50000000-0000-0000-0000-000000000001"),
+                request.OrganizationId,
+                request.CampId,
+                request.Name,
+                20,
+                request.PortionOverride,
+                request.PortionOverride ?? 20,
+                request.ScheduleEntryId,
+                [],
+                1));
         public Task<Meal> ReviseMealAsync(ReviseMeal request, CancellationToken cancellationToken)
         {
             MealUnlinked = request.ScheduleEntryId is null;
@@ -562,7 +688,24 @@ public sealed class CampPlanningApiTests
                 new DateTimeOffset(2027, 8, 1, 16, 0, 0, TimeSpan.Zero),
                 null,
                 4));
-        public Task<DevotionDetails> CreateAsync(CreateDevotion command, CancellationToken cancellationToken) => throw new NotSupportedException();
+        public Task<DevotionDetails> CreateAsync(CreateDevotion command, CancellationToken cancellationToken) =>
+            Task.FromResult(new DevotionDetails(
+                Guid.Parse("60000000-0000-0000-0000-000000000001"),
+                command.OrganizationId,
+                command.CampId,
+                command.Topic,
+                command.BibleReference,
+                command.Translation,
+                command.CoreMessage,
+                command.MarkdownContent,
+                command.ResponsibleUserIds,
+                command.MaterialNotes,
+                command.ScheduleEntryId,
+                null,
+                new DateTimeOffset(2027, 8, 1, 18, 0, 0, TimeSpan.Zero),
+                new DateTimeOffset(2027, 8, 1, 18, 0, 0, TimeSpan.Zero),
+                null,
+                1));
         public Task<DevotionDetails> UpdateAsync(UpdateDevotion command, CancellationToken cancellationToken)
         {
             DevotionUnlinked = command.ScheduleEntryId is null;

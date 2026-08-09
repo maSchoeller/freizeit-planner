@@ -336,6 +336,12 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
             request.CampId,
             cancellationToken);
         EnsurePortions(request.PortionOverride);
+        await EnsureScheduleEntryWritableAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            request.ScheduleEntryId,
+            cancellationToken);
         var name = NormalizeDisplayName(request.Name, "meal_name_required", "Bitte einen Namen für die Mahlzeit angeben.");
 
         var meal = new MealEntity
@@ -366,6 +372,12 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
             request.CampId,
             cancellationToken);
         EnsurePortions(request.PortionOverride);
+        await EnsureScheduleEntryWritableAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            request.ScheduleEntryId,
+            cancellationToken);
         var meal = await RequireMealAsync(
             request.OrganizationId,
             request.CampId,
@@ -456,6 +468,12 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
         {
             throw Rule("meal_restore_expired", "Die Aufbewahrungsfrist ist abgelaufen.");
         }
+        await EnsureScheduleEntryWritableAsync(
+            request.ActorId,
+            request.OrganizationId,
+            request.CampId,
+            meal.ScheduleEntryId,
+            cancellationToken);
         meal.DeletedAt = null;
         meal.PurgeAt = null;
         meal.Version++;
@@ -880,6 +898,24 @@ public sealed class CateringService : IOrganizationCateringLibrary, ICampMealPla
         }
 
         return context;
+    }
+
+    private async Task EnsureScheduleEntryWritableAsync(
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        Guid? scheduleEntryId,
+        CancellationToken cancellationToken)
+    {
+        if (scheduleEntryId is null) return;
+        if (!await campContext.IsScheduleEntryWritableAsync(
+                new CampCateringScheduleReference(actorId, organizationId, campId, scheduleEntryId.Value),
+                cancellationToken))
+        {
+            throw Rule(
+                "schedule_entry_invalid",
+                "Der verknüpfte Zeitplaneintrag wurde nicht gefunden oder kann nicht bearbeitet werden.");
+        }
     }
 
     private async Task<CampCateringContext> GetCampContextAsync(

@@ -135,6 +135,88 @@ public sealed class CateringPlanningTests
     }
 
     [Fact]
+    public async Task MealScheduleLinkMustReferenceAWritableEntry()
+    {
+        var context = new TestCampContext(10, false) { ScheduleEntryIsWritable = false };
+        var state = new TestCateringState();
+        var subject = CreateSubject(state, context);
+
+        var exception = await Assert.ThrowsAsync<CateringRuleException>(() => subject.CreateMealAsync(
+            new CreateMeal(
+                ActorId,
+                OrganizationId,
+                CampId,
+                "Abendessen",
+                null,
+                Guid.Parse("40000000-0000-0000-0000-000000000099"),
+                []),
+            TestContext.Current.CancellationToken));
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Empty(state.Meals);
+    }
+
+    [Fact]
+    public async Task RevisingMealCannotIntroduceAnInvalidScheduleLink()
+    {
+        var context = new TestCampContext(10, false);
+        var subject = CreateSubject(context: context);
+        var meal = await subject.CreateMealAsync(
+            new CreateMeal(ActorId, OrganizationId, CampId, "Abendessen", null, null, []),
+            TestContext.Current.CancellationToken);
+        context.ScheduleEntryIsWritable = false;
+
+        var exception = await Assert.ThrowsAsync<CateringRuleException>(() => subject.ReviseMealAsync(
+            new ReviseMeal(
+                ActorId,
+                OrganizationId,
+                CampId,
+                meal.Id,
+                meal.Name,
+                null,
+                Guid.Parse("40000000-0000-0000-0000-000000000099"),
+                meal.Version),
+            TestContext.Current.CancellationToken));
+        var unchanged = await subject.GetMealAsync(
+            new MealRequest(ActorId, OrganizationId, CampId, meal.Id),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Null(unchanged?.ScheduleEntryId);
+    }
+
+    [Fact]
+    public async Task LinkedMealCanOnlyBeRestoredAfterItsScheduleEntry()
+    {
+        var context = new TestCampContext(10, false);
+        var subject = CreateSubject(context: context);
+        var meal = await subject.CreateMealAsync(
+            new CreateMeal(
+                ActorId,
+                OrganizationId,
+                CampId,
+                "Abendessen",
+                null,
+                Guid.Parse("40000000-0000-0000-0000-000000000001"),
+                []),
+            TestContext.Current.CancellationToken);
+        await subject.MoveMealToTrashAsync(
+            new DeleteMeal(ActorId, OrganizationId, CampId, meal.Id, meal.Version),
+            TestContext.Current.CancellationToken);
+        context.ScheduleEntryIsWritable = false;
+
+        var exception = await Assert.ThrowsAsync<CateringRuleException>(() => subject.RestoreMealAsync(
+            new RestoreMeal(ActorId, OrganizationId, CampId, meal.Id, meal.Version + 1),
+            TestContext.Current.CancellationToken));
+        var trash = await subject.ListMealTrashAsync(
+            new MealTrashQuery(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Single(trash);
+    }
+
+    [Fact]
     public async Task MealTrashPreservesSnapshotsAndCanBeRestoredByAManager()
     {
         var subject = CreateSubject();
@@ -288,10 +370,16 @@ internal sealed class TestCampContext(int defaultPortions, bool isArchived) : IC
 
     public bool IsArchived { get; set; } = isArchived;
 
+    public bool ScheduleEntryIsWritable { get; set; } = true;
+
     public Task<CampCateringContext> GetAsync(
         CampCateringContextRequest request,
         CancellationToken cancellationToken) =>
         Task.FromResult(new CampCateringContext(DefaultPortions, IsArchived));
+
+    public Task<bool> IsScheduleEntryWritableAsync(
+        CampCateringScheduleReference request,
+        CancellationToken cancellationToken) => Task.FromResult(ScheduleEntryIsWritable);
 }
 
 internal sealed class AllowAccessControl : ITenantAccessControl

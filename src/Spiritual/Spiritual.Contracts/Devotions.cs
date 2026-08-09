@@ -56,12 +56,22 @@ public interface IDevotionCampContext
     Task<DevotionCampContext> GetAsync(
         DevotionCampContextRequest request,
         CancellationToken cancellationToken);
+
+    Task<bool> IsScheduleEntryWritableAsync(
+        DevotionScheduleReference request,
+        CancellationToken cancellationToken);
 }
 
 public sealed record DevotionCampContextRequest(
     Guid ActorId,
     Guid OrganizationId,
     Guid CampId);
+
+public sealed record DevotionScheduleReference(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid ScheduleEntryId);
 
 public sealed record DevotionCampContext(bool IsArchived);
 

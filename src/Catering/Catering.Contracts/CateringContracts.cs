@@ -71,6 +71,10 @@ public interface ICampCateringContext
     Task<CampCateringContext> GetAsync(
         CampCateringContextRequest request,
         CancellationToken cancellationToken);
+
+    Task<bool> IsScheduleEntryWritableAsync(
+        CampCateringScheduleReference request,
+        CancellationToken cancellationToken);
 }
 
 public sealed record OrganizationCateringQuery(Guid ActorId, Guid OrganizationId);
@@ -78,6 +82,12 @@ public sealed record OrganizationCateringQuery(Guid ActorId, Guid OrganizationId
 public sealed record CampCateringQuery(Guid ActorId, Guid OrganizationId, Guid CampId);
 
 public sealed record CampCateringContextRequest(Guid ActorId, Guid OrganizationId, Guid CampId);
+
+public sealed record CampCateringScheduleReference(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid ScheduleEntryId);
 
 public sealed record CampCateringContext(int DefaultPortions, bool IsArchived);
 

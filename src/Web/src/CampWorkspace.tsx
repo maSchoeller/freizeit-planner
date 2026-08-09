@@ -382,6 +382,108 @@ function SchedulePage({ offline }: { offline: boolean }) {
     "" | "Unlink" | "MoveLinkedToTrash"
   >("");
   const [deleteStatus, setDeleteStatus] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createType, setCreateType] = useState<"" | "Meal" | "Devotion">("");
+  const [scheduleTitle, setScheduleTitle] = useState("");
+  const [scheduleDate, setScheduleDate] = useState("2026-08-03");
+  const [scheduleStart, setScheduleStart] = useState("12:00");
+  const [scheduleEnd, setScheduleEnd] = useState("13:00");
+  const [scheduleLocation, setScheduleLocation] = useState("");
+  const [scheduleCategory, setScheduleCategory] = useState("Programm");
+  const [mealName, setMealName] = useState("");
+  const [devotionTopic, setDevotionTopic] = useState("");
+  const [devotionBibleReference, setDevotionBibleReference] = useState("");
+  const [devotionCoreMessage, setDevotionCoreMessage] = useState("");
+  const [devotionContent, setDevotionContent] = useState("");
+  const [devotionMaterialNotes, setDevotionMaterialNotes] = useState("");
+  const [createStatus, setCreateStatus] = useState("");
+  const create = useMutation({
+    mutationFn: async () => {
+      const token = await getAntiforgeryToken();
+      const schedule = {
+        timing: {
+          isAllDay: false,
+          localStart: `${scheduleDate}T${scheduleStart}:00`,
+          localEnd: `${scheduleDate}T${scheduleEnd}:00`,
+          startDate: null,
+          endDateExclusive: null,
+          startChoice: 0,
+          endChoice: 0,
+        },
+        title: scheduleTitle,
+        description: null,
+        location: scheduleLocation || null,
+        category: scheduleCategory,
+        status: 0,
+        responsibleUserIds: [],
+        audience: null,
+      };
+      const path =
+        createType === "Meal"
+          ? "/schedule/with-meal"
+          : createType === "Devotion"
+            ? "/schedule/with-devotion"
+            : "/schedule";
+      const body =
+        createType === "Meal"
+          ? {
+              schedule,
+              meal: { name: mealName, portionOverride: null, recipeIds: [] },
+            }
+          : createType === "Devotion"
+            ? {
+                schedule,
+                devotion: {
+                  topic: devotionTopic,
+                  bibleReference: devotionBibleReference,
+                  translation: 0,
+                  coreMessage: devotionCoreMessage,
+                  markdownContent: devotionContent,
+                  responsibleUserIds: [],
+                  materialNotes: devotionMaterialNotes,
+                },
+              }
+            : schedule;
+      const response = await fetch(
+        `/api/v1/organizations/${organizationId}/camps/${campId}${path}`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+          },
+          body: JSON.stringify(body),
+        },
+      );
+      if (!response.ok)
+        throw new Error("Der Zeitplaneintrag konnte nicht angelegt werden.");
+    },
+    onSuccess: async () => {
+      setCreateStatus(`„${scheduleTitle}“ wurde angelegt.`);
+      setCreateOpen(false);
+      setCreateType("");
+      setScheduleTitle("");
+      setScheduleLocation("");
+      setMealName("");
+      setDevotionTopic("");
+      setDevotionBibleReference("");
+      setDevotionCoreMessage("");
+      setDevotionContent("");
+      setDevotionMaterialNotes("");
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "schedule"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "meals"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "devotions"],
+        }),
+      ]);
+    },
+  });
   const remove = useMutation({
     mutationFn: async ({
       entry,
@@ -451,8 +553,16 @@ function SchedulePage({ offline }: { offline: boolean }) {
       </PageHeading>
       <QueryState
         loading={query.isLoading && !offline}
-        error={query.error ?? remove.error}
+        error={query.error ?? create.error ?? remove.error}
       />
+      <p
+        className="visually-hidden"
+        role="status"
+        aria-label="Anlegestatus"
+        aria-live="polite"
+      >
+        {createStatus}
+      </p>
       <p
         className="visually-hidden"
         role="status"
@@ -476,10 +586,180 @@ function SchedulePage({ offline }: { offline: boolean }) {
       <section className="settings-section" aria-labelledby="agenda-title">
         <div className="section-heading">
           <h2 id="agenda-title">Barrierearme Agenda</h2>
-          <button className="primary-action" disabled={offline}>
+          <button
+            className="primary-action"
+            disabled={offline}
+            onClick={() => {
+              setCreateStatus("");
+              setCreateOpen(true);
+            }}
+          >
             Eintrag erstellen
           </button>
         </div>
+        {createOpen && (
+          <form
+            className="schedule-create-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              create.mutate();
+            }}
+          >
+            <fieldset>
+              <legend>Zeitplaneintrag</legend>
+              <label>
+                Titel des Zeitplaneintrags
+                <input
+                  required
+                  value={scheduleTitle}
+                  onChange={(event) => setScheduleTitle(event.target.value)}
+                />
+              </label>
+              <div className="schedule-create-grid">
+                <label>
+                  Datum
+                  <input
+                    type="date"
+                    required
+                    value={scheduleDate}
+                    onChange={(event) => setScheduleDate(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Beginn
+                  <input
+                    type="time"
+                    required
+                    value={scheduleStart}
+                    onChange={(event) => setScheduleStart(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Ende
+                  <input
+                    type="time"
+                    required
+                    value={scheduleEnd}
+                    onChange={(event) => setScheduleEnd(event.target.value)}
+                  />
+                </label>
+              </div>
+              <label>
+                Ort
+                <input
+                  value={scheduleLocation}
+                  onChange={(event) => setScheduleLocation(event.target.value)}
+                />
+              </label>
+              <label>
+                Kategorie
+                <input
+                  required
+                  value={scheduleCategory}
+                  onChange={(event) => setScheduleCategory(event.target.value)}
+                />
+              </label>
+              <label>
+                Gemeinsam anlegen
+                <select
+                  value={createType}
+                  onChange={(event) =>
+                    setCreateType(
+                      event.target.value as "" | "Meal" | "Devotion",
+                    )
+                  }
+                >
+                  <option value="">Keine Verknüpfung</option>
+                  <option value="Meal">Mahlzeit</option>
+                  <option value="Devotion">Andacht</option>
+                </select>
+              </label>
+            </fieldset>
+            {createType === "Meal" && (
+              <fieldset>
+                <legend>Mahlzeit</legend>
+                <label>
+                  Name der Mahlzeit
+                  <input
+                    required
+                    value={mealName}
+                    onChange={(event) => setMealName(event.target.value)}
+                  />
+                </label>
+              </fieldset>
+            )}
+            {createType === "Devotion" && (
+              <fieldset>
+                <legend>Andacht</legend>
+                <p className="form-hint">
+                  Du wirst zunächst als verantwortlich eingetragen.
+                </p>
+                <label>
+                  Thema der Andacht
+                  <input
+                    required
+                    value={devotionTopic}
+                    onChange={(event) => setDevotionTopic(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Bibelstelle
+                  <input
+                    required
+                    value={devotionBibleReference}
+                    onChange={(event) =>
+                      setDevotionBibleReference(event.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Kernaussage
+                  <input
+                    required
+                    value={devotionCoreMessage}
+                    onChange={(event) =>
+                      setDevotionCoreMessage(event.target.value)
+                    }
+                  />
+                </label>
+                <label>
+                  Inhalt der Andacht
+                  <textarea
+                    required
+                    value={devotionContent}
+                    onChange={(event) => setDevotionContent(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Materialhinweise
+                  <textarea
+                    value={devotionMaterialNotes}
+                    onChange={(event) =>
+                      setDevotionMaterialNotes(event.target.value)
+                    }
+                  />
+                </label>
+              </fieldset>
+            )}
+            <div className="toolbar">
+              <button
+                className="primary-action"
+                type="submit"
+                disabled={offline || create.isPending}
+              >
+                Zeitplaneintrag anlegen
+              </button>
+              <button
+                className="secondary-action"
+                type="button"
+                disabled={create.isPending}
+                onClick={() => setCreateOpen(false)}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        )}
         {entries.length === 0 ? (
           <p className="empty-state">
             Für diesen Zeitraum gibt es noch keine Einträge.

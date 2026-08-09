@@ -24,10 +24,8 @@ using Spiritual.Contracts;
 using Spiritual.Implementation;
 
 var builder = WebApplication.CreateBuilder(args);
-var isOpenApiGeneration = new System.Diagnostics.StackTrace().GetFrames().Any(frame =>
-    frame.GetMethod()?.DeclaringType?.FullName?.Contains(
-        "Microsoft.Extensions.Hosting.HostFactoryResolver+HostingListener",
-        StringComparison.Ordinal) is true);
+var isOpenApiGeneration = Environment.GetCommandLineArgs().Any(argument =>
+    string.Equals(argument, "--document-name", StringComparison.Ordinal));
 builder.AddFreizeitServiceDefaults();
 var configuredConnectionString = builder.Configuration.GetConnectionString("freizeit");
 

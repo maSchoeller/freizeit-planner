@@ -80,6 +80,12 @@ public sealed class DevotionPlanningService(
             command.OrganizationId,
             command.CampId,
             cancellationToken);
+        await RequireWritableScheduleEntryAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            command.ScheduleEntryId,
+            cancellationToken);
         var devotion = new DevotionRecord(
             Guid.NewGuid(),
             command.OrganizationId,
@@ -111,6 +117,12 @@ public sealed class DevotionPlanningService(
             command.ActorId,
             command.OrganizationId,
             command.CampId,
+            cancellationToken);
+        await RequireWritableScheduleEntryAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            command.ScheduleEntryId,
             cancellationToken);
         var devotion = await RequireDevotionAsync(
             command.OrganizationId,
@@ -151,6 +163,16 @@ public sealed class DevotionPlanningService(
             command.CampId,
             command.DevotionId,
             cancellationToken);
+        devotion.EnsureVersion(command.ExpectedVersion);
+        if (devotion.DeletedAt is not null)
+        {
+            await RequireWritableScheduleEntryAsync(
+                command.ActorId,
+                command.OrganizationId,
+                command.CampId,
+                devotion.ScheduleEntryId,
+                cancellationToken);
+        }
         devotion.Restore(command.ExpectedVersion, timeProvider.GetUtcNow());
         await state.SaveAsync(devotion, cancellationToken);
     }
@@ -294,6 +316,24 @@ public sealed class DevotionPlanningService(
         if (context.IsArchived)
         {
             throw Rule("camp_archived", "Archivierte Camps sind schreibgeschützt.");
+        }
+    }
+
+    private async Task RequireWritableScheduleEntryAsync(
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        Guid? scheduleEntryId,
+        CancellationToken cancellationToken)
+    {
+        if (scheduleEntryId is null) return;
+        if (!await campContext.IsScheduleEntryWritableAsync(
+                new DevotionScheduleReference(actorId, organizationId, campId, scheduleEntryId.Value),
+                cancellationToken))
+        {
+            throw Rule(
+                "schedule_entry_invalid",
+                "Der verknüpfte Zeitplaneintrag wurde nicht gefunden oder kann nicht bearbeitet werden.");
         }
     }
 

@@ -47,8 +47,13 @@ try {
         dotnet run --project src/FreizeitCockpit.Migrator/FreizeitCockpit.Migrator.csproj `
             --configuration Release --no-restore
         if ($LASTEXITCODE -ne 0) { throw 'RLS test migration failed.' }
+        $env:FREIZEIT_ATOMIC_TEST_CONNECTION = $env:ConnectionStrings__freizeit
+        dotnet test tests/Api.Tests/Api.Tests.csproj --no-restore --configuration Release `
+            --filter 'FullyQualifiedName~AtomicPlanningTransactionTests'
+        if ($LASTEXITCODE -ne 0) { throw 'Atomic planning rollback test failed.' }
     }
     finally {
+        Remove-Item Env:FREIZEIT_ATOMIC_TEST_CONNECTION -ErrorAction SilentlyContinue
         $env:ConnectionStrings__freizeit = $previousConnection
         $env:DOTNET_ENVIRONMENT = $previousEnvironment
     }

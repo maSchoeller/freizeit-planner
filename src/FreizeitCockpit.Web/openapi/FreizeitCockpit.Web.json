@@ -1334,6 +1334,104 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/with-meal": {
+      "post": {
+        "tags": [
+          "CampPlanningEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkedScheduleMealBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkedScheduleMealResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/with-devotion": {
+      "post": {
+        "tags": [
+          "CampPlanningEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkedScheduleDevotionBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkedScheduleDevotionResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/organizations/{organizationId}/camps/{campId}/schedule/{scheduleEntryId}": {
       "get": {
         "tags": [
@@ -4735,6 +4833,49 @@
       "AttachmentOwnerType": {
         "type": "integer"
       },
+      "BibleSnapshot": {
+        "required": [
+          "reference",
+          "textExcerpt",
+          "technicalTranslationId",
+          "translationDisplayName",
+          "license",
+          "attribution",
+          "retrievedAt",
+          "origin"
+        ],
+        "type": "object",
+        "properties": {
+          "reference": {
+            "type": "string"
+          },
+          "textExcerpt": {
+            "type": "string"
+          },
+          "technicalTranslationId": {
+            "type": "string"
+          },
+          "translationDisplayName": {
+            "type": "string"
+          },
+          "license": {
+            "type": "string"
+          },
+          "attribution": {
+            "type": "string"
+          },
+          "retrievedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/BibleSnapshotOrigin"
+          }
+        }
+      },
+      "BibleSnapshotOrigin": {
+        "type": "integer"
+      },
       "BibleTranslation": {
         "type": "integer"
       },
@@ -5185,6 +5326,106 @@
           }
         }
       },
+      "DevotionDetails": {
+        "required": [
+          "id",
+          "organizationId",
+          "campId",
+          "topic",
+          "bibleReference",
+          "translation",
+          "coreMessage",
+          "markdownContent",
+          "responsibleUserIds",
+          "materialNotes",
+          "scheduleEntryId",
+          "bibleSnapshot",
+          "createdAt",
+          "updatedAt",
+          "deletedAt",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "topic": {
+            "type": "string"
+          },
+          "bibleReference": {
+            "type": "string"
+          },
+          "translation": {
+            "$ref": "#/components/schemas/BibleTranslation"
+          },
+          "coreMessage": {
+            "type": "string"
+          },
+          "markdownContent": {
+            "type": "string"
+          },
+          "responsibleUserIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "materialNotes": {
+            "type": "string"
+          },
+          "scheduleEntryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "bibleSnapshot": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/BibleSnapshot"
+              }
+            ]
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "deletedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "EmailChangeOutcome": {
         "type": "integer"
       },
@@ -5369,8 +5610,136 @@
           }
         }
       },
+      "LinkedDevotionBody": {
+        "required": [
+          "topic",
+          "bibleReference",
+          "translation",
+          "coreMessage",
+          "markdownContent",
+          "responsibleUserIds",
+          "materialNotes"
+        ],
+        "type": "object",
+        "properties": {
+          "topic": {
+            "type": "string"
+          },
+          "bibleReference": {
+            "type": "string"
+          },
+          "translation": {
+            "$ref": "#/components/schemas/BibleTranslation"
+          },
+          "coreMessage": {
+            "type": "string"
+          },
+          "markdownContent": {
+            "type": "string"
+          },
+          "responsibleUserIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "materialNotes": {
+            "type": "string"
+          }
+        }
+      },
+      "LinkedMealBody": {
+        "required": [
+          "name",
+          "portionOverride",
+          "recipeIds"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "portionOverride": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "recipeIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        }
+      },
       "LinkedScheduleDeleteBehavior": {
         "type": "integer"
+      },
+      "LinkedScheduleDevotionBody": {
+        "required": [
+          "schedule",
+          "devotion"
+        ],
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleEntryBody"
+          },
+          "devotion": {
+            "$ref": "#/components/schemas/LinkedDevotionBody"
+          }
+        }
+      },
+      "LinkedScheduleDevotionResponse": {
+        "required": [
+          "scheduleEntry",
+          "devotion"
+        ],
+        "type": "object",
+        "properties": {
+          "scheduleEntry": {
+            "$ref": "#/components/schemas/ScheduleEntryView"
+          },
+          "devotion": {
+            "$ref": "#/components/schemas/DevotionDetails"
+          }
+        }
+      },
+      "LinkedScheduleMealBody": {
+        "required": [
+          "schedule",
+          "meal"
+        ],
+        "type": "object",
+        "properties": {
+          "schedule": {
+            "$ref": "#/components/schemas/ScheduleEntryBody"
+          },
+          "meal": {
+            "$ref": "#/components/schemas/LinkedMealBody"
+          }
+        }
+      },
+      "LinkedScheduleMealResponse": {
+        "required": [
+          "scheduleEntry",
+          "meal"
+        ],
+        "type": "object",
+        "properties": {
+          "scheduleEntry": {
+            "$ref": "#/components/schemas/ScheduleEntryView"
+          },
+          "meal": {
+            "$ref": "#/components/schemas/Meal"
+          }
+        }
       },
       "LogisticsQuantity": {
         "required": [
@@ -5473,6 +5842,84 @@
               "string"
             ],
             "format": "uuid"
+          }
+        }
+      },
+      "Meal": {
+        "required": [
+          "id",
+          "organizationId",
+          "campId",
+          "name",
+          "campDefaultPortions",
+          "portionOverride",
+          "effectivePortions",
+          "scheduleEntryId",
+          "recipeSnapshots",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "campDefaultPortions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "portionOverride": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "effectivePortions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "scheduleEntryId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "recipeSnapshots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RecipeSnapshot"
+            }
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       },
@@ -5896,6 +6343,99 @@
           }
         }
       },
+      "RecipeSnapshot": {
+        "required": [
+          "id",
+          "sourceRecipeId",
+          "sourceRecipeVersionNumber",
+          "latestRecipeVersionNumber",
+          "refreshAvailable",
+          "name",
+          "description",
+          "preparation",
+          "basePortions",
+          "ingredients",
+          "dietaryTags",
+          "allergenNotes",
+          "kitchenNotes",
+          "capturedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceRecipeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "sourceRecipeVersionNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "latestRecipeVersionNumber": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "refreshAvailable": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "preparation": {
+            "type": "string"
+          },
+          "basePortions": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "ingredients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SnapshotIngredient"
+            }
+          },
+          "dietaryTags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "allergenNotes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "kitchenNotes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "capturedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
       "RequestEmailChangeBody": {
         "required": [
           "email"
@@ -6199,6 +6739,42 @@
               "null",
               "string"
             ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SnapshotIngredient": {
+        "required": [
+          "id",
+          "ingredientId",
+          "ingredientName",
+          "baseQuantity",
+          "scaledQuantity",
+          "note"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ingredientName": {
+            "type": "string"
+          },
+          "baseQuantity": {
+            "$ref": "#/components/schemas/Quantity"
+          },
+          "scaledQuantity": {
+            "$ref": "#/components/schemas/Quantity"
           },
           "note": {
             "type": [

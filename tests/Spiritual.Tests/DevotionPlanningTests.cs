@@ -184,6 +184,103 @@ public sealed class DevotionPlanningTests
     }
 
     [Fact]
+    public async Task DevotionScheduleLinkMustReferenceAWritableEntry()
+    {
+        var state = new InMemoryDevotionState();
+        var planning = CreatePlanning(
+            state,
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System,
+            new FixedDevotionCampContext(false, false));
+        var command = CreateCommand() with
+        {
+            ScheduleEntryId = Guid.Parse("74000000-0000-0000-0000-000000000099")
+        };
+
+        var exception = await Assert.ThrowsAsync<SpiritualRuleException>(() => planning.CreateAsync(
+            command,
+            TestContext.Current.CancellationToken));
+        var devotions = await planning.ListAsync(
+            new DevotionScope(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Empty(devotions);
+    }
+
+    [Fact]
+    public async Task UpdatingDevotionCannotIntroduceAnInvalidScheduleLink()
+    {
+        var campContext = new FixedDevotionCampContext(false);
+        var planning = CreatePlanning(
+            new InMemoryDevotionState(),
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System,
+            campContext);
+        var created = await planning.CreateAsync(
+            CreateCommand(),
+            TestContext.Current.CancellationToken);
+        campContext.ScheduleEntryIsWritable = false;
+
+        var exception = await Assert.ThrowsAsync<SpiritualRuleException>(() => planning.UpdateAsync(
+            new UpdateDevotion(
+                ActorId,
+                OrganizationId,
+                CampId,
+                created.Id,
+                created.Topic,
+                created.BibleReference,
+                created.Translation,
+                created.CoreMessage,
+                created.MarkdownContent,
+                created.ResponsibleUserIds,
+                created.MaterialNotes,
+                Guid.Parse("74000000-0000-0000-0000-000000000099"),
+                created.Version),
+            TestContext.Current.CancellationToken));
+        var unchanged = await planning.GetAsync(
+            new DevotionKey(ActorId, OrganizationId, CampId, created.Id),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Null(unchanged?.ScheduleEntryId);
+    }
+
+    [Fact]
+    public async Task LinkedDevotionCanOnlyBeRestoredAfterItsScheduleEntry()
+    {
+        var campContext = new FixedDevotionCampContext(false);
+        var planning = CreatePlanning(
+            new InMemoryDevotionState(),
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System,
+            campContext);
+        var created = await planning.CreateAsync(
+            CreateCommand() with
+            {
+                ScheduleEntryId = Guid.Parse("74000000-0000-0000-0000-000000000001")
+            },
+            TestContext.Current.CancellationToken);
+        await planning.MoveToTrashAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version),
+            TestContext.Current.CancellationToken);
+        campContext.ScheduleEntryIsWritable = false;
+
+        var exception = await Assert.ThrowsAsync<SpiritualRuleException>(() => planning.RestoreAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version + 1),
+            TestContext.Current.CancellationToken));
+        var trash = await planning.ListTrashAsync(
+            new DevotionScope(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal("schedule_entry_invalid", exception.ErrorCode);
+        Assert.Single(trash);
+    }
+
+    [Fact]
     public async Task StaleMutationIsRejectedAndTrashCanBeExplicitlyRestored()
     {
         var state = new InMemoryDevotionState();
@@ -399,12 +496,20 @@ public sealed class DevotionPlanningTests
                 : TenantAccessDecision.Permit(TenantRole.Member));
     }
 
-    private sealed class FixedDevotionCampContext(bool isArchived) : IDevotionCampContext
+    private sealed class FixedDevotionCampContext(
+        bool isArchived,
+        bool scheduleEntryIsWritable = true) : IDevotionCampContext
     {
+        public bool ScheduleEntryIsWritable { get; set; } = scheduleEntryIsWritable;
+
         public Task<DevotionCampContext> GetAsync(
             DevotionCampContextRequest request,
             CancellationToken cancellationToken) =>
             Task.FromResult(new DevotionCampContext(isArchived));
+
+        public Task<bool> IsScheduleEntryWritableAsync(
+            DevotionScheduleReference request,
+            CancellationToken cancellationToken) => Task.FromResult(ScheduleEntryIsWritable);
     }
 
     private sealed class SuccessfulBibleProvider(DateTimeOffset retrievedAt) : IBiblePassageProvider
