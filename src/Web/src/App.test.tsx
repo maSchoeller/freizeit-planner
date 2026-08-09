@@ -15,6 +15,7 @@ describe("Dashboard", () => {
         organizationId: "20000000-0000-0000-0000-000000000001",
         organizationName: "Sonnenhöhe e. V.",
         organizationSlug: "sonnenhoehe",
+        organizationRole: 1,
         campId: "30000000-0000-0000-0000-000000000001",
         campSlug: "sommerfreizeit-2026",
         campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",

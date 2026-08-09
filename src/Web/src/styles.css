@@ -859,6 +859,35 @@ button:disabled {
   min-height: 7rem;
   resize: vertical;
 }
+.recipe-form {
+  display: grid;
+  gap: 1rem;
+}
+.autocomplete-results {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recipe-ingredient-list {
+  display: grid;
+  gap: 0.75rem;
+}
+.recipe-ingredient-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  padding: 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--white);
+}
+.recipe-ingredient-row h3,
+.recipe-ingredient-row .text-action {
+  grid-column: 1 / -1;
+}
 .schedule-create-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -877,8 +906,13 @@ button:disabled {
   color: var(--petrol-900);
 }
 @media (max-width: 960px) {
-  .schedule-create-grid {
+  .schedule-create-grid,
+  .recipe-ingredient-row {
     grid-template-columns: 1fr;
+  }
+  .recipe-ingredient-row h3,
+  .recipe-ingredient-row .text-action {
+    grid-column: auto;
   }
 }
 .membership-list {

@@ -31,6 +31,10 @@ export default defineConfig({
             link: "/tagesplanung",
           },
           {
+            text: "Essen und Rezepte",
+            link: "/essen-rezepte",
+          },
+          {
             text: "Suche, Aktivität, Druck und CSV",
             link: "/suche-aktivitaet-export",
           },

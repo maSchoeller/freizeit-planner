@@ -44,6 +44,7 @@ function renderRoute(path: string) {
         organizationId: "20000000-0000-0000-0000-000000000001",
         organizationName: "Sonnenhöhe e. V.",
         organizationSlug: "sonnenhoehe",
+        organizationRole: 1,
         campId: "30000000-0000-0000-0000-000000000001",
         campSlug: "sommerfreizeit-2026",
         campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",
@@ -292,6 +293,156 @@ describe("camp workspace", () => {
       ),
       expect.objectContaining({ credentials: "same-origin" }),
     );
+  });
+
+  it("creates an organization recipe with an autocompleted decimal ingredient", async () => {
+    const ingredientId = "41000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/catering/recipes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: "42000000-0000-0000-0000-000000000001",
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                currentVersion: {
+                  number: 1,
+                  name: "Kartoffelsuppe",
+                  basePortions: 8,
+                  ingredients: [],
+                  dietaryTags: ["vegetarisch"],
+                },
+                version: 1,
+              }),
+              {
+                status: 201,
+                headers: { "Content-Type": "application/json", ETag: '"1"' },
+              },
+            ),
+          );
+        if (path.includes("/catering/ingredients?query="))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: ingredientId,
+                  organizationId: "20000000-0000-0000-0000-000000000001",
+                  name: "Kartoffeln",
+                  isMerged: false,
+                  mergedIntoIngredientId: null,
+                  version: 2,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(screen.getByRole("button", { name: "Rezept anlegen" }));
+    expect(
+      screen.getByRole("heading", { name: "Neues Rezept" }),
+    ).toBeInTheDocument();
+
+    await user.type(
+      screen.getByRole("textbox", { name: "Rezeptname" }),
+      "Kartoffelsuppe",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Beschreibung" }),
+      "Wärmende Suppe",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Zubereitung" }),
+      "Kartoffeln kochen und pürieren.",
+    );
+    await user.clear(
+      screen.getByRole("spinbutton", { name: "Basisportionen" }),
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Basisportionen" }),
+      "8",
+    );
+    await user.type(
+      screen.getByRole("searchbox", { name: "Zutat suchen" }),
+      "Kartoff",
+    );
+    await user.click(
+      await screen.findByRole("button", { name: "Kartoffeln hinzufügen" }),
+    );
+    await user.clear(
+      screen.getByRole("spinbutton", { name: "Menge für Kartoffeln" }),
+    );
+    await user.type(
+      screen.getByRole("spinbutton", { name: "Menge für Kartoffeln" }),
+      "1.5",
+    );
+    await user.selectOptions(
+      screen.getByRole("combobox", { name: "Einheit für Kartoffeln" }),
+      "1",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Ernährungs-Tags" }),
+      "vegetarisch",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Allergenhinweise" }),
+      "Milch prüfen",
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Küchenhinweise" }),
+      "Pürierstab bereithalten",
+    );
+    await user.click(screen.getByRole("button", { name: "Rezept speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Kartoffelsuppe wurde als Rezeptversion 1 gespeichert.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const recipeCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/catering/recipes") &&
+        init?.method === "POST",
+    );
+    expect(recipeCall).toBeDefined();
+    const init = recipeCall?.[1];
+    expect(init?.headers).toMatchObject({ "X-CSRF-TOKEN": "csrf-token" });
+    expect(typeof init?.body).toBe("string");
+    const payload = JSON.parse(init?.body as string) as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      name: "Kartoffelsuppe",
+      description: "Wärmende Suppe",
+      preparation: "Kartoffeln kochen und pürieren.",
+      basePortions: 8,
+      ingredients: [
+        {
+          ingredientId,
+          quantity: { value: 1.5, unit: 1, countUnitName: null },
+          note: null,
+        },
+      ],
+      dietaryTags: ["vegetarisch"],
+      allergenNotes: "Milch prüfen",
+      kitchenNotes: "Pürierstab bereithalten",
+    });
   });
 
   it("offers every planning area as a real route", () => {

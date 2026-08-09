@@ -15,6 +15,9 @@
 - `IOrganizationCateringLibrary` owns ingredient autocomplete, Unicode-KC name normalization, controlled
   preview/CAS merge, and immutable recipe version creation. Merge and rename append versions for affected current
   recipes; historical versions and meal snapshots are never rewritten.
+- The Camp workspace exposes the Organization recipe list and an Owner/Admin creation form. Ingredient search uses
+  the library autocomplete endpoint; submitted rows carry positive decimal values, one of the six supported unit
+  variants, optional named-count labels and notes. Every create sends antiforgery to the resolved Organization route.
 - `ICampMealPlanning` owns meal CRUD, nullable portion overrides, copied recipe snapshots and the only explicit
   snapshot refresh operation. Meal deletion is a versioned 30-day soft delete; manager-only trash browsing and
   restore recheck Camp archive state, deadline and optimistic concurrency. `ICampCateringContext` is the inbound

@@ -41,6 +41,7 @@ type CampRuntime = {
   organizationId: string;
   organizationName: string;
   organizationSlug: string;
+  organizationRole: AccountMembership["role"];
   campId: string;
   campSlug: string;
   campBase: string;
@@ -425,6 +426,34 @@ type Meal = {
   effectivePortions: number;
   recipeCount: number;
 };
+type Ingredient = {
+  id: string;
+  organizationId: string;
+  name: string;
+  isMerged: boolean;
+  mergedIntoIngredientId: string | null;
+  version: number;
+};
+type RecipeSummary = {
+  id: string;
+  organizationId: string;
+  name: string;
+  basePortions: number;
+  currentVersionNumber: number;
+  version: number;
+};
+type RecipeCreateResult = {
+  id: string;
+  currentVersion: { number: number; name: string };
+  version: number;
+};
+type RecipeIngredientDraft = {
+  ingredient: Ingredient;
+  quantity: string;
+  unit: string;
+  countUnitName: string;
+  note: string;
+};
 type Note = {
   id: string;
   title: string;
@@ -584,6 +613,7 @@ async function resolveCampRuntime(
     organizationId: membership.organizationId,
     organizationName: membership.organizationName,
     organizationSlug,
+    organizationRole: membership.role,
     campId: camp.id,
     campSlug: camp.slug,
     campBase: `/o/${organizationSlug}/camps/${camp.slug}`,
@@ -1894,12 +1924,133 @@ function SchedulePage({ offline }: { offline: boolean }) {
 }
 
 function MealsPage({ offline }: { offline: boolean }) {
-  const { organizationId, campId } = useCampRuntime();
+  const { organizationId, organizationRole, campId } = useCampRuntime();
+  const canManageLibrary = organizationRole === 0 || organizationRole === 1;
+  const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals`;
   const query = useCampQuery<Meal[]>("meals", path);
+  const recipes = useQuery({
+    queryKey: [organizationId, "catering", "recipes"],
+    queryFn: () =>
+      getJson<RecipeSummary[]>(
+        `/api/v1/organizations/${organizationId}/catering/recipes`,
+      ),
+    retry: false,
+  });
+  const [showRecipeForm, setShowRecipeForm] = useState(false);
+  const [recipeName, setRecipeName] = useState("");
+  const [recipeDescription, setRecipeDescription] = useState("");
+  const [recipePreparation, setRecipePreparation] = useState("");
+  const [recipeBasePortions, setRecipeBasePortions] = useState("4");
+  const [recipeDietaryTags, setRecipeDietaryTags] = useState("");
+  const [recipeAllergenNotes, setRecipeAllergenNotes] = useState("");
+  const [recipeKitchenNotes, setRecipeKitchenNotes] = useState("");
+  const [ingredientSearch, setIngredientSearch] = useState("");
+  const [recipeIngredients, setRecipeIngredients] = useState<
+    RecipeIngredientDraft[]
+  >([]);
+  const [recipeFilter, setRecipeFilter] = useState("");
+  const [recipeNotice, setRecipeNotice] = useState("");
+  const ingredientSuggestions = useQuery({
+    queryKey: [
+      organizationId,
+      "catering",
+      "ingredients",
+      ingredientSearch.trim(),
+    ],
+    queryFn: () =>
+      getJson<Ingredient[]>(
+        `/api/v1/organizations/${organizationId}/catering/ingredients?query=${encodeURIComponent(ingredientSearch.trim())}&limit=10`,
+      ),
+    enabled: showRecipeForm && ingredientSearch.trim().length >= 2,
+    retry: false,
+  });
+  const createRecipe = useMutation({
+    mutationFn: async () => {
+      const token = await getAntiforgeryToken();
+      const response = await fetch(
+        `/api/v1/organizations/${organizationId}/catering/recipes`,
+        {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/json",
+            "X-CSRF-TOKEN": token,
+          },
+          body: JSON.stringify({
+            name: recipeName,
+            description: recipeDescription,
+            preparation: recipePreparation,
+            basePortions: Number(recipeBasePortions),
+            ingredients: recipeIngredients.map((row) => ({
+              ingredientId: row.ingredient.id,
+              quantity: {
+                value: Number(row.quantity),
+                unit: Number(row.unit),
+                countUnitName:
+                  row.unit === "5" ? row.countUnitName || null : null,
+              },
+              note: row.note || null,
+            })),
+            dietaryTags: Array.from(
+              new Set(
+                recipeDietaryTags
+                  .split(/[,;\n]/)
+                  .map((tag) => tag.trim())
+                  .filter(Boolean),
+              ),
+            ),
+            allergenNotes: recipeAllergenNotes || null,
+            kitchenNotes: recipeKitchenNotes || null,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const problem = (await response.json().catch(() => null)) as {
+          detail?: string;
+        } | null;
+        throw new Error(
+          problem?.detail ?? "Das Rezept konnte nicht gespeichert werden.",
+        );
+      }
+      return (await response.json()) as RecipeCreateResult;
+    },
+    onSuccess: async (created) => {
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, "catering", "recipes"],
+      });
+      setRecipeNotice(
+        `${created.currentVersion.name} wurde als Rezeptversion ${created.currentVersion.number} gespeichert.`,
+      );
+      setShowRecipeForm(false);
+      setRecipeName("");
+      setRecipeDescription("");
+      setRecipePreparation("");
+      setRecipeBasePortions("4");
+      setRecipeDietaryTags("");
+      setRecipeAllergenNotes("");
+      setRecipeKitchenNotes("");
+      setIngredientSearch("");
+      setRecipeIngredients([]);
+    },
+  });
   const meals =
     query.data ??
     (offline ? ((loadOfflineSnapshot()?.meals ?? []) as Meal[]) : []);
+  const filteredRecipes = (recipes.data ?? []).filter((recipe) =>
+    recipe.name
+      .toLocaleLowerCase("de-DE")
+      .includes(recipeFilter.trim().toLocaleLowerCase("de-DE")),
+  );
+  const updateRecipeIngredient = (
+    ingredientId: string,
+    changes: Partial<RecipeIngredientDraft>,
+  ) =>
+    setRecipeIngredients((current) =>
+      current.map((row) =>
+        row.ingredient.id === ingredientId ? { ...row, ...changes } : row,
+      ),
+    );
   useEffect(() => {
     if (query.data) saveOfflineSnapshot({ meals: query.data });
   }, [query.data]);
@@ -1913,35 +2064,339 @@ function MealsPage({ offline }: { offline: boolean }) {
       </PageHeading>
       <QueryState loading={query.isLoading && !offline} error={query.error} />
       <div className="toolbar">
-        <button className="primary-action" disabled={offline}>
+        <button type="button" className="primary-action" disabled={offline}>
           Mahlzeit planen
         </button>
-        <button className="secondary-action" disabled={offline}>
-          Rezept anlegen
+        <button
+          type="button"
+          className="secondary-action"
+          disabled={offline || !canManageLibrary}
+          aria-expanded={showRecipeForm}
+          title={
+            canManageLibrary
+              ? undefined
+              : "Nur Owner und Organisations-Admins verwalten Rezepte."
+          }
+          onClick={() => {
+            setShowRecipeForm((current) => !current);
+            setRecipeNotice("");
+          }}
+        >
+          {showRecipeForm ? "Rezeptformular schließen" : "Rezept anlegen"}
         </button>
         <label className="search-field">
-          Rezepte und Zutaten suchen
-          <input type="search" placeholder="z. B. Tomaten" />
+          Rezepte suchen
+          <input
+            type="search"
+            placeholder="z. B. Kartoffelsuppe"
+            value={recipeFilter}
+            onChange={(event) => setRecipeFilter(event.target.value)}
+          />
         </label>
       </div>
-      <div className="card-grid">
-        {meals.map((meal) => (
-          <article className="card" key={meal.id}>
-            <p className="eyebrow">{meal.effectivePortions} Portionen</p>
-            <h2>{meal.name}</h2>
-            <p>
-              {meal.recipeCount} Rezept-Snapshots · Änderungen an
-              Bibliotheksrezepten werden nicht still übernommen.
+      {recipeNotice ? (
+        <p className="form-feedback" role="status">
+          {recipeNotice}
+        </p>
+      ) : null}
+      {showRecipeForm ? (
+        <form
+          className="schedule-create-form recipe-form"
+          aria-labelledby="new-recipe-heading"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setRecipeNotice("");
+            createRecipe.mutate();
+          }}
+        >
+          <h2 id="new-recipe-heading">Neues Rezept</h2>
+          <div className="camp-form-grid">
+            <label>
+              Rezeptname
+              <input
+                required
+                value={recipeName}
+                onChange={(event) => setRecipeName(event.target.value)}
+              />
+            </label>
+            <label>
+              Basisportionen
+              <input
+                required
+                type="number"
+                min="1"
+                step="1"
+                value={recipeBasePortions}
+                onChange={(event) => setRecipeBasePortions(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Beschreibung
+              <textarea
+                required
+                value={recipeDescription}
+                onChange={(event) => setRecipeDescription(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Zubereitung
+              <textarea
+                required
+                value={recipePreparation}
+                onChange={(event) => setRecipePreparation(event.target.value)}
+              />
+            </label>
+          </div>
+          <fieldset>
+            <legend>Zutatenpositionen</legend>
+            <label>
+              Zutat suchen
+              <input
+                type="search"
+                value={ingredientSearch}
+                placeholder="Mindestens zwei Zeichen"
+                onChange={(event) => setIngredientSearch(event.target.value)}
+              />
+            </label>
+            {ingredientSuggestions.isLoading ? (
+              <p role="status">Zutaten werden gesucht …</p>
+            ) : null}
+            {ingredientSuggestions.error ? (
+              <p role="alert" className="error-message">
+                {ingredientSuggestions.error.message}
+              </p>
+            ) : null}
+            {ingredientSearch.trim().length >= 2 &&
+            ingredientSuggestions.data?.length === 0 ? (
+              <p className="empty-state">Keine passende Zutat gefunden.</p>
+            ) : null}
+            {ingredientSuggestions.data?.length ? (
+              <ul className="autocomplete-results">
+                {ingredientSuggestions.data
+                  .filter(
+                    (ingredient) =>
+                      !recipeIngredients.some(
+                        (row) => row.ingredient.id === ingredient.id,
+                      ),
+                  )
+                  .map((ingredient) => (
+                    <li key={ingredient.id}>
+                      <button
+                        type="button"
+                        className="secondary-action"
+                        aria-label={`${ingredient.name} hinzufügen`}
+                        onClick={() => {
+                          setRecipeIngredients((current) => [
+                            ...current,
+                            {
+                              ingredient,
+                              quantity: "1",
+                              unit: "0",
+                              countUnitName: "",
+                              note: "",
+                            },
+                          ]);
+                          setIngredientSearch("");
+                        }}
+                      >
+                        {ingredient.name}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
+            ) : null}
+            {recipeIngredients.length === 0 ? (
+              <p className="form-hint">
+                Füge mindestens eine Zutat aus der Organisationsbibliothek
+                hinzu.
+              </p>
+            ) : (
+              <div className="recipe-ingredient-list">
+                {recipeIngredients.map((row) => (
+                  <section
+                    className="recipe-ingredient-row"
+                    aria-label={row.ingredient.name}
+                    key={row.ingredient.id}
+                  >
+                    <h3>{row.ingredient.name}</h3>
+                    <label>
+                      Menge für {row.ingredient.name}
+                      <input
+                        required
+                        type="number"
+                        min="0.001"
+                        step="0.001"
+                        value={row.quantity}
+                        onChange={(event) =>
+                          updateRecipeIngredient(row.ingredient.id, {
+                            quantity: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <label>
+                      Einheit für {row.ingredient.name}
+                      <select
+                        value={row.unit}
+                        onChange={(event) =>
+                          updateRecipeIngredient(row.ingredient.id, {
+                            unit: event.target.value,
+                          })
+                        }
+                      >
+                        <option value="0">Gramm</option>
+                        <option value="1">Kilogramm</option>
+                        <option value="2">Milliliter</option>
+                        <option value="3">Liter</option>
+                        <option value="4">Stück</option>
+                        <option value="5">Benannte Zähleinheit</option>
+                      </select>
+                    </label>
+                    {row.unit === "5" ? (
+                      <label>
+                        Name der Zähleinheit für {row.ingredient.name}
+                        <input
+                          required
+                          value={row.countUnitName}
+                          onChange={(event) =>
+                            updateRecipeIngredient(row.ingredient.id, {
+                              countUnitName: event.target.value,
+                            })
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label>
+                      Hinweis für {row.ingredient.name}
+                      <input
+                        value={row.note}
+                        onChange={(event) =>
+                          updateRecipeIngredient(row.ingredient.id, {
+                            note: event.target.value,
+                          })
+                        }
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="text-action"
+                      onClick={() =>
+                        setRecipeIngredients((current) =>
+                          current.filter(
+                            (item) => item.ingredient.id !== row.ingredient.id,
+                          ),
+                        )
+                      }
+                    >
+                      {row.ingredient.name} entfernen
+                    </button>
+                  </section>
+                ))}
+              </div>
+            )}
+          </fieldset>
+          <div className="camp-form-grid">
+            <label className="full-row">
+              Ernährungs-Tags
+              <input
+                value={recipeDietaryTags}
+                placeholder="z. B. vegetarisch, glutenfrei"
+                onChange={(event) => setRecipeDietaryTags(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Allergenhinweise
+              <textarea
+                value={recipeAllergenNotes}
+                onChange={(event) => setRecipeAllergenNotes(event.target.value)}
+              />
+            </label>
+            <label className="full-row">
+              Küchenhinweise
+              <textarea
+                value={recipeKitchenNotes}
+                onChange={(event) => setRecipeKitchenNotes(event.target.value)}
+              />
+            </label>
+          </div>
+          {createRecipe.error ? (
+            <p role="alert" className="error-message">
+              {createRecipe.error.message}
             </p>
-            <button className="secondary-action" disabled={offline}>
-              Öffnen
+          ) : null}
+          <div className="toolbar">
+            <button
+              className="primary-action"
+              type="submit"
+              disabled={
+                createRecipe.isPending || recipeIngredients.length === 0
+              }
+            >
+              {createRecipe.isPending
+                ? "Rezept wird gespeichert …"
+                : "Rezept speichern"}
             </button>
-          </article>
-        ))}
-        {meals.length === 0 && (
-          <p className="empty-state">Noch keine Mahlzeit geplant.</p>
-        )}
-      </div>
+            <button
+              className="secondary-action"
+              type="button"
+              disabled={createRecipe.isPending}
+              onClick={() => setShowRecipeForm(false)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
+      <section aria-labelledby="recipe-library-heading">
+        <div className="section-heading">
+          <h2 id="recipe-library-heading">Rezeptbibliothek</h2>
+        </div>
+        <QueryState loading={recipes.isLoading} error={recipes.error} />
+        <div className="card-grid">
+          {filteredRecipes.map((recipe) => (
+            <article className="card" key={recipe.id}>
+              <p className="eyebrow">
+                Version {recipe.currentVersionNumber} · {recipe.basePortions}{" "}
+                Basisportionen
+              </p>
+              <h3>{recipe.name}</h3>
+              <button
+                className="secondary-action"
+                type="button"
+                disabled={offline}
+              >
+                Rezept öffnen
+              </button>
+            </article>
+          ))}
+          {!recipes.isLoading && filteredRecipes.length === 0 ? (
+            <p className="empty-state">Noch kein passendes Rezept vorhanden.</p>
+          ) : null}
+        </div>
+      </section>
+      <section aria-labelledby="meal-list-heading">
+        <div className="section-heading">
+          <h2 id="meal-list-heading">Geplante Mahlzeiten</h2>
+        </div>
+        <div className="card-grid">
+          {meals.map((meal) => (
+            <article className="card" key={meal.id}>
+              <p className="eyebrow">{meal.effectivePortions} Portionen</p>
+              <h2>{meal.name}</h2>
+              <p>
+                {meal.recipeCount} Rezept-Snapshots · Änderungen an
+                Bibliotheksrezepten werden nicht still übernommen.
+              </p>
+              <button className="secondary-action" disabled={offline}>
+                Öffnen
+              </button>
+            </article>
+          ))}
+          {meals.length === 0 && (
+            <p className="empty-state">Noch keine Mahlzeit geplant.</p>
+          )}
+        </div>
+      </section>
     </>
   );
 }
