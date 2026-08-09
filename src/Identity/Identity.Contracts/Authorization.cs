@@ -35,6 +35,13 @@ public interface ITenantAdministration
         CancellationToken cancellationToken);
 }
 
+public interface ICampMemberDirectory
+{
+    Task<IReadOnlyList<CampMemberSummary>> ListCampMembersAsync(
+        CampMemberDirectoryQuery query,
+        CancellationToken cancellationToken);
+}
+
 public interface IPlatformAdministration
 {
     Task<IReadOnlyList<PlatformOrganizationView>> ListOrganizationsAsync(
@@ -96,6 +103,13 @@ public sealed record CampMemberRemoval(
     Guid CampId,
     Guid UserId,
     long ExpectedVersion);
+
+public sealed record CampMemberDirectoryQuery(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId);
+
+public sealed record CampMemberSummary(Guid UserId, string DisplayName);
 
 public sealed record OrganizationStatusChange(
     Guid ActorId,

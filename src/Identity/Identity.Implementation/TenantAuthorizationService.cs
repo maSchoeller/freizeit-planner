@@ -5,6 +5,7 @@ namespace Identity.Implementation;
 public sealed class TenantAuthorizationService(ITenantAuthorizationState state) :
     ITenantAccessControl,
     ITenantAdministration,
+    ICampMemberDirectory,
     IPlatformAdministration
 {
     public async Task<IReadOnlyList<PlatformOrganizationView>> ListOrganizationsAsync(
@@ -46,6 +47,24 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
             }
         }
         return result.OrderBy(item => item.DisplayName).ToArray();
+    }
+
+    public async Task<IReadOnlyList<CampMemberSummary>> ListCampMembersAsync(
+        CampMemberDirectoryQuery query,
+        CancellationToken cancellationToken)
+    {
+        var decision = await AuthorizeCampAsync(
+            new CampAccessRequest(query.ActorId, query.OrganizationId, query.CampId, CampAction.Read),
+            cancellationToken);
+        if (!decision.Allowed)
+        {
+            throw Rule("camp_access_denied", "Dieses Camp darf nicht gelesen werden.");
+        }
+
+        return await state.ListCampMembersAsync(
+            query.OrganizationId,
+            query.CampId,
+            cancellationToken);
     }
 
     public async Task<TenantAccessDecision> AuthorizeOrganizationAsync(

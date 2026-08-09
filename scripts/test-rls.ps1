@@ -99,6 +99,52 @@ COMMIT;
 BEGIN;
 SET LOCAL ROLE freizeit_app;
 SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000005', true);
+SELECT set_config('app.organization_id', '20000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.camp_id', '30000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.operation', 'tenant', true);
+DO $assert$
+BEGIN
+    IF (SELECT count(*) FROM identity.list_camp_members(
+        '20000000-0000-0000-0000-000000000001',
+        '30000000-0000-0000-0000-000000000001')) <> 5 THEN
+        RAISE EXCEPTION 'camp member directory omitted allowed members or leaked an unassigned member';
+    END IF;
+    IF EXISTS (
+        SELECT 1
+        FROM identity.list_camp_members(
+            '20000000-0000-0000-0000-000000000001',
+            '30000000-0000-0000-0000-000000000001')
+        WHERE "UserId" = '10000000-0000-0000-0000-000000000006') THEN
+        RAISE EXCEPTION 'camp member directory leaked an unassigned organization member';
+    END IF;
+END
+$assert$;
+COMMIT;
+'@ | Out-Null
+
+    Invoke-Psql -Sql @'
+BEGIN;
+SET LOCAL ROLE freizeit_app;
+SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000006', true);
+SELECT set_config('app.organization_id', '20000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.camp_id', '30000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.operation', 'tenant', true);
+DO $assert$
+BEGIN
+    IF (SELECT count(*) FROM identity.list_camp_members(
+        '20000000-0000-0000-0000-000000000001',
+        '30000000-0000-0000-0000-000000000001')) <> 0 THEN
+        RAISE EXCEPTION 'unassigned actor gained camp member directory access';
+    END IF;
+END
+$assert$;
+COMMIT;
+'@ | Out-Null
+
+    Invoke-Psql -Sql @'
+BEGIN;
+SET LOCAL ROLE freizeit_app;
+SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000005', true);
 SELECT set_config('app.operation', 'platform_admin', true);
 DO $assert$
 BEGIN

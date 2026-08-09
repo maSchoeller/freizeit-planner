@@ -101,6 +101,8 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use tenant authorization must supply ITenantAccessControl."));
     builder.Services.AddScoped<ITenantAdministration>(_ =>
         throw new InvalidOperationException("Tests that use tenant administration must supply ITenantAdministration."));
+    builder.Services.AddScoped<ICampMemberDirectory>(_ =>
+        throw new InvalidOperationException("Tests that use the camp member directory must supply ICampMemberDirectory."));
     builder.Services.AddScoped<IPlatformAdministration>(_ =>
         throw new InvalidOperationException("Tests that use platform administration must supply IPlatformAdministration."));
     builder.Services.AddScoped<ICampManagement>(_ =>
@@ -182,6 +184,8 @@ else
     builder.Services.AddScoped<ITenantAccessControl>(services =>
         services.GetRequiredService<TenantAuthorizationService>());
     builder.Services.AddScoped<ITenantAdministration>(services =>
+        services.GetRequiredService<TenantAuthorizationService>());
+    builder.Services.AddScoped<ICampMemberDirectory>(services =>
         services.GetRequiredService<TenantAuthorizationService>());
     builder.Services.AddScoped<IPlatformAdministration>(services =>
         services.GetRequiredService<TenantAuthorizationService>());

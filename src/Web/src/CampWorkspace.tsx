@@ -92,7 +92,10 @@ type ScheduleEditDraft = {
   category: string;
   status: string;
   audience: string;
+  responsibleUserIds: string[];
 };
+
+type CampMemberSummary = { userId: string; displayName: string };
 
 class ScheduleUpdateError extends Error {
   constructor(message: string) {
@@ -140,6 +143,7 @@ function createScheduleEditDraft(entry: ScheduleEntry): ScheduleEditDraft {
     category: entry.category,
     status: String(entry.status ?? 0),
     audience: entry.audience ?? "",
+    responsibleUserIds: entry.responsibleUserIds ?? [],
   };
 }
 
@@ -172,7 +176,7 @@ function scheduleBodyFromDraft(
     location: draft.location || null,
     category: draft.category,
     status: Number(draft.status),
-    responsibleUserIds: entry.responsibleUserIds ?? [],
+    responsibleUserIds: draft.responsibleUserIds,
     audience: draft.audience || null,
   };
 }
@@ -189,6 +193,7 @@ function optimisticEntryFromDraft(
     category: draft.category,
     status: Number(draft.status),
     audience: draft.audience || undefined,
+    responsibleUserIds: draft.responsibleUserIds,
     timing: draft.isAllDay
       ? {
           isAllDay: true,
@@ -289,6 +294,44 @@ function scheduleTimingLabel(entry: ScheduleEntry) {
       }).format(new Date(entry.timing.endsAtUtc))
     : "";
   return `${start}–${end} Uhr`;
+}
+
+function ResponsibilityFields({
+  candidates,
+  selected,
+  onChange,
+}: {
+  candidates: CampMemberSummary[];
+  selected: string[];
+  onChange: (userIds: string[]) => void;
+}) {
+  return (
+    <fieldset className="responsibility-selector">
+      <legend>Verantwortliche</legend>
+      {candidates.length === 0 ? (
+        <p className="form-hint">
+          Keine auswählbaren Camp-Mitglieder gefunden.
+        </p>
+      ) : (
+        candidates.map((candidate) => (
+          <label className="checkbox-label" key={candidate.userId}>
+            <input
+              type="checkbox"
+              checked={selected.includes(candidate.userId)}
+              onChange={(event) =>
+                onChange(
+                  event.target.checked
+                    ? [...selected, candidate.userId]
+                    : selected.filter((userId) => userId !== candidate.userId),
+                )
+              }
+            />
+            {candidate.displayName}
+          </label>
+        ))
+      )}
+    </fieldset>
+  );
 }
 
 type Meal = {
@@ -611,6 +654,10 @@ function SummaryCard({
 function SchedulePage({ offline }: { offline: boolean }) {
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2026-08-01&toDateExclusive=2026-08-09`;
   const query = useCampQuery<ScheduleEntry[]>("schedule", path);
+  const candidatesQuery = useCampQuery<CampMemberSummary[]>(
+    "responsibility-candidates",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/responsibility-candidates`,
+  );
   const queryClient = useQueryClient();
   const scheduleQueryKey = [organizationId, campId, "schedule"] as const;
   const [deleteCandidate, setDeleteCandidate] = useState<ScheduleEntry | null>(
@@ -633,6 +680,9 @@ function SchedulePage({ offline }: { offline: boolean }) {
   const [scheduleCategory, setScheduleCategory] = useState("Programm");
   const [scheduleStatus, setScheduleStatus] = useState("0");
   const [scheduleAudience, setScheduleAudience] = useState("");
+  const [scheduleResponsibleUserIds, setScheduleResponsibleUserIds] = useState<
+    string[]
+  >([]);
   const [mealName, setMealName] = useState("");
   const [devotionTopic, setDevotionTopic] = useState("");
   const [devotionBibleReference, setDevotionBibleReference] = useState("");
@@ -673,7 +723,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
         location: scheduleLocation || null,
         category: scheduleCategory,
         status: Number(scheduleStatus),
-        responsibleUserIds: [],
+        responsibleUserIds: scheduleResponsibleUserIds,
         audience: scheduleAudience || null,
       };
       const path =
@@ -727,6 +777,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
       setScheduleLocation("");
       setScheduleStatus("0");
       setScheduleAudience("");
+      setScheduleResponsibleUserIds([]);
       setMealName("");
       setDevotionTopic("");
       setDevotionBibleReference("");
@@ -874,6 +925,9 @@ function SchedulePage({ offline }: { offline: boolean }) {
     end: entry.timing.endsAtUtc ?? entry.timing.endDateExclusive,
     allDay: entry.timing.isAllDay,
   }));
+  const responsibilityCandidates = (candidatesQuery.data ?? []).filter(
+    (candidate) => candidate.userId && candidate.displayName,
+  );
   return (
     <>
       <PageHeading eyebrow="Planung" title="Tages- und Wochenplan">
@@ -884,7 +938,9 @@ function SchedulePage({ offline }: { offline: boolean }) {
       </PageHeading>
       <QueryState
         loading={query.isLoading && !offline}
-        error={query.error ?? create.error ?? remove.error}
+        error={
+          query.error ?? candidatesQuery.error ?? create.error ?? remove.error
+        }
       />
       <p
         className="visually-hidden"
@@ -1123,6 +1179,11 @@ function SchedulePage({ offline }: { offline: boolean }) {
                 </select>
               </label>
             </fieldset>
+            <ResponsibilityFields
+              candidates={responsibilityCandidates}
+              selected={scheduleResponsibleUserIds}
+              onChange={setScheduleResponsibleUserIds}
+            />
             {createType === "Meal" && (
               <fieldset>
                 <legend>Mahlzeit</legend>
@@ -1373,8 +1434,15 @@ function SchedulePage({ offline }: { offline: boolean }) {
                 />
               </label>
             </fieldset>
+            <ResponsibilityFields
+              candidates={responsibilityCandidates}
+              selected={editDraft.responsibleUserIds}
+              onChange={(responsibleUserIds) =>
+                setEditDraft({ ...editDraft, responsibleUserIds })
+              }
+            />
             <p className="form-hint">
-              Verantwortliche bleiben bei dieser Zeitänderung erhalten.
+              Verantwortlichkeit dient der Übersicht und ändert keine Rechte.
             </p>
             <div className="toolbar">
               <button

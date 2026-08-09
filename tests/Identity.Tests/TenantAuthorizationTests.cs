@@ -182,6 +182,32 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
+    public async Task ResponsibilityDirectoryReturnsOnlyActiveCampReadersWithoutEmail()
+    {
+        var fixture = AuthorizationFixture.Create(TenantRole.Member, TenantRole.Member);
+        var ownerId = fixture.AddMember(TenantRole.Owner);
+        var assignedId = fixture.AddMember(TenantRole.Member);
+        fixture.State.Assignments.Add(new CampAssignmentRecord(
+            fixture.OrganizationId,
+            fixture.CampId,
+            assignedId,
+            TenantRole.Member));
+        _ = fixture.AddMember(TenantRole.Viewer);
+
+        var candidates = await fixture.Service.ListCampMembersAsync(
+            new CampMemberDirectoryQuery(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                fixture.CampId),
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(3, candidates.Count);
+        Assert.Contains(candidates, item => item.UserId == fixture.ActorId);
+        Assert.Contains(candidates, item => item.UserId == ownerId);
+        Assert.Contains(candidates, item => item.UserId == assignedId);
+    }
+
+    [Fact]
     public async Task PlatformAdminCanListAndSuspendOrganizationsButTenantUserCannot()
     {
         var fixture = AuthorizationFixture.Create(TenantRole.Owner);
@@ -310,6 +336,25 @@ public sealed class TenantAuthorizationTests
             CancellationToken cancellationToken) =>
             ValueTask.FromResult<IReadOnlyList<MembershipRecord>>(
                 Memberships.Where(item => item.OrganizationId == organizationId).ToArray());
+
+        public ValueTask<IReadOnlyList<CampMemberSummary>> ListCampMembersAsync(
+            Guid organizationId,
+            Guid campId,
+            CancellationToken cancellationToken)
+        {
+            var result = Memberships
+                .Where(item => item.OrganizationId == organizationId && item.IsActive)
+                .Where(item => item.Role is TenantRole.Owner or TenantRole.OrganizationAdmin
+                    || Assignments.Any(assignment => assignment.OrganizationId == organizationId
+                        && assignment.CampId == campId
+                        && assignment.UserId == item.UserId
+                        && assignment.IsActive))
+                .Join(Users, membership => membership.UserId, user => user.Id,
+                    (_, user) => new CampMemberSummary(user.Id, user.DisplayName))
+                .OrderBy(item => item.DisplayName)
+                .ToArray();
+            return ValueTask.FromResult<IReadOnlyList<CampMemberSummary>>(result);
+        }
 
         public ValueTask<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken) =>
             ValueTask.FromResult(Memberships.Count(item =>

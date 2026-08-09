@@ -147,6 +147,19 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
             .ToArrayAsync(cancellationToken);
     }
 
+    public async ValueTask<IReadOnlyList<Identity.Contracts.CampMemberSummary>> ListCampMembersAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        return await dbContext.Database
+            .SqlQuery<Identity.Contracts.CampMemberSummary>($"""
+                SELECT "UserId", "DisplayName"
+                FROM identity.list_camp_members({organizationId}, {campId})
+                """)
+            .ToArrayAsync(cancellationToken);
+    }
+
     public async ValueTask<CampAssignmentRecord?> FindCampAssignmentAsync(
         Guid organizationId,
         Guid campId,

@@ -451,6 +451,64 @@ describe("camp workspace", () => {
     });
   });
 
+  it("assigns readable camp members as schedule responsibilities", async () => {
+    const userId = "10000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        }
+        if (path.endsWith("/responsibility-candidates"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([{ userId, displayName: "Miriam Keller" }]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (init?.method === "POST")
+          return Promise.resolve(
+            new Response(JSON.stringify({}), { status: 201 }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    await user.click(screen.getByRole("button", { name: "Eintrag erstellen" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel des Zeitplaneintrags" }),
+      "Geländespiel",
+    );
+    await user.click(
+      await screen.findByRole("checkbox", { name: "Miriam Keller" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Zeitplaneintrag anlegen" }),
+    );
+
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/schedule") && init?.method === "POST",
+    );
+    const body = createCall?.[1]?.body;
+    if (typeof body !== "string") throw new Error("Kein JSON-Text gesendet.");
+    const payload = JSON.parse(body) as { responsibleUserIds: string[] };
+    expect(payload.responsibleUserIds).toEqual([userId]);
+  });
+
   it("edits a schedule entry through the accessible agenda form with antiforgery and version", async () => {
     const entry = {
       id: "40000000-0000-0000-0000-000000000001",

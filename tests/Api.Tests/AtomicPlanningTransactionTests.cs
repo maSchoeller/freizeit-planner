@@ -20,6 +20,32 @@ namespace Api.Tests;
 public sealed class AtomicPlanningTransactionTests
 {
     [Fact]
+    public async Task ResponsibilityCandidatesUseTheRealMinimizedCampDirectory()
+    {
+        var connectionString = Environment.GetEnvironmentVariable("FREIZEIT_ATOMIC_TEST_CONNECTION");
+        if (string.IsNullOrWhiteSpace(connectionString)) return;
+
+        var sender = new CapturingSender();
+        using var factory = CreateFactory(connectionString, sender);
+        using var client = CreateClient(factory);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await LoginAsync(client, sender, cancellationToken);
+
+        using var response = await client.GetAsync(
+            "/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/"
+            + "30000000-0000-0000-0000-000000000001/responsibility-candidates",
+            cancellationToken);
+        response.EnsureSuccessStatusCode();
+        var candidates = await response.Content.ReadFromJsonAsync<IReadOnlyList<CampMemberSummary>>(
+            cancellationToken);
+
+        Assert.Equal(5, candidates?.Count);
+        Assert.DoesNotContain(
+            candidates!,
+            candidate => candidate.UserId == Guid.Parse("10000000-0000-0000-0000-000000000006"));
+    }
+
+    [Fact]
     public async Task FailureInMealCreationRollsBackScheduleCreation()
     {
         var connectionString = Environment.GetEnvironmentVariable("FREIZEIT_ATOMIC_TEST_CONNECTION");
@@ -27,24 +53,8 @@ public sealed class AtomicPlanningTransactionTests
 
         var sender = new CapturingSender();
         using var logs = new ExceptionLoggerProvider();
-        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
-        {
-            builder.UseSetting("ConnectionStrings:freizeit", connectionString);
-            builder.ConfigureLogging(logging => logging.AddProvider(logs));
-            builder.ConfigureTestServices(services =>
-            {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
-            });
-        });
-        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
-        {
-            BaseAddress = new Uri("https://localhost"),
-            AllowAutoRedirect = false,
-            HandleCookies = true
-        });
+        using var factory = CreateFactory(connectionString, sender, logs);
+        using var client = CreateClient(factory);
         var cancellationToken = TestContext.Current.CancellationToken;
         await LoginAsync(client, sender, cancellationToken);
 
@@ -123,6 +133,35 @@ public sealed class AtomicPlanningTransactionTests
             CultureInfo.InvariantCulture);
         Assert.Equal(0, persisted);
     }
+
+    private static WebApplicationFactory<Program> CreateFactory(
+        string connectionString,
+        CapturingSender sender,
+        ILoggerProvider? loggerProvider = null) =>
+        new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseSetting("ConnectionStrings:freizeit", connectionString);
+            if (loggerProvider is not null)
+            {
+                builder.ConfigureLogging(logging => logging.AddProvider(loggerProvider));
+            }
+
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IPasswordlessState>();
+                services.RemoveAll<ILoginCodeSender>();
+                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
+                services.AddSingleton<ILoginCodeSender>(sender);
+            });
+        });
+
+    private static HttpClient CreateClient(WebApplicationFactory<Program> factory) =>
+        factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
 
     private static async Task LoginAsync(
         HttpClient client,

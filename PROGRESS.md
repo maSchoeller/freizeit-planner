@@ -18,7 +18,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | I02 invitations and account lifecycle | verified    | Invite rotation/revoke; memberships; reauth; verified email; 30-day account/tenant deletion | Missing lifecycle contracts caused compile failure     | Full verify passed in 86.9 s plus Aspire smoke       | Identity context, account/role help       | `98fb62d` | Start I03 authorization                |
 | I03 tenant authorization              | verified    | Role matrix, last owner, suspension, IDOR protection and RLS isolation                      | Missing authorization contracts caused compile failure | Full verify 382.3 s; PostgreSQL/Aspire/browser smoke | auth/RLS docs and role help               | `dc0c859` | Start C01/T01/S01 wave                 |
 | C01 camps                             | in_progress | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Contract acceptance test next                          | pending                                              | Camps context, help                       | pending   | module worktree active                 |
-| C02 schedule                          | in_progress | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing edit/drop/resize handlers and all-day UI       | 17 Camps, 26 API, 20 React + browser green           | Camps context, schedule help              | pending   | complete responsibility assignment UI  |
+| C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | in_progress | Normalize/merge, decimal units, recipe versions and attachments                             | Contract acceptance test next                          | pending                                              | Catering context, help                    | pending   | module worktree active                 |
 | T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Invalid schedule link was accepted                     | 14 Catering + atomic PostgreSQL green                | Catering context, schedule help           | pending   | complete meal and snapshot UI          |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
@@ -150,3 +150,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   ordered keyboard focus. The final full repository gate passed in 191.5 seconds with 20/20 React tests and a
   667.66 KiB production bundle after replacing the 1,388.37 KiB Moment adapter. Responsibility assignment remains
   the final C02 UI gap.
+- 2026-08-09: C02 responsibility assignment now lists only active people who may read the Camp and exposes only
+  user ID plus display name through the Identity contract and HTTP endpoint. A SECURITY-DEFINER PostgreSQL function
+  keeps the general membership RLS policies strict while independently rechecking actor and candidate Camp access;
+  direct runtime-role assertions exclude an unassigned organization member and an unassigned caller. The real HTTP
+  test additionally proves login, endpoint wiring, EF mapping, migration and RLS together. German create/edit forms
+  provide a labeled multi-select checkbox group and clarify that responsibility does not grant permissions. Red
+  evidence was the missing directory contracts and checkbox. Targeted verification passes with Identity 30/30,
+  API 28/28, React 21/21, strict TypeScript, lint, and the PostgreSQL RLS/atomic tests. The rendered desktop form and
+  its responsibility fieldset were inspected without clipping; the existing responsive form grid and keyboard path
+  remain covered by the 320/390/768/1440 C02 passes and the semantic React interaction test.

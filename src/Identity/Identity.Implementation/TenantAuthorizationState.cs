@@ -1,3 +1,5 @@
+using Identity.Contracts;
+
 namespace Identity.Implementation;
 
 public interface ITenantAuthorizationState
@@ -24,6 +26,11 @@ public interface ITenantAuthorizationState
 
     ValueTask<IReadOnlyList<MembershipRecord>> ListOrganizationMembershipsAsync(
         Guid organizationId,
+        CancellationToken cancellationToken);
+
+    ValueTask<IReadOnlyList<CampMemberSummary>> ListCampMembersAsync(
+        Guid organizationId,
+        Guid campId,
         CancellationToken cancellationToken);
 
     ValueTask<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken);

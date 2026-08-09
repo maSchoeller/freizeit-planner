@@ -26,7 +26,9 @@
   host.
 - UI: FullCalendar renders in the Camp IANA zone through its named-time-zone adapter. Drop and resize share the
   versioned update path with the accessible agenda form, update optimistically, and revert plus refetch on every
-  failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures.
+  failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures. Create and
+  edit forms select one or more responsibility candidates from Identity's minimized camp-readable directory;
+  responsibilities affect presentation only and are revalidated by Camps on every write.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
   `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion

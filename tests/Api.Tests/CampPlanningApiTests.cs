@@ -139,6 +139,28 @@ public sealed class CampPlanningApiTests
     }
 
     [Fact]
+    public async Task ResponsibilityCandidatesExposeOnlyMinimizedCampMemberData()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+
+            using var response = await client.GetAsync(
+                $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/responsibility-candidates",
+                cancellationToken);
+            var candidates = await response.Content.ReadFromJsonAsync<IReadOnlyList<CampMemberSummary>>(
+                cancellationToken);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var candidate = Assert.Single(candidates!);
+            Assert.Equal("Miriam Keller", candidate.DisplayName);
+        }
+    }
+
+    [Fact]
     public async Task ScheduleAndMealCanBeCreatedAsOneLinkedWorkflow()
     {
         var planning = new PlanningFake();
@@ -354,6 +376,7 @@ public sealed class CampPlanningApiTests
                 services.RemoveAll<ICampSearchIndex>();
                 services.RemoveAll<ICampMealPlanning>();
                 services.RemoveAll<IDevotionPlanning>();
+                services.RemoveAll<ICampMemberDirectory>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampManagement>(planning);
@@ -362,6 +385,7 @@ public sealed class CampPlanningApiTests
                 services.AddSingleton<ICampSearchIndex>(planning);
                 services.AddSingleton<ICampMealPlanning>(planning);
                 services.AddSingleton<IDevotionPlanning>(planning);
+                services.AddSingleton<ICampMemberDirectory>(planning);
             });
         });
         return (factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -448,7 +472,7 @@ public sealed class CampPlanningApiTests
     }
 
     private sealed class PlanningFake : ICampManagement, ISchedulePlanning, IActivityJournal, ICampSearchIndex,
-        ICampMealPlanning, IDevotionPlanning
+        ICampMealPlanning, IDevotionPlanning, ICampMemberDirectory
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -477,6 +501,13 @@ public sealed class CampPlanningApiTests
         public List<UpsertSearchDocument> SearchDocuments { get; } = [];
 
         public bool FailActivity { get; init; }
+
+        public Task<IReadOnlyList<CampMemberSummary>> ListCampMembersAsync(
+            CampMemberDirectoryQuery query,
+            CancellationToken cancellationToken) =>
+            Task.FromResult<IReadOnlyList<CampMemberSummary>>([
+                new(Guid.Parse("10000000-0000-0000-0000-000000000001"), "Miriam Keller")
+            ]);
 
         public Task<CampView> CreateAsync(CreateCamp command, CancellationToken cancellationToken)
         {

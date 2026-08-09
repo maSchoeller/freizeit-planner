@@ -8,8 +8,10 @@ Angaben über ihre Verknüpfung und speichern sie nicht ein zweites Mal.
 1. Öffne im Camp **Tagesplan** und wähle **Eintrag erstellen**.
 2. Trage Titel, Datum beziehungsweise den ganztägigen Zeitraum, Ort, Kategorie, Status und optional die Zielgruppe
    ein.
-3. Wähle unter **Gemeinsam anlegen**, ob zugleich eine Mahlzeit oder Andacht entstehen soll.
-4. Ergänze die eingeblendeten Pflichtangaben und wähle **Zeitplaneintrag anlegen**.
+3. Wähle eine oder mehrere verantwortliche Personen aus dem Camp-Team. Die Auswahl dient der Übersicht und ändert
+   keine Berechtigungen.
+4. Wähle unter **Gemeinsam anlegen**, ob zugleich eine Mahlzeit oder Andacht entstehen soll.
+5. Ergänze die eingeblendeten Pflichtangaben und wähle **Zeitplaneintrag anlegen**.
 
 Zeitplaneintrag und verknüpfter Inhalt werden gemeinsam gespeichert. Schlägt einer der beiden Teile fehl, bleibt
 auch der andere unverändert. Bei einer gemeinsam angelegten Andacht wirst du zunächst als verantwortliche Person
@@ -20,8 +22,8 @@ zeigen dieselben Daten. Das Formular und die Agenda können vollständig mit der
 
 ## Eintrag bearbeiten oder im Kalender verschieben
 
-- Wähle in der Agenda **Bearbeiten**, um Inhalt, Zeitraum, Ganztägig-Kennzeichen, Ort, Kategorie, Status und
-  Zielgruppe über ein Tastaturformular zu ändern.
+- Wähle in der Agenda **Bearbeiten**, um Inhalt, Zeitraum, Ganztägig-Kennzeichen, Ort, Kategorie, Status, Zielgruppe
+  und Verantwortliche über ein Tastaturformular zu ändern.
 - Im Kalender kannst du einen Eintrag mit der Maus oder per Touch verschieben und seine Dauer am unteren Rand
   ändern. Die Agenda ist die vollständige Alternative ohne Ziehen.
 - Kalenderänderungen erscheinen sofort. Lehnt der Server sie ab, springt der Eintrag automatisch an seine vorige

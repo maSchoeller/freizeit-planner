@@ -3,6 +3,7 @@ using System.Security.Claims;
 using Activity.Contracts;
 using Camps.Contracts;
 using Catering.Contracts;
+using Identity.Contracts;
 using Microsoft.AspNetCore.Antiforgery;
 using Spiritual.Contracts;
 
@@ -24,6 +25,8 @@ internal static class CampPlanningEndpoints
 
         camps.MapGet("/{campId:guid}/schedule", ListScheduleAsync)
             .Produces<IReadOnlyList<ScheduleEntryView>>();
+        camps.MapGet("/{campId:guid}/responsibility-candidates", ListResponsibilityCandidatesAsync)
+            .Produces<IReadOnlyList<CampMemberSummary>>();
         camps.MapPost("/{campId:guid}/schedule", CreateScheduleEntryAsync)
             .Produces<ScheduleEntryView>(StatusCodes.Status201Created);
         camps.MapPost("/{campId:guid}/schedule/with-meal", CreateScheduleWithMealAsync)
@@ -191,6 +194,19 @@ internal static class CampPlanningEndpoints
                         campId,
                         fromDate,
                         toDateExclusive),
+                    cancellationToken)))
+            : Results.Unauthorized();
+
+    private static async Task<IResult> ListResponsibilityCandidatesAsync(
+        Guid organizationId,
+        Guid campId,
+        ClaimsPrincipal principal,
+        ICampMemberDirectory directory,
+        CancellationToken cancellationToken) =>
+        TryActor(principal, out var actorId)
+            ? await ExecuteAsync(async () => Results.Ok(
+                await directory.ListCampMembersAsync(
+                    new CampMemberDirectoryQuery(actorId, organizationId, campId),
                     cancellationToken)))
             : Results.Unauthorized();
 
@@ -629,6 +645,11 @@ internal static class CampPlanningEndpoints
         {
             return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
                 "Verknüpfte Andacht konnte nicht verarbeitet werden");
+        }
+        catch (IdentityRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(exception.ErrorCode, exception.Message,
+                "Verantwortliche konnten nicht geladen werden");
         }
     }
 

@@ -7,6 +7,8 @@
 - Roles: PlatformAdmin is platform-only; Owner manages owners/admins/deletion; Admin manages lower roles; CampLead,
   Member, and Viewer are camp-scoped. Privilege escalation is rejected server-side.
 - Contracts: current actor/access checks, member summaries, responsibility candidate lookup, organization status.
+  `ICampMemberDirectory` returns only user ID and display name for active members who can read the requested Camp;
+  it never exposes email addresses and is available to every actor who may read that Camp.
 - Data/schema: owns `identity`; tenant rows include `organization_id`; memberships and assignments are authoritative.
 - Lifecycle: Platform Admins create organizations only through 48-hour first-Owner invitations; team invitations
   last seven days. Invitation tokens and email-change codes are stored only as HMAC hashes. Account and organization
