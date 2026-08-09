@@ -21,6 +21,14 @@ public interface ISchedulePlanning
     Task<ScheduleEntryReference> DeleteAsync(
         DeleteScheduleEntry command,
         CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<TrashedScheduleEntry>> ListTrashAsync(
+        ScheduleTrashQuery query,
+        CancellationToken cancellationToken);
+
+    Task<ScheduleEntryView> RestoreAsync(
+        RestoreScheduleEntry command,
+        CancellationToken cancellationToken);
 }
 
 public interface IScheduleReferenceAccess
@@ -77,6 +85,24 @@ public sealed record DeleteScheduleEntry(
     Guid CampId,
     Guid ScheduleEntryId,
     long ExpectedVersion);
+
+public sealed record ScheduleTrashQuery(Guid ActorId, Guid OrganizationId, Guid CampId);
+
+public sealed record RestoreScheduleEntry(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId,
+    Guid ScheduleEntryId,
+    long ExpectedVersion);
+
+public sealed record TrashedScheduleEntry(
+    Guid Id,
+    Guid OrganizationId,
+    Guid CampId,
+    string Title,
+    DateTimeOffset DeletedAt,
+    DateTimeOffset PurgeAt,
+    long Version);
 
 public sealed record ScheduleTimingInput(
     bool IsAllDay,

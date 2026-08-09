@@ -365,6 +365,14 @@ public sealed class CampPlanningApiTests
             DeleteScheduleEntry command,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
+        public Task<IReadOnlyList<TrashedScheduleEntry>> ListTrashAsync(
+            ScheduleTrashQuery query,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<ScheduleEntryView> RestoreAsync(
+            RestoreScheduleEntry command,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
         public Task<ActivityEvent> RecordAsync(RecordActivity request, CancellationToken cancellationToken)
         {
             if (FailActivity) throw new ActivityRuleException("activity_unavailable", "Aktivität nicht verfügbar.");

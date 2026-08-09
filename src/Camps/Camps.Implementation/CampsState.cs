@@ -47,4 +47,20 @@ public interface ICampsState
         ScheduleEntryRecord scheduleEntry,
         long expectedVersion,
         CancellationToken cancellationToken);
+
+    ValueTask<IReadOnlyList<ScheduleEntryRecord>> ListDeletedScheduleEntriesAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken);
+
+    ValueTask<ScheduleEntryRecord?> FindDeletedScheduleEntryAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid scheduleEntryId,
+        CancellationToken cancellationToken);
+
+    ValueTask<int> PurgeDueScheduleEntriesAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken);
 }

@@ -234,11 +234,12 @@ internal sealed class CampFixture
     private CampFixture(
         CampsTestState state,
         CampPlanningService management,
-        PermitAllTenantAccess access)
+        PermitAllTenantAccess access,
+        TimeProvider clock)
     {
         State = state;
         Management = management;
-        Schedule = new SchedulePlanningService(state, management, access);
+        Schedule = new SchedulePlanningService(state, management, access, clock);
     }
 
     public CampsTestState State { get; }
@@ -253,7 +254,7 @@ internal sealed class CampFixture
         access ??= new PermitAllTenantAccess();
         var clock = new FixedTimeProvider(
             new DateTimeOffset(2027, 8, 2, 10, 0, 0, TimeSpan.Zero));
-        return new CampFixture(state, new CampPlanningService(state, access, clock), access);
+        return new CampFixture(state, new CampPlanningService(state, access, clock), access, clock);
     }
 
     public async Task<CampView> AddCampAsync(
@@ -328,7 +329,9 @@ internal sealed class CampsTestState : ICampsState
         CancellationToken cancellationToken) =>
         ValueTask.FromResult<IReadOnlyList<ScheduleEntryRecord>>(
             ScheduleEntries.Where(item =>
-                item.OrganizationId == organizationId && item.CampId == campId).ToArray());
+                item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt is null).ToArray());
 
     public ValueTask<ScheduleEntryRecord?> FindScheduleEntryAsync(
         Guid organizationId,
@@ -338,7 +341,8 @@ internal sealed class CampsTestState : ICampsState
         ValueTask.FromResult(ScheduleEntries.SingleOrDefault(item =>
             item.OrganizationId == organizationId
             && item.CampId == campId
-            && item.Id == scheduleEntryId));
+            && item.Id == scheduleEntryId
+            && item.DeletedAt is null));
 
     public ValueTask AddScheduleEntryAsync(
         ScheduleEntryRecord scheduleEntry,
@@ -356,10 +360,39 @@ internal sealed class CampsTestState : ICampsState
     public ValueTask DeleteScheduleEntryAsync(
         ScheduleEntryRecord scheduleEntry,
         long expectedVersion,
+        CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
+    public ValueTask<IReadOnlyList<ScheduleEntryRecord>> ListDeletedScheduleEntriesAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult<IReadOnlyList<ScheduleEntryRecord>>(ScheduleEntries.Where(item =>
+            item.OrganizationId == organizationId
+            && item.CampId == campId
+            && item.DeletedAt is not null).ToArray());
+
+    public ValueTask<ScheduleEntryRecord?> FindDeletedScheduleEntryAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid scheduleEntryId,
+        CancellationToken cancellationToken) =>
+        ValueTask.FromResult(ScheduleEntries.SingleOrDefault(item =>
+            item.OrganizationId == organizationId
+            && item.CampId == campId
+            && item.Id == scheduleEntryId
+            && item.DeletedAt is not null));
+
+    public ValueTask<int> PurgeDueScheduleEntriesAsync(
+        DateTimeOffset now,
+        int batchSize,
         CancellationToken cancellationToken)
     {
-        ScheduleEntries.Remove(scheduleEntry);
-        return ValueTask.CompletedTask;
+        var due = ScheduleEntries
+            .Where(item => item.PurgeAt <= now)
+            .Take(batchSize)
+            .ToArray();
+        foreach (var item in due) ScheduleEntries.Remove(item);
+        return ValueTask.FromResult(due.Length);
     }
 }
 

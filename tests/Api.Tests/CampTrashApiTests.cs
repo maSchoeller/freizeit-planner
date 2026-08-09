@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Globalization;
 using System.Text.Json;
+using Camps.Contracts;
 using Files.Contracts;
 using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
@@ -37,6 +38,7 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<IAttachmentCatalog>();
                 services.RemoveAll<IMaterialPlanning>();
                 services.RemoveAll<IShoppingPlanning>();
+                services.RemoveAll<ISchedulePlanning>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
                 services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
@@ -44,6 +46,7 @@ public sealed class CampTrashApiTests
                 services.AddSingleton<IAttachmentCatalog>(trash);
                 services.AddSingleton<IMaterialPlanning>(trash);
                 services.AddSingleton<IShoppingPlanning>(trash);
+                services.AddSingleton<ISchedulePlanning>(trash);
             });
         });
         using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
@@ -63,7 +66,7 @@ public sealed class CampTrashApiTests
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.NotNull(response.Headers.ETag);
-        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf", "Brot"],
+        Assert.Equal(["Datei.pdf", "Andacht", "Notiz", "Material", "Einkauf", "Brot", "Tagesplan"],
             items.Select(item => item.GetProperty("title").GetString()));
         Assert.All(items, item => Assert.EndsWith(
             "/restore",
@@ -117,7 +120,8 @@ public sealed class CampTrashApiTests
         }
     }
 
-    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning, IShoppingPlanning
+    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning,
+        IShoppingPlanning, ISchedulePlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
@@ -196,6 +200,16 @@ public sealed class CampTrashApiTests
             return Task.FromResult(result);
         }
 
+        public Task<IReadOnlyList<TrashedScheduleEntry>> ListTrashAsync(
+            ScheduleTrashQuery query,
+            CancellationToken cancellationToken)
+        {
+            IReadOnlyList<TrashedScheduleEntry> result = [new TrashedScheduleEntry(
+                Guid.Parse("40000000-0000-0000-0000-000000000007"), OrganizationId, CampId, "Tagesplan",
+                ParseTimestamp("2026-08-03T10:00:00Z"), ParseTimestamp("2026-09-02T10:00:00Z"), 8)];
+            return Task.FromResult(result);
+        }
+
         public Task<Note?> GetNoteAsync(NoteRequest request, CancellationToken cancellationToken) => Unsupported<Note?>();
         public Task<Note> CreateNoteAsync(CreateNote request, CancellationToken cancellationToken) => Unsupported<Note>();
         public Task<Note> ReviseNoteAsync(ReviseNote request, CancellationToken cancellationToken) => Unsupported<Note>();
@@ -232,6 +246,12 @@ public sealed class CampTrashApiTests
         public Task<ShoppingListChange> SetItemCheckedAsync(SetShoppingItemChecked command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
         public Task<ShoppingListChange> DeleteItemAsync(DeleteShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
         public Task<ShoppingListChange> RestoreItemAsync(RestoreShoppingItem command, CancellationToken cancellationToken) => Unsupported<ShoppingListChange>();
+        public Task<IReadOnlyList<ScheduleEntryView>> ListAsync(ScheduleRangeQuery query, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<ScheduleEntryView>>();
+        public Task<ScheduleEntryView> GetAsync(ScheduleEntryQuery query, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
+        public Task<ScheduleEntryView> CreateAsync(CreateScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
+        public Task<ScheduleEntryView> UpdateAsync(UpdateScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
+        public Task<ScheduleEntryReference> DeleteAsync(DeleteScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryReference>();
+        public Task<ScheduleEntryView> RestoreAsync(RestoreScheduleEntry command, CancellationToken cancellationToken) => Unsupported<ScheduleEntryView>();
 
         private static Task Unsupported() => throw new NotSupportedException();
 

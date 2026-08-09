@@ -95,7 +95,8 @@ type CampTrashItem = {
     | "Attachment"
     | "MaterialRequirement"
     | "ShoppingList"
-    | "ShoppingItem";
+    | "ShoppingItem"
+    | "ScheduleEntry";
   objectId: string;
   title: string;
   deletedAt: string;

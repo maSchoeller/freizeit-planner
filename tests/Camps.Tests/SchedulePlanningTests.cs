@@ -212,7 +212,7 @@ public sealed class SchedulePlanningTests
     }
 
     [Fact]
-    public async Task EntryCanBeUpdatedAndDeletedWithTheLatestVersion()
+    public async Task EntryCanBeUpdatedMovedToTrashAndRestoredWithTheLatestVersion()
     {
         var fixture = CampFixture.Create();
         var camp = await fixture.AddCampAsync();
@@ -245,11 +245,26 @@ public sealed class SchedulePlanningTests
                 entry.Id,
                 updated.Version),
             cancellationToken);
+        var activeAfterDelete = await fixture.Schedule.ListAsync(
+            new ScheduleRangeQuery(ActorId, OrganizationId, camp.Id,
+                new DateOnly(2027, 8, 1), new DateOnly(2027, 8, 8)),
+            cancellationToken);
+        var trash = await fixture.Schedule.ListTrashAsync(
+            new ScheduleTrashQuery(ActorId, OrganizationId, camp.Id),
+            cancellationToken);
+        var trashed = Assert.Single(trash);
+        var restored = await fixture.Schedule.RestoreAsync(
+            new RestoreScheduleEntry(ActorId, OrganizationId, camp.Id, entry.Id, trashed.Version),
+            cancellationToken);
 
         Assert.Equal(entry.Version + 1, updated.Version);
         Assert.Equal("Nachmittagsprogramm", updated.Title);
         Assert.Equal(entry.Id, deleted.ScheduleEntryId);
-        Assert.Empty(fixture.State.ScheduleEntries);
+        Assert.Empty(activeAfterDelete);
+        Assert.Equal(new DateTimeOffset(2027, 9, 1, 10, 0, 0, TimeSpan.Zero), trashed.PurgeAt);
+        Assert.Equal("Nachmittagsprogramm", restored.Title);
+        Assert.Equal(updated.Version + 2, restored.Version);
+        Assert.Single(fixture.State.ScheduleEntries);
     }
 
     private static CreateScheduleEntry Entry(

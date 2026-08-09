@@ -32,6 +32,9 @@ internal static class CampPlanningEndpoints
         camps.MapDelete("/{campId:guid}/schedule/{scheduleEntryId:guid}", DeleteScheduleEntryAsync)
             .Produces(StatusCodes.Status204NoContent)
             .ProducesProblem(StatusCodes.Status412PreconditionFailed);
+        camps.MapPost("/{campId:guid}/schedule/{scheduleEntryId:guid}/restore", RestoreScheduleEntryAsync)
+            .Produces<ScheduleEntryView>()
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed);
         return endpoints;
     }
 
@@ -320,6 +323,46 @@ internal static class CampPlanningEndpoints
             await activity.RemoveAsync(actorId, organizationId, campId, "ScheduleEntry", scheduleEntryId,
                 current.Title, deleted.Version, cancellationToken);
             return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> RestoreScheduleEntryAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid scheduleEntryId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ISchedulePlanning planning,
+        PlanningActivityWriter activity,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!TryReadVersion(context.Request, out var version)) return PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var restored = await planning.RestoreAsync(
+                new RestoreScheduleEntry(actorId, organizationId, campId, scheduleEntryId, version),
+                cancellationToken);
+            await activity.UpsertAsync(
+                actorId,
+                organizationId,
+                campId,
+                ActivityKind.Restored,
+                "ScheduleEntry",
+                restored.Id,
+                restored.Title,
+                string.Join(' ', restored.Title, restored.Description, restored.Location, restored.Category,
+                    restored.Audience),
+                new Dictionary<string, string>
+                {
+                    ["category"] = restored.Category,
+                    ["status"] = restored.Status.ToString()
+                },
+                restored.Version,
+                cancellationToken);
+            WriteEtag(context.Response, restored.Version);
+            return Results.Ok(restored);
         });
     }
 

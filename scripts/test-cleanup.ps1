@@ -60,6 +60,29 @@ WHERE "Id" = '20000000-0000-0000-0000-000000000001';
 INSERT INTO identity.organizations ("Id", "Name", "Slug", "Status", "Version")
 VALUES ('20000000-0000-0000-0000-000000000002', 'Bleibender Veranstalter', 'bleibend', 0, 1);
 
+INSERT INTO camps.camps
+    ("Id", organization_id, "Name", "Slug", "StartsOn", "EndsOn", "TimeZoneId",
+     "DefaultPortions", "Status", "Version")
+VALUES
+    ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000002',
+     'Bleibendes Camp', 'bleibendes-camp', DATE '2026-08-01', DATE '2026-08-08',
+     'Europe/Berlin', 20, 0, 1);
+
+INSERT INTO camps.schedule_entries
+    ("Id", organization_id, camp_id, "IsAllDay", "StartDate", "EndDateExclusive", "Title",
+     "Category", "Status", "Version", "DeletedAt", "PurgeAt")
+VALUES
+    ('79000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', true, DATE '2026-08-03', DATE '2026-08-04',
+     'Abgelaufener Zeitplaneintrag', 'Programm', 0, 2,
+     now() - interval '31 days', now() - interval '1 day');
+
+INSERT INTO camps.schedule_responsibilities
+    (schedule_entry_id, user_id, organization_id, camp_id)
+VALUES
+    ('79000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001',
+     '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002');
+
 UPDATE identity.users
 SET "DeletionScheduledAt" = now() - interval '31 days'
 WHERE "Id" = '10000000-0000-0000-0000-000000000004';
@@ -216,6 +239,18 @@ BEGIN
     IF EXISTS (SELECT FROM logistics.shopping_check_events
                WHERE shopping_item_id = '77000000-0000-0000-0000-000000000001') THEN
         RAISE EXCEPTION 'expired shopping item audit remained';
+    END IF;
+    IF EXISTS (SELECT FROM camps.schedule_entries
+               WHERE "Id" = '79000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired schedule entry remained';
+    END IF;
+    IF EXISTS (SELECT FROM camps.schedule_responsibilities
+               WHERE schedule_entry_id = '79000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired schedule responsibility remained';
+    END IF;
+    IF NOT EXISTS (SELECT FROM camps.camps
+                   WHERE "Id" = '30000000-0000-0000-0000-000000000002') THEN
+        RAISE EXCEPTION 'active camp was removed';
     END IF;
 END
 $assert$;

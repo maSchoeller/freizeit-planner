@@ -67,7 +67,9 @@ public sealed class EfCampsState(CampsDbContext dbContext) : ICampsState
     {
         var entries = await dbContext.ScheduleEntries
             .AsNoTracking()
-            .Where(item => item.OrganizationId == organizationId && item.CampId == campId)
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt == null)
             .ToArrayAsync(cancellationToken);
         var entryIds = entries.Select(item => item.Id).ToArray();
         var responsibilities = await dbContext.ScheduleResponsibilities
@@ -94,7 +96,8 @@ public sealed class EfCampsState(CampsDbContext dbContext) : ICampsState
             .SingleOrDefaultAsync(item =>
                 item.OrganizationId == organizationId
                 && item.CampId == campId
-                && item.Id == scheduleEntryId,
+                && item.Id == scheduleEntryId
+                && item.DeletedAt == null,
                 cancellationToken);
         if (entity is null) return null;
         var responsibilities = await dbContext.ScheduleResponsibilities
@@ -143,10 +146,68 @@ public sealed class EfCampsState(CampsDbContext dbContext) : ICampsState
     {
         var entity = ToEntity(scheduleEntry);
         dbContext.ScheduleEntries.Attach(entity);
+        dbContext.Entry(entity).State = EntityState.Modified;
         dbContext.Entry(entity).Property(item => item.Version).OriginalValue = expectedVersion;
-        dbContext.ScheduleEntries.Remove(entity);
         await SaveChangesAsync(cancellationToken);
     }
+
+    public async ValueTask<IReadOnlyList<ScheduleEntryRecord>> ListDeletedScheduleEntriesAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        var entries = await dbContext.ScheduleEntries
+            .AsNoTracking()
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.DeletedAt != null)
+            .ToArrayAsync(cancellationToken);
+        var entryIds = entries.Select(item => item.Id).ToArray();
+        var responsibilities = await dbContext.ScheduleResponsibilities
+            .AsNoTracking()
+            .Where(item => entryIds.Contains(item.ScheduleEntryId))
+            .ToArrayAsync(cancellationToken);
+        return entries.Select(item => ToRecord(
+            item,
+            responsibilities
+                .Where(responsibility => responsibility.ScheduleEntryId == item.Id)
+                .Select(responsibility => responsibility.UserId)
+                .ToArray()))
+            .ToArray();
+    }
+
+    public async ValueTask<ScheduleEntryRecord?> FindDeletedScheduleEntryAsync(
+        Guid organizationId,
+        Guid campId,
+        Guid scheduleEntryId,
+        CancellationToken cancellationToken)
+    {
+        var entity = await dbContext.ScheduleEntries
+            .AsNoTracking()
+            .SingleOrDefaultAsync(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.Id == scheduleEntryId
+                && item.DeletedAt != null,
+                cancellationToken);
+        if (entity is null) return null;
+        var responsibilities = await dbContext.ScheduleResponsibilities
+            .AsNoTracking()
+            .Where(item => item.ScheduleEntryId == scheduleEntryId)
+            .Select(item => item.UserId)
+            .ToArrayAsync(cancellationToken);
+        return ToRecord(entity, responsibilities);
+    }
+
+    public async ValueTask<int> PurgeDueScheduleEntriesAsync(
+        DateTimeOffset now,
+        int batchSize,
+        CancellationToken cancellationToken) =>
+        await dbContext.ScheduleEntries
+            .Where(item => item.PurgeAt != null && item.PurgeAt <= now)
+            .OrderBy(item => item.PurgeAt)
+            .ThenBy(item => item.Id)
+            .Take(batchSize)
+            .ExecuteDeleteAsync(cancellationToken);
 
     private async Task SaveChangesAsync(CancellationToken cancellationToken)
     {
@@ -218,7 +279,9 @@ public sealed class EfCampsState(CampsDbContext dbContext) : ICampsState
         entity.Status,
         responsibilityUserIds,
         entity.Audience,
-        entity.Version);
+        entity.Version,
+        entity.DeletedAt,
+        entity.PurgeAt);
 
     private static ScheduleEntryEntity ToEntity(ScheduleEntryRecord record) => new()
     {
@@ -236,7 +299,9 @@ public sealed class EfCampsState(CampsDbContext dbContext) : ICampsState
         Category = record.Category,
         Status = record.Status,
         Audience = record.Audience,
-        Version = record.Version
+        Version = record.Version,
+        DeletedAt = record.DeletedAt,
+        PurgeAt = record.PurgeAt
     };
 
     private static IEnumerable<ScheduleResponsibilityEntity> ToResponsibilityEntities(

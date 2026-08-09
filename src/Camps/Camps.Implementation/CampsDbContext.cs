@@ -61,6 +61,7 @@ public sealed class CampsDbContext(DbContextOptions<CampsDbContext> options) : D
             entity.HasAlternateKey(item => new { item.OrganizationId, item.CampId, item.Id });
             entity.HasIndex(item => new { item.OrganizationId, item.CampId, item.StartsAtUtc });
             entity.HasIndex(item => new { item.OrganizationId, item.CampId, item.StartDate });
+            entity.HasIndex(item => new { item.OrganizationId, item.CampId, item.PurgeAt });
             entity.HasOne<CampEntity>()
                 .WithMany()
                 .HasForeignKey(item => new { item.OrganizationId, item.CampId })
@@ -114,6 +115,7 @@ internal sealed class CampEntity
     public CampStatus Status { get; set; }
 
     public long Version { get; set; } = 1;
+
 }
 
 internal sealed class ScheduleEntryEntity
@@ -147,6 +149,10 @@ internal sealed class ScheduleEntryEntity
     public string? Audience { get; set; }
 
     public long Version { get; set; } = 1;
+
+    public DateTimeOffset? DeletedAt { get; set; }
+
+    public DateTimeOffset? PurgeAt { get; set; }
 }
 
 internal sealed class ScheduleResponsibilityEntity

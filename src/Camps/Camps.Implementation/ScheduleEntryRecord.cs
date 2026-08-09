@@ -16,7 +16,9 @@ public sealed class ScheduleEntryRecord
         ScheduleEntryStatus status,
         IReadOnlyList<Guid> responsibleUserIds,
         string? audience,
-        long version = 1)
+        long version = 1,
+        DateTimeOffset? deletedAt = null,
+        DateTimeOffset? purgeAt = null)
     {
         Id = id;
         OrganizationId = organizationId;
@@ -30,6 +32,8 @@ public sealed class ScheduleEntryRecord
         ResponsibleUserIds = responsibleUserIds.ToArray();
         Audience = audience;
         Version = version;
+        DeletedAt = deletedAt;
+        PurgeAt = purgeAt;
     }
 
     public Guid Id { get; }
@@ -55,6 +59,10 @@ public sealed class ScheduleEntryRecord
     public string? Audience { get; private set; }
 
     public long Version { get; private set; }
+
+    public DateTimeOffset? DeletedAt { get; private set; }
+
+    public DateTimeOffset? PurgeAt { get; private set; }
 
     public void Update(
         ScheduleTimingRecord timing,
@@ -87,6 +95,40 @@ public sealed class ScheduleEntryRecord
                 "version_conflict",
                 "Der Zeitplaneintrag wurde zwischenzeitlich geändert.");
         }
+    }
+
+    public void MoveToTrash(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is not null)
+        {
+            throw new CampsRuleException(
+                "schedule_entry_already_trashed",
+                "Der Zeitplaneintrag befindet sich bereits im Papierkorb.");
+        }
+        DeletedAt = now;
+        PurgeAt = now.AddDays(30);
+        Version++;
+    }
+
+    public void Restore(long expectedVersion, DateTimeOffset now)
+    {
+        RequireVersion(expectedVersion);
+        if (DeletedAt is null || PurgeAt is null)
+        {
+            throw new CampsRuleException(
+                "schedule_entry_not_trashed",
+                "Der Zeitplaneintrag befindet sich nicht im Papierkorb.");
+        }
+        if (PurgeAt <= now)
+        {
+            throw new CampsRuleException(
+                "schedule_entry_restore_expired",
+                "Die Aufbewahrungsfrist ist abgelaufen.");
+        }
+        DeletedAt = null;
+        PurgeAt = null;
+        Version++;
     }
 }
 

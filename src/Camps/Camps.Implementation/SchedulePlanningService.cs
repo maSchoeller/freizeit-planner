@@ -6,7 +6,8 @@ namespace Camps.Implementation;
 public sealed class SchedulePlanningService(
     ICampsState state,
     CampPlanningService camps,
-    ITenantAccessControl accessControl) : ISchedulePlanning, IScheduleReferenceAccess
+    ITenantAccessControl accessControl,
+    TimeProvider timeProvider) : ISchedulePlanning, IScheduleReferenceAccess
 {
     public async Task<IReadOnlyList<ScheduleEntryView>> ListAsync(
         ScheduleRangeQuery query,
@@ -173,9 +174,52 @@ public sealed class SchedulePlanningService(
             command.CampId,
             command.ScheduleEntryId,
             cancellationToken);
-        entry.RequireVersion(command.ExpectedVersion);
+        entry.MoveToTrash(command.ExpectedVersion, timeProvider.GetUtcNow());
         await state.DeleteScheduleEntryAsync(entry, command.ExpectedVersion, cancellationToken);
         return ToReference(entry);
+    }
+
+    public async Task<IReadOnlyList<TrashedScheduleEntry>> ListTrashAsync(
+        ScheduleTrashQuery query,
+        CancellationToken cancellationToken)
+    {
+        await RequireManagerAsync(query.ActorId, query.OrganizationId, query.CampId, cancellationToken);
+        return (await state.ListDeletedScheduleEntriesAsync(
+                query.OrganizationId,
+                query.CampId,
+                cancellationToken))
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedScheduleEntry(
+                item.Id,
+                item.OrganizationId,
+                item.CampId,
+                item.Title,
+                item.DeletedAt!.Value,
+                item.PurgeAt!.Value,
+                item.Version))
+            .ToArray();
+    }
+
+    public async Task<ScheduleEntryView> RestoreAsync(
+        RestoreScheduleEntry command,
+        CancellationToken cancellationToken)
+    {
+        var camp = await camps.RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            CampAction.ManageCamp,
+            cancellationToken);
+        var entry = await state.FindDeletedScheduleEntryAsync(
+            command.OrganizationId,
+            command.CampId,
+            command.ScheduleEntryId,
+            cancellationToken)
+            ?? throw Rule("schedule_entry_not_found", "Der Zeitplaneintrag wurde nicht gefunden.");
+        entry.Restore(command.ExpectedVersion, timeProvider.GetUtcNow());
+        await state.DeleteScheduleEntryAsync(entry, command.ExpectedVersion, cancellationToken);
+        var all = await state.ListScheduleEntriesAsync(command.OrganizationId, command.CampId, cancellationToken);
+        return ToView(entry, camp.TimeZoneId, HasOverlap(entry, all, camp.TimeZoneId));
     }
 
     public async Task<ScheduleEntryReference> RequireAsync(
@@ -236,6 +280,21 @@ public sealed class SchedulePlanningService(
                     "invalid_responsibility",
                     "Mindestens eine verantwortliche Person hat keinen Zugriff auf dieses Camp.");
             }
+        }
+    }
+
+    private async Task RequireManagerAsync(
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        var decision = await accessControl.AuthorizeCampAsync(
+            new CampAccessRequest(actorId, organizationId, campId, CampAction.ManageCamp),
+            cancellationToken);
+        if (!decision.Allowed)
+        {
+            throw Rule("camp_access_denied", "Du darfst den Papierkorb dieses Camps nicht verwalten.");
         }
     }
 

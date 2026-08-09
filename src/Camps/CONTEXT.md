@@ -21,11 +21,15 @@
 - Authorization: application checks use `Identity.Contracts.ITenantAccessControl`; responsibility candidates must
   themselves have Camp read access. CampLead can manage its Camp, Member can edit schedule content, and Viewer is
   read-only. Archived Camp schedule writes and LinkForWrite reference checks fail with `camp_archived`.
-- Concurrency/errors: updates, archive/reactivation and deletes require ExpectedVersion; persistence uses EF
-  concurrency tokens. Stable `CampsRuleException.ErrorCode` values map to German RFC-9457 responses in the host.
+- Concurrency/errors: updates, archive/reactivation, soft deletes and restores require ExpectedVersion; persistence
+  uses EF concurrency tokens. Stable `CampsRuleException.ErrorCode` values map to German RFC-9457 responses in the
+  host.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   `ScheduleEntryReference` to Catering or Spiritual. Linked deletion is composed outside Camps: the user must choose
   unlink or common trash first; Camps never cascades into another module.
+- Trash: active schedule reads hide soft-deleted entries. `ListTrashAsync` and restore require
+  `CampAction.ManageCamp`; restore rejects archived Camps and elapsed 30-day deadlines. `IScheduleRetention` is
+  cleanup-only and permanently deletes due entries plus responsibility rows in bounded batches.
 - Dependencies: Identity authorization; Files/Activity; Catering and Spiritual call narrow schedule contracts.
 - Privacy maintenance: the cleanup-only `IDataErasure` implementation deletes Organization-owned Camp aggregates in
   bounded batches and removes responsibility rows for an erased account. It has no interactive authorization seam.

@@ -3,6 +3,7 @@ using System;
 using Camps.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Camps.Implementation.Migrations
 {
     [DbContext(typeof(CampsDbContext))]
-    partial class CampsDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260809112531_AddScheduleEntryTrash")]
+    partial class AddScheduleEntryTrash
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
