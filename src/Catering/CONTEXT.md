@@ -44,6 +44,9 @@
   actions. Every response replaces the cached aggregate so the next mutation uses its new Version. Moving a meal to
   the 30-day trash requires a separate acknowledgement and sends antiforgery plus the latest `If-Match`; archived
   Camp workspaces expose none of these mutations.
+- Meal details compose the Files-owned Camp endpoints without crossing module internals. Authorized readers can list
+  and open private attachments through a fresh actor-bound read grant; Camp writers can upload validated files and
+  move them to the shared 30-day trash with antiforgery plus the attachment `If-Match`. Archived Camps remain read-only.
 - `IMealShoppingSource` returns source-stable, editable draft lines. The host passes reviewed quantities to the
   Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items. The
   Camp meal detail UI lets a writer choose any current list, include or exclude each draft line, and explicitly edit

@@ -2666,10 +2666,15 @@ function OwnerAttachmentsPanel({
 }: {
   organizationId: string;
   campId?: string;
-  ownerType: "Recipe" | "MaterialRequirement" | "Devotion" | "Note";
+  ownerType: "Recipe" | "MaterialRequirement" | "Meal" | "Devotion" | "Note";
   ownerId: string;
   ownerName: string;
-  ownerNoun: "das Rezept" | "das Material" | "die Andacht" | "die Notiz";
+  ownerNoun:
+    | "das Rezept"
+    | "das Material"
+    | "die Mahlzeit"
+    | "die Andacht"
+    | "die Notiz";
   canUpload: boolean;
   canDelete?: boolean;
 }) {
@@ -4165,6 +4170,16 @@ function MealDetailPanel({
               mealName={current.name}
             />
           ) : null}
+          <OwnerAttachmentsPanel
+            organizationId={organizationId}
+            campId={campId}
+            ownerType="Meal"
+            ownerId={mealId}
+            ownerName={current.name}
+            ownerNoun="die Mahlzeit"
+            canUpload={!readOnly}
+            canDelete={!readOnly}
+          />
           {!readOnly && !confirmDelete ? (
             <button
               type="button"

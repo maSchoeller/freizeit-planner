@@ -1468,6 +1468,167 @@ describe("camp workspace", () => {
     );
   });
 
+  it("uploads and moves a private meal attachment to the camp trash", async () => {
+    const mealId = "46000000-0000-0000-0000-000000000003";
+    const attachmentId = "4f000000-0000-0000-0000-000000000008";
+    const meal = {
+      id: mealId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      name: "Abendessen",
+      campDefaultPortions: 42,
+      portionOverride: null,
+      effectivePortions: 42,
+      scheduleEntryId: null,
+      recipeSnapshots: [],
+      version: 3,
+    };
+    const attachment = {
+      id: attachmentId,
+      originalFileName: "Aufbauplan.pdf",
+      mediaType: 0,
+      contentType: "application/pdf",
+      sizeBytes: 204800,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.includes(`/files?ownerType=Meal&ownerId=${mealId}`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...attachment,
+                id: "4f000000-0000-0000-0000-000000000009",
+                originalFileName: "Sitzordnung.png",
+                mediaType: 2,
+                contentType: "image/png",
+                sizeBytes: 8,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/files/${attachmentId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                limitBytes: 104857600,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 103809024,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes(`/files?ownerType=Meal&ownerId=${mealId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify([attachment]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith(`/catering/meals/${mealId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(meal), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"3"' },
+            }),
+          );
+        if (path.endsWith("/catering/meals"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: mealId,
+                  name: meal.name,
+                  effectivePortions: 42,
+                  scheduleEntryId: null,
+                  recipeCount: 0,
+                  version: 3,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/essen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Abendessen öffnen" }),
+    );
+    const files = await screen.findByRole("region", {
+      name: "Dateien zu Abendessen",
+    });
+    expect(await within(files).findByText("Aufbauplan.pdf")).toBeVisible();
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Sitzordnung.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(files).getByLabelText("Datei für die Mahlzeit"),
+      upload,
+    );
+    await user.click(
+      within(files).getByRole("button", { name: "Sitzordnung.png hochladen" }),
+    );
+    expect(
+      await within(files).findByText(
+        "Sitzordnung.png wurde sicher hochgeladen.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      within(files).getByRole("button", { name: "Aufbauplan.pdf löschen" }),
+    );
+    await user.click(
+      within(files).getByRole("checkbox", {
+        name: "Aufbauplan.pdf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Datei in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Aufbauplan.pdf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/files/${attachmentId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("reviews meal quantities before transferring them to a chosen shopping list", async () => {
     const mealId = "46000000-0000-0000-0000-000000000001";
     const snapshotId = "47000000-0000-0000-0000-000000000001";

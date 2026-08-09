@@ -16,7 +16,7 @@
   PDFs use attachment disposition. Grants expire after 60 seconds, are bound to one actor, and are consumed atomically only
   after current owner authorization succeeds.
 - The shared owner attachment UI composes the organization recipe-library or Camp-scoped list, quota, multipart upload,
-  read-grant, and versioned trash routes for recipe, material requirement, devotion, and note details. Authorized uploads carry
+  read-grant, and versioned trash routes for recipe, meal, material requirement, devotion, and note details. Authorized uploads carry
   antiforgery without overriding the browser multipart boundary; all authorized readers open a file only after a fresh
   actor-bound grant. The UI exposes allowed formats, per-file and owner-scope limits, private delivery,
   loading/failure/empty states and the explicit v1 malware-scanning exclusion.

@@ -71,6 +71,17 @@ entfernen. Jede Änderung prüft die angezeigte Mahlzeitenversion. Bei einem Kon
 erneut. **Mahlzeit in Papierkorb verschieben** verlangt eine zusätzliche Bestätigung; dort bleibt sie 30 Tage
 wiederherstellbar.
 
+## Dateien an der Mahlzeit
+
+Im geöffneten Mahlzeitdetail zeigt **Dateien** alle privaten Anhänge und die Belegung der 100-MiB-Campquote.
+Camp-Mitglieder mit Schreibrecht können PDF-, JPEG-, PNG- oder WebP-Dateien bis höchstens zehn MiB hochladen und
+über die ausdrückliche Bestätigung in den gemeinsamen Camp-Papierkorb verschieben. Dort bleiben sie 30 Tage
+wiederherstellbar. In einem archivierten Camp kannst du vorhandene Dateien weiterhin lesen, aber nicht verändern.
+
+**Dateiname öffnen** fordert für den aktuellen Benutzer eine einmalige, kurzlebige Leseberechtigung an. Die Datei
+bleibt privat; Bilder werden sicher angezeigt, PDFs heruntergeladen. Eine Malware-Prüfung ist nicht enthalten. Lade
+daher nur vertrauenswürdige Dateien hoch.
+
 ## Mahlzeit in eine Einkaufsliste übernehmen
 
 Öffne eine Mahlzeit und wähle **In Einkaufsliste übernehmen**. Der Entwurf verwendet die unveränderlichen
