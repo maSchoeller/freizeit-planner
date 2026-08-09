@@ -303,6 +303,18 @@
         "resolved": "4.5.0",
         "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
       },
+      "activity.contracts": {
+        "type": "Project"
+      },
+      "activity.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Activity.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "camps.contracts": {
         "type": "Project"
       },

@@ -4,6 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../Activity/Activity.Implementation/Activity.Implementation.csproj" />
     <PackageReference Include="Npgsql" />
   </ItemGroup>
   <ItemGroup>

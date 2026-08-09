@@ -1,3 +1,4 @@
+using Activity.Implementation;
 using System.Security.Claims;
 using Camps.Implementation;
 using Catering.Implementation;
@@ -27,6 +28,7 @@ internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
         await EnlistAsync<KnowledgeDbContext>(context, transaction, context.RequestAborted);
         await EnlistAsync<LogisticsDbContext>(context, transaction, context.RequestAborted);
         await EnlistAsync<FilesDbContext>(context, transaction, context.RequestAborted);
+        await EnlistAsync<ActivityDbContext>(context, transaction, context.RequestAborted);
         var userId = context.User.FindFirstValue(ClaimTypes.NameIdentifier) ?? string.Empty;
         var (organizationId, campId) = ReadTenantRoute(context.Request.Path);
         var operation = ReadOperation(context.Request);

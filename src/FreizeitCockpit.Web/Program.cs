@@ -1,6 +1,8 @@
 using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
+using Activity.Contracts;
+using Activity.Implementation;
 using Camps.Contracts;
 using Camps.Implementation;
 using Catering.Contracts;
@@ -133,6 +135,12 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use attachments must supply IAttachmentCatalog."));
     builder.Services.AddScoped<IAttachmentReader>(_ =>
         throw new InvalidOperationException("Tests that read attachments must supply IAttachmentReader."));
+    builder.Services.AddScoped<IActivityJournal>(_ =>
+        throw new InvalidOperationException("Tests that use activity must supply IActivityJournal."));
+    builder.Services.AddScoped<ICampSearchIndex>(_ =>
+        throw new InvalidOperationException("Tests that use search must supply ICampSearchIndex."));
+    builder.Services.AddScoped<ICampExportFormatter>(_ =>
+        throw new InvalidOperationException("Tests that use exports must supply ICampExportFormatter."));
 }
 else
 {
@@ -265,6 +273,14 @@ else
     builder.Services.AddScoped<IAttachmentCatalog>(services => services.GetRequiredService<AttachmentService>());
     builder.Services.AddScoped<IAttachmentReader>(services => services.GetRequiredService<AttachmentService>());
     builder.Services.AddScoped<IAttachmentMaintenance>(services => services.GetRequiredService<AttachmentService>());
+    builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<ActivityService>();
+    builder.Services.AddScoped<IActivityJournal>(services => services.GetRequiredService<ActivityService>());
+    builder.Services.AddScoped<ICampSearchIndex>(services => services.GetRequiredService<ActivityService>());
+    builder.Services.AddScoped<ICampExportFormatter, CampExportFormatter>();
 }
 
 var app = builder.Build();
@@ -302,6 +318,7 @@ app.MapSpiritualEndpoints();
 app.MapKnowledgeEndpoints();
 app.MapLogisticsEndpoints();
 app.MapFileEndpoints();
+app.MapActivityEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

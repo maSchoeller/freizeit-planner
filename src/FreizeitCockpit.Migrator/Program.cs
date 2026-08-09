@@ -1,3 +1,4 @@
+using Activity.Implementation;
 using Camps.Implementation;
 using Catering.Implementation;
 using FreizeitCockpit.ServiceDefaults;
@@ -31,6 +32,8 @@ builder.Services.AddDbContext<LogisticsDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 builder.Services.AddDbContext<FilesDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 
 using var host = builder.Build();
 var dataSource = host.Services.GetRequiredService<NpgsqlDataSource>();
@@ -50,6 +53,7 @@ try
     await scope.ServiceProvider.GetRequiredService<KnowledgeDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<LogisticsDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<FilesDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<ActivityDbContext>().Database.MigrateAsync();
 
     await IdentitySeeder.SeedAsync(
         identityDb,

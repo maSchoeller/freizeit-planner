@@ -13,6 +13,8 @@ public sealed class PlanningModuleRouteTests
     [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/notes")]
     [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/logistics/material")]
     [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/files?ownerType=Note&ownerId=40000000-0000-0000-0000-000000000001")]
+    [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/activity")]
+    [InlineData("/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/30000000-0000-0000-0000-000000000001/search?query=wald")]
     public async Task PlanningRoutesRequireAuthentication(string path)
     {
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>

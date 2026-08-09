@@ -10,6 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../Activity/Activity.Contracts/Activity.Contracts.csproj" />
+    <ProjectReference Include="../Activity/Activity.Implementation/Activity.Implementation.csproj" />
     <ProjectReference Include="../Camps/Camps.Contracts/Camps.Contracts.csproj" />
     <ProjectReference Include="../Camps/Camps.Implementation/Camps.Implementation.csproj" />
     <ProjectReference Include="../Catering/Catering.Contracts/Catering.Contracts.csproj" />

@@ -646,6 +646,18 @@
           "xunit.v3.runner.common": "[3.2.2]"
         }
       },
+      "activity.contracts": {
+        "type": "Project"
+      },
+      "activity.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Activity.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "camps.contracts": {
         "type": "Project"
       },
@@ -709,6 +721,8 @@
       "freizeitcockpit.web": {
         "type": "Project",
         "dependencies": {
+          "Activity.Contracts": "[1.0.0, )",
+          "Activity.Implementation": "[1.0.0, )",
           "Camps.Contracts": "[1.0.0, )",
           "Camps.Implementation": "[1.0.0, )",
           "Catering.Contracts": "[1.0.0, )",
