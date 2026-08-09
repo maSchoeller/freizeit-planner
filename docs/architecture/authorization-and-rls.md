@@ -21,3 +21,8 @@ rows. Invitation acceptance and first-Organization creation use named, endpoint-
 `scripts/test-rls.ps1` creates an isolated PostgreSQL 17 container, migrates and seeds it, asserts that the runtime
 role has neither superuser nor bypass-RLS capability, then proves own-row visibility, foreign read/write denial,
 Platform Admin isolation, suspension, platform metadata boundaries, and transaction-context cleanup.
+
+The separate `freizeit_jobs` non-login role also cannot bypass RLS. It receives no INSERT or DDL rights; named
+per-table policies permit only cross-tenant SELECT, UPDATE, and DELETE for deterministic retention and erasure. The
+Cleanup executable explicitly assumes that role, while the migration identity retains schema ownership without
+being used by the interactive Web process.

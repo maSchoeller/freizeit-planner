@@ -38,6 +38,7 @@ public static class FreizeitServiceDefaults
                 .AddRuntimeInstrumentation()
                 .AddMeter("Npgsql"))
             .WithTracing(tracing => tracing
+                .AddSource(FreizeitCorrelation.ActivitySourceName)
                 .AddAspNetCoreInstrumentation(options =>
                 {
                     options.Filter = context =>

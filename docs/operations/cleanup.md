@@ -41,5 +41,13 @@ dotnet run --project src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj
 The scheduled job must use the dedicated jobs identity. It must never run as the interactive `freizeit_app` role,
 because forced RLS intentionally prevents cross-tenant retention scans.
 
+After connecting with the jobs managed identity, every Cleanup DbContext executes as the non-login
+`freizeit_jobs` role. It has no superuser, login, database-create, INSERT, or BYPASSRLS capability. Explicit
+cross-tenant cleanup policies grant only SELECT, UPDATE, and DELETE on module tables. The same managed identity may
+run Migrator without assuming this role; it owns migration-created schemas and tables, while the Cleanup process
+always narrows itself with `SET ROLE`. Production Entra principals and membership are prepared once with
+`scripts/bootstrap-database-principals.sql` by the configured database administrator.
+
 `pwsh ./scripts/test-cleanup.ps1` creates a temporary PostgreSQL 17 database, migrates it, executes both a due
-Organization erasure and a due account erasure, and asserts domain deletion plus retained-audit pseudonymization.
+Organization erasure and a due account erasure, and asserts the exact jobs-role privileges/policies, domain deletion
+plus retained-audit pseudonymization.

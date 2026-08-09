@@ -17,6 +17,7 @@ using Logistics.Implementation;
 using Files.Contracts;
 using Files.Implementation;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
@@ -150,6 +151,9 @@ else
     builder.Services.AddSingleton(services => FreizeitServiceDefaults.CreatePostgresDataSource(
         builder.Configuration,
         builder.Environment));
+    builder.Services.AddHealthChecks().AddCheck<PostgresReadinessHealthCheck>(
+        "postgresql",
+        tags: ["ready"]);
     builder.Services.AddScoped(services =>
         services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
     builder.Services.AddSingleton(new RuntimeRoleConnectionInterceptor(runtimeRole));
@@ -291,6 +295,7 @@ builder.Services.AddScoped<PlanningActivityWriter>();
 var app = builder.Build();
 
 app.UseExceptionHandler();
+app.UseMiddleware<CorrelationIdMiddleware>();
 app.Use(async (context, next) =>
 {
     context.Response.Headers.ContentSecurityPolicy =
@@ -311,8 +316,14 @@ app.MapGet("/api/v1", () => Results.Ok(new
     version = "v1",
     language = "de-DE"
 }));
-app.MapHealthChecks("/health");
-app.MapHealthChecks("/ready");
+app.MapHealthChecks("/health", new HealthCheckOptions
+{
+    Predicate = _ => false
+});
+app.MapHealthChecks("/ready", new HealthCheckOptions
+{
+    Predicate = registration => registration.Tags.Contains("ready")
+});
 app.MapOpenApi("/api/v1/openapi.json");
 app.MapIdentityEndpoints();
 app.MapLifecycleEndpoints();

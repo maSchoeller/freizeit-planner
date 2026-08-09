@@ -19,6 +19,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Npgsql;
 using Spiritual.Implementation;
 using Spiritual.Contracts;
@@ -33,22 +34,32 @@ builder.Services.AddSingleton(services => FreizeitServiceDefaults.CreatePostgres
     builder.Environment));
 builder.Services.AddScoped(services =>
     services.GetRequiredService<NpgsqlDataSource>().CreateConnection());
+var jobsRole = builder.Configuration["Database:JobsRole"] ?? "freizeit_jobs";
+builder.Services.AddSingleton(new RuntimeRoleConnectionInterceptor(jobsRole));
 builder.Services.AddDbContext<IdentityDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<CampsDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<CateringDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<KnowledgeDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<LogisticsDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<SpiritualDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<FilesDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
-    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+        .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
 
 builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
 {
@@ -93,6 +104,9 @@ builder.Services.AddSingleton(new CleanupOptions
 builder.Services.AddScoped<CleanupJob>();
 
 using var host = builder.Build();
+var logger = host.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("FreizeitCockpit.Cleanup");
+using var correlation = FreizeitCorrelation.BeginOperation(logger, "cleanup.run");
 await using var scope = host.Services.CreateAsyncScope();
 await scope.ServiceProvider
     .GetRequiredService<CleanupJob>()

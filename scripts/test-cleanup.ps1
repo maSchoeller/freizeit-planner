@@ -52,6 +52,30 @@ try {
             --configuration Release --no-restore
         if ($LASTEXITCODE -ne 0) { throw 'Cleanup test migration failed.' }
 
+        $jobsRole = Invoke-Psql -Sql @'
+SELECT rolcanlogin::text || '|' || rolsuper::text || '|' || rolbypassrls::text || '|' ||
+       has_database_privilege('freizeit_jobs', current_database(), 'CREATE')::text || '|' ||
+       bool_and(has_table_privilege('freizeit_jobs', schemaname || '.' || tablename, 'SELECT')
+                AND has_table_privilege('freizeit_jobs', schemaname || '.' || tablename, 'UPDATE')
+                AND has_table_privilege('freizeit_jobs', schemaname || '.' || tablename, 'DELETE'))::text || '|' ||
+       bool_or(has_table_privilege('freizeit_jobs', schemaname || '.' || tablename, 'INSERT'))::text || '|' ||
+       bool_and((SELECT count(*) = 3
+                 FROM pg_policies
+                 WHERE pg_policies.schemaname = pg_tables.schemaname
+                   AND pg_policies.tablename = pg_tables.tablename
+                   AND policyname IN ('operations_cleanup_select',
+                                      'operations_cleanup_update',
+                                      'operations_cleanup_delete')))::text
+FROM pg_roles
+CROSS JOIN pg_tables
+WHERE rolname = 'freizeit_jobs'
+  AND schemaname IN ('identity', 'camps', 'catering', 'spiritual', 'knowledge', 'logistics', 'files', 'activity')
+GROUP BY rolcanlogin, rolsuper, rolbypassrls;
+'@
+        if ($jobsRole -ne 'false|false|false|false|true|false|true') {
+            throw "Unexpected cleanup role privileges: $jobsRole"
+        }
+
         Invoke-Psql -Sql @'
 UPDATE identity.organizations
 SET "DeletionScheduledAt" = now() - interval '31 days'

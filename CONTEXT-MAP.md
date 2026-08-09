@@ -19,6 +19,10 @@ domain module. Cross-module values are stable IDs and immutable contract records
 Each module owns an EF Core DbContext, PostgreSQL schema, migrations, and RLS policies. The runtime role cannot
 bypass RLS; request-scoped tenant context is set transaction-locally.
 
+Operations are a technical composition boundary, not a domain module. Migrator owns ordered schema evolution under
+one advisory lock. Cleanup calls only public retention/erasure contracts and assumes the non-login `freizeit_jobs`
+role, whose explicit cross-tenant policies allow SELECT/UPDATE/DELETE but no INSERT, DDL, or RLS bypass.
+
 Atomic workflows: Camps+Catering creates schedule entry and meal; Camps+Spiritual creates schedule entry and
 devotion; deletion of a linked entry requires an explicit unlink-or-trash choice. Catering/Logistics transfers
 source-traceable positions into Logistics shopping lists. Files and Activity require prior/current domain

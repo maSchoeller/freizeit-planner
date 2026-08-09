@@ -36,6 +36,9 @@ builder.Services.AddDbContext<ActivityDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 
 using var host = builder.Build();
+var logger = host.Services.GetRequiredService<ILoggerFactory>()
+    .CreateLogger("FreizeitCockpit.Migrator");
+using var correlation = FreizeitCorrelation.BeginOperation(logger, "migrator.run");
 var dataSource = host.Services.GetRequiredService<NpgsqlDataSource>();
 await using var connection = await dataSource.OpenConnectionAsync();
 await using var acquire = new NpgsqlCommand("SELECT pg_advisory_lock(@lock)", connection);
