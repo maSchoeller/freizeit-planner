@@ -40,6 +40,10 @@
   links one writable ScheduleEntry, and copies any selected library recipes into immutable snapshots. Meal details
   show effective portions, scaled decimal quantities and source/latest recipe versions. Refresh remains a distinct
   antiforgery plus `If-Match` action that replaces only the selected current snapshot after explicit user intent.
+- Existing meal details expose version-safe name, portion and schedule-link editing plus distinct add/remove snapshot
+  actions. Every response replaces the cached aggregate so the next mutation uses its new Version. Moving a meal to
+  the 30-day trash requires a separate acknowledgement and sends antiforgery plus the latest `If-Match`; archived
+  Camp workspaces expose none of these mutations.
 - `IMealShoppingSource` returns source-stable, editable draft lines. The host passes reviewed quantities to the
   Logistics-owned transfer interface; Catering neither selects a shopping list nor persists shopping items.
 - `Quantity` uses `decimal`. Automatic conversion is limited to g/kg and ml/l. Piece is compatible only with piece;

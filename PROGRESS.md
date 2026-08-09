@@ -20,7 +20,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | C01 camps                             | verified    | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Static dashboard examples masked the live Camp state   | 17 Camps, 29 API, 25 React + browser green           | Camps context, organization/camp help     | pending   | Start next incomplete product slice    |
 | C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
-| T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Meal planning and snapshot refresh were unreachable    | 14 Catering, 30 React + browser green                | Catering context, recipe/schedule help    | pending   | edit/delete and snapshot composition   |
+| T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Existing meals lacked reachable management actions     | 14 Catering, 31 React + browser green                | Catering context, recipe/schedule help    | pending   | reviewed shopping-list transfer UI     |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
 | L02 shopping                          | in_progress | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Hard delete removed individual items immediately       | 19 Logistics + PostgreSQL cleanup green              | Logistics context, shopping help          | pending   | complete UI and visual verification    |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
@@ -234,3 +234,12 @@ This file is the resumable evidence ledger. Commands are run from the repository
   open for meal edit/delete, adding/removing snapshots after creation and the reviewed shopping-list transfer UI. The
   complete repository gate passed in 333 seconds with 14 Catering, 29 API and 30 React tests plus atomic PostgreSQL,
   RLS/privacy, PWA and help output green.
+- 2026-08-09: T02 existing-meal management now keeps all aggregate changes reachable in one detail panel. Users can
+  edit the name, portion override and ScheduleEntry link, add another current library recipe as an immutable snapshot,
+  remove a snapshot and move the meal into the 30-day trash only after explicit acknowledgement. Antiforgery and
+  `If-Match` protect every mutation; each returned aggregate replaces the cached detail so a sequence uses the server
+  versions 4, 5, 6 and 7 instead of stale assumptions. The red journey failed first on the missing edit action; all
+  React journeys now pass 31/31 with strict TypeScript and lint. At 610 px the 563 px management panel, long recipe
+  choice and all destructive controls stayed within the 595 px document. T02 remains open for the reviewed shopping
+  transfer. The complete repository gate passed in 220.6 seconds with 14 Catering, 29 API and 31 React tests plus
+  PostgreSQL RLS/privacy, PWA and help output green.

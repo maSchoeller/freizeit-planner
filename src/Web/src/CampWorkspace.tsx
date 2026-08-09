@@ -621,7 +621,7 @@ async function getJson<T>(path: string): Promise<T> {
 
 async function mutateCateringJson<T>(
   path: string,
-  method: "POST" | "PUT",
+  method: "POST" | "PUT" | "DELETE",
   body: unknown,
   version?: number,
   conflictMessage?: string,
@@ -648,6 +648,7 @@ async function mutateCateringJson<T>(
         "Die Änderung konnte nicht gespeichert werden.",
     );
   }
+  if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
 }
 
@@ -3107,12 +3108,14 @@ function MealDetailPanel({
   mealId,
   readOnly,
   onClose,
+  onDeleted,
 }: {
   organizationId: string;
   campId: string;
   mealId: string;
   readOnly: boolean;
   onClose: () => void;
+  onDeleted: (name: string) => void;
 }) {
   const queryClient = useQueryClient();
   const detailQueryKey = [organizationId, campId, "meal", mealId];
@@ -3125,6 +3128,98 @@ function MealDetailPanel({
     retry: false,
   });
   const [notice, setNotice] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [editName, setEditName] = useState("");
+  const [editOverride, setEditOverride] = useState(false);
+  const [editPortions, setEditPortions] = useState("");
+  const [editScheduleEntryId, setEditScheduleEntryId] = useState("");
+  const [recipeToAdd, setRecipeToAdd] = useState("");
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+  const recipes = useQuery({
+    queryKey: [organizationId, "catering", "recipes"],
+    queryFn: () =>
+      getJson<RecipeSummary[]>(
+        `/api/v1/organizations/${organizationId}/catering/recipes`,
+      ),
+    retry: false,
+  });
+  const updateMeal = useMutation({
+    mutationFn: () => {
+      if (!meal.data) throw new Error("Die Mahlzeit ist noch nicht geladen.");
+      return mutateCateringJson<MealDetail>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}`,
+        "PUT",
+        {
+          name: editName,
+          portionOverride: editOverride ? Number(editPortions) : null,
+          scheduleEntryId: editScheduleEntryId || null,
+          recipeIds: [],
+        },
+        meal.data.version,
+        "Die Mahlzeit wurde zwischenzeitlich geändert. Schließe die Bearbeitung und öffne sie erneut.",
+      );
+    },
+    onSuccess: async (updated) => {
+      queryClient.setQueryData(detailQueryKey, updated);
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "meals"],
+      });
+      setEditing(false);
+      setNotice(`${updated.name} wurde gespeichert.`);
+    },
+  });
+  const addSnapshot = useMutation({
+    mutationFn: () => {
+      if (!meal.data) throw new Error("Die Mahlzeit ist noch nicht geladen.");
+      return mutateCateringJson<MealDetail>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}/recipes`,
+        "POST",
+        { recipeId: recipeToAdd },
+        meal.data.version,
+      );
+    },
+    onSuccess: (updated) => {
+      const added = recipes.data?.find((recipe) => recipe.id === recipeToAdd);
+      queryClient.setQueryData(detailQueryKey, updated);
+      setRecipeToAdd("");
+      setNotice(`${added?.name ?? "Rezept"} wurde hinzugefügt.`);
+    },
+  });
+  const removeSnapshot = useMutation({
+    mutationFn: (snapshot: MealRecipeSnapshot) => {
+      if (!meal.data) throw new Error("Die Mahlzeit ist noch nicht geladen.");
+      return mutateCateringJson<MealDetail>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}/recipes/${snapshot.id}`,
+        "DELETE",
+        {},
+        meal.data.version,
+      );
+    },
+    onSuccess: (updated, snapshot) => {
+      queryClient.setQueryData(detailQueryKey, updated);
+      setNotice(`${snapshot.name} wurde entfernt.`);
+    },
+  });
+  const deleteMeal = useMutation({
+    mutationFn: async () => {
+      if (!meal.data) throw new Error("Die Mahlzeit ist noch nicht geladen.");
+      const name = meal.data.name;
+      await mutateCateringJson<void>(
+        `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals/${mealId}`,
+        "DELETE",
+        {},
+        meal.data.version,
+      );
+      return name;
+    },
+    onSuccess: async (name) => {
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "meals"],
+      });
+      onDeleted(name);
+    },
+  });
   const refreshSnapshot = useMutation({
     mutationFn: (snapshot: MealRecipeSnapshot) => {
       const current = meal.data;
@@ -3182,6 +3277,134 @@ function MealDetailPanel({
               ? " Mit einem Zeitplaneintrag verknüpft."
               : " Ohne Zeitplaneintrag."}
           </p>
+          {!readOnly && !editing ? (
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => {
+                setEditName(current.name);
+                setEditOverride(current.portionOverride !== null);
+                setEditPortions(
+                  String(
+                    current.portionOverride ?? current.campDefaultPortions,
+                  ),
+                );
+                setEditScheduleEntryId(current.scheduleEntryId ?? "");
+                setEditing(true);
+                setNotice("");
+              }}
+            >
+              Mahlzeit bearbeiten
+            </button>
+          ) : null}
+          {editing ? (
+            <form
+              className="schedule-create-form meal-create-form"
+              aria-label={`${current.name} bearbeiten`}
+              onSubmit={(event) => {
+                event.preventDefault();
+                updateMeal.mutate();
+              }}
+            >
+              <label>
+                Name bearbeiten
+                <input
+                  required
+                  value={editName}
+                  onChange={(event) => setEditName(event.target.value)}
+                />
+              </label>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={editOverride}
+                  onChange={(event) => setEditOverride(event.target.checked)}
+                />
+                Personenzahl weiter überschreiben
+              </label>
+              {editOverride ? (
+                <label>
+                  Personenzahl bearbeiten
+                  <input
+                    required
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={editPortions}
+                    onChange={(event) => setEditPortions(event.target.value)}
+                  />
+                </label>
+              ) : null}
+              <label>
+                Zeitplaneintrag-ID bearbeiten
+                <input
+                  value={editScheduleEntryId}
+                  onChange={(event) =>
+                    setEditScheduleEntryId(event.target.value)
+                  }
+                />
+              </label>
+              {updateMeal.error ? (
+                <p role="alert" className="error-message">
+                  {updateMeal.error.message}
+                </p>
+              ) : null}
+              <div className="toolbar">
+                <button
+                  type="submit"
+                  className="primary-action"
+                  disabled={updateMeal.isPending}
+                >
+                  Änderungen speichern
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setEditing(false)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </form>
+          ) : null}
+          {!readOnly ? (
+            <form
+              className="meal-snapshot-add"
+              onSubmit={(event) => {
+                event.preventDefault();
+                addSnapshot.mutate();
+              }}
+            >
+              <label>
+                Rezept-Snapshot hinzufügen
+                <select
+                  value={recipeToAdd}
+                  onChange={(event) => setRecipeToAdd(event.target.value)}
+                >
+                  <option value="">Rezept auswählen</option>
+                  {recipes.data
+                    ?.filter(
+                      (recipe) =>
+                        !current.recipeSnapshots.some(
+                          (snapshot) => snapshot.sourceRecipeId === recipe.id,
+                        ),
+                    )
+                    .map((recipe) => (
+                      <option key={recipe.id} value={recipe.id}>
+                        {recipe.name}
+                      </option>
+                    ))}
+                </select>
+              </label>
+              <button
+                type="submit"
+                className="secondary-action"
+                disabled={!recipeToAdd || addSnapshot.isPending}
+              >
+                Snapshot hinzufügen
+              </button>
+            </form>
+          ) : null}
           <div className="meal-snapshot-list">
             {current.recipeSnapshots.map((snapshot) => (
               <article className="meal-snapshot-card" key={snapshot.id}>
@@ -3233,6 +3456,16 @@ function MealDetailPanel({
                     {snapshot.latestRecipeVersionNumber} aktualisieren
                   </button>
                 ) : null}
+                {!readOnly ? (
+                  <button
+                    type="button"
+                    className="text-action"
+                    disabled={removeSnapshot.isPending}
+                    onClick={() => removeSnapshot.mutate(snapshot)}
+                  >
+                    {snapshot.name} aus Mahlzeit entfernen
+                  </button>
+                ) : null}
               </article>
             ))}
             {current.recipeSnapshots.length === 0 ? (
@@ -3245,6 +3478,64 @@ function MealDetailPanel({
             <p role="alert" className="error-message">
               {refreshSnapshot.error.message}
             </p>
+          ) : null}
+          {addSnapshot.error || removeSnapshot.error ? (
+            <p role="alert" className="error-message">
+              {addSnapshot.error?.message ?? removeSnapshot.error?.message}
+            </p>
+          ) : null}
+          {!readOnly && !confirmDelete ? (
+            <button
+              type="button"
+              className="danger-action"
+              onClick={() => {
+                setConfirmDelete(true);
+                setDeleteConfirmed(false);
+              }}
+            >
+              Mahlzeit in Papierkorb verschieben
+            </button>
+          ) : null}
+          {confirmDelete ? (
+            <section
+              className="confirmation-panel"
+              aria-label="Mahlzeit löschen"
+            >
+              <p>
+                Die Mahlzeit bleibt 30 Tage im Papierkorb und kann dort
+                wiederhergestellt werden.
+              </p>
+              <label className="checkbox-label">
+                <input
+                  type="checkbox"
+                  checked={deleteConfirmed}
+                  onChange={(event) => setDeleteConfirmed(event.target.checked)}
+                />
+                Ich möchte diese Mahlzeit in den Papierkorb verschieben.
+              </label>
+              {deleteMeal.error ? (
+                <p role="alert" className="error-message">
+                  {deleteMeal.error.message}
+                </p>
+              ) : null}
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className="danger-action"
+                  disabled={!deleteConfirmed || deleteMeal.isPending}
+                  onClick={() => deleteMeal.mutate()}
+                >
+                  Verschieben bestätigen
+                </button>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setConfirmDelete(false)}
+                >
+                  Abbrechen
+                </button>
+              </div>
+            </section>
           ) : null}
         </>
       ) : null}
@@ -3654,6 +3945,10 @@ function MealsPage({ offline }: { offline: boolean }) {
           mealId={selectedMealId}
           readOnly={offline}
           onClose={() => setSelectedMealId(null)}
+          onDeleted={(name) => {
+            setSelectedMealId(null);
+            setMealNotice(`${name} wurde in den Papierkorb verschoben.`);
+          }}
         />
       ) : null}
       {recipeNotice ? (

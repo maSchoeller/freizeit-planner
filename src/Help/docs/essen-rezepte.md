@@ -65,6 +65,12 @@ eine Mahlzeit, um die wirksame Personenzahl und die passend skalierten Dezimalme
 neuere Bibliotheksversion verfügbar, bleibt der verwendete Stand zunächst erhalten. Erst mit **Rezeptname auf Version
 … aktualisieren** wird ausdrücklich ein neuer Snapshot aus dem aktuellen Bibliotheksrezept erzeugt.
 
+In den Mahlzeitdetails kannst du außerdem Name, Personenzahl und Zeitplanverknüpfung bearbeiten. Weitere aktuelle
+Bibliotheksrezepte lassen sich als Snapshot hinzufügen; nicht mehr benötigte Snapshots kannst du aus der Mahlzeit
+entfernen. Jede Änderung prüft die angezeigte Mahlzeitenversion. Bei einem Konflikt öffnest du den aktuellen Stand
+erneut. **Mahlzeit in Papierkorb verschieben** verlangt eine zusätzliche Bestätigung; dort bleibt sie 30 Tage
+wiederherstellbar.
+
 ## Bibliothek und Camp-Snapshots
 
 Die Suche oberhalb der Bibliothek filtert Rezepte nach ihrem Namen. Wird ein Bibliotheksrezept einer Mahlzeit
