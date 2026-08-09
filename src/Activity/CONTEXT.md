@@ -21,6 +21,9 @@
   Activity Contracts and must coordinate their domain write plus event/index projection at the application boundary.
 - Trash composition: the Web root combines manager-authorized deleted summaries from Knowledge, Spiritual, Files, and Logistics,
   orders them chronologically, and returns versioned module restore paths. Activity does not acquire lifecycle ownership.
+- The aggregate trash UI calls the returned module path with antiforgery and `If-Match`. On success it removes the
+  item, announces its title in German and invalidates both the trash query and the restored module list (including
+  active Knowledge notes); Activity still does not own or mutate domain lifecycle state.
 - Privacy maintenance removes all journal/search rows for a claimed Organization. For account erasure in a retained
   Organization, immutable event actors are minimized to the shared pseudonymous UUID; titles and event semantics stay
   intact for the remaining tenant.

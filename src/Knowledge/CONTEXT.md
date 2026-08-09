@@ -55,12 +55,13 @@
   renders only server-produced `RenderedHtml`; raw client Markdown is never treated as trusted HTML. The current list
   can be narrowed by title, excerpt or tag.
 - Moving an opened note to trash requires an explicit acknowledgement and the current ETag version. The active list
-  and cached detail are removed only after the server confirms the 30-day soft delete. Camp trash restore remains a
-  later UI slice; no module persistence crosses the Contracts/HTTP boundary.
+  and cached detail are removed only after the server confirms the 30-day soft delete. The aggregate Camp trash uses
+  the Note restore path and current version; success removes its trash row, announces the restored title and
+  invalidates the active notebook list. No module persistence crosses the Contracts/HTTP boundary.
 - While a create or revision form is open, the UI composes the authorized Camps, Catering, Logistics and Spiritual
   read endpoints into a typed target selector. Its write payload carries only `Type` and `TargetId`; Knowledge resolves
   and stores the trusted title snapshot under the current actor, Organization and Camp scope. Returned links display
-  their German type label and server title. Camp trash restore remains a later UI slice.
+  their German type label and server title.
 - An opened active Note composes the private Files HTTP routes with `ownerType=Note`. The Files owner authorization
   adapter re-reads the scoped Note before list, upload, read grant or delete; Knowledge does not access Files storage
   or persistence. The UI exposes Camp quota, allowed upload, short-lived open and versioned 30-day attachment trash.

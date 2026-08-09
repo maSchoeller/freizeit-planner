@@ -8229,6 +8229,7 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
   const { organizationId, campId, camp } = useCampRuntime();
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState("");
+  const [restoreNotice, setRestoreNotice] = useState("");
   const queryClient = useQueryClient();
   const normalizedQuery = query.trim();
   const search = useQuery({
@@ -8257,11 +8258,31 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
       });
       if (!response.ok)
         throw new Error("Der Inhalt konnte nicht wiederhergestellt werden.");
+      return item;
     },
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({
-        queryKey: [organizationId, campId, "trash"],
-      });
+    onSuccess: async (item) => {
+      queryClient.setQueryData<CampTrashItem[]>(
+        [organizationId, campId, "trash"],
+        (current) =>
+          current?.filter(
+            (candidate) =>
+              candidate.objectType !== item.objectType ||
+              candidate.objectId !== item.objectId,
+          ),
+      );
+      setRestoreNotice(`${item.title} wurde wiederhergestellt.`);
+      const invalidations = [
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "trash"],
+        }),
+      ];
+      if (item.objectType === "Note")
+        invalidations.push(
+          queryClient.invalidateQueries({
+            queryKey: [organizationId, campId, "notes"],
+          }),
+        );
+      await Promise.all(invalidations);
     },
   });
   const exportBase = `/api/v1/organizations/${organizationId}/camps/${campId}/exports`;
@@ -8276,6 +8297,11 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
           nach 30 Tagen endgültig entfernt.
         </p>
       </PageHeading>
+      {restoreNotice ? (
+        <p className="form-feedback" role="status">
+          {restoreNotice}
+        </p>
+      ) : null}
       <div className="toolbar search-toolbar">
         <label className="search-field search-wide">
           Camp durchsuchen

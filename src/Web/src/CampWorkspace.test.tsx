@@ -4176,6 +4176,7 @@ describe("camp workspace", () => {
   });
 
   it("loads the camp trash and restores an item with antiforgery and version", async () => {
+    let restored = false;
     const fetchMock = vi.fn(
       (request: RequestInfo | URL, init?: RequestInit) => {
         const path = requestPath(request);
@@ -4187,21 +4188,34 @@ describe("camp workspace", () => {
             }),
           );
         }
-        if (init?.method === "POST")
+        if (init?.method === "POST") {
+          restored = true;
           return Promise.resolve(new Response(null, { status: 200 }));
+        }
+        if (!path.endsWith("/trash"))
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
         return Promise.resolve(
           new Response(
-            JSON.stringify([
-              {
-                objectType: "Note",
-                objectId: "41000000-0000-0000-0000-000000000001",
-                title: "Packliste",
-                deletedAt: "2026-08-09T10:00:00Z",
-                purgeAt: "2026-09-08T10:00:00Z",
-                version: 3,
-                restorePath: "/api/v1/restore-note",
-              },
-            ]),
+            JSON.stringify(
+              restored
+                ? []
+                : [
+                    {
+                      objectType: "Note",
+                      objectId: "41000000-0000-0000-0000-000000000001",
+                      title: "Packliste",
+                      deletedAt: "2026-08-09T10:00:00Z",
+                      purgeAt: "2026-09-08T10:00:00Z",
+                      version: 3,
+                      restorePath: "/api/v1/restore-note",
+                    },
+                  ],
+            ),
             { status: 200, headers: { "Content-Type": "application/json" } },
           ),
         );
@@ -4215,6 +4229,13 @@ describe("camp workspace", () => {
     await user.click(
       screen.getByRole("button", { name: "Packliste wiederherstellen" }),
     );
+
+    expect(
+      await screen.findByText("Packliste wurde wiederhergestellt."),
+    ).toHaveAttribute("role", "status");
+    expect(
+      screen.queryByRole("button", { name: "Packliste wiederherstellen" }),
+    ).toBeNull();
 
     const restoreCall = fetchMock.mock.calls.find(
       ([request, init]) =>
