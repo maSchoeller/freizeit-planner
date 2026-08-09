@@ -71,3 +71,6 @@
   and shopping-list aggregates at their deterministic 30-day deadline in bounded batches. Item purge removes its
   responsibilities and immutable check audit; list purge removes the entire aggregate and audit. Both run in a
   transaction, and interactive restore rechecks the Camp archive state and deadline.
+- Offline projection stores synchronized material summaries/details and shopping summaries/complete lists for the
+  current Organization/Camp only. It is read-only: create, edit, transfer, check, trash, restore, files, directory
+  lookup, polling and every background mutation are disabled until connectivity returns.

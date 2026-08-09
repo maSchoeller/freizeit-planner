@@ -54,5 +54,8 @@
   `CampAction.ManageCamp`; restore rejects archived Camps and elapsed 30-day deadlines. `IScheduleRetention` is
   cleanup-only and permanently deletes due entries plus responsibility rows in bounded batches.
 - Dependencies: Identity authorization; Files/Activity; Catering and Spiritual call narrow schedule contracts.
+- Offline projection: successful online workspace and schedule reads may replace the single Organization/Camp-scoped
+  browser snapshot. A cold offline start can resolve only that stored workspace, exposes schedule read-only with its
+  synchronization timestamp, and performs no API request or deferred write.
 - Privacy maintenance: the cleanup-only `IDataErasure` implementation deletes Organization-owned Camp aggregates in
   bounded batches and removes responsibility rows for an erased account. It has no interactive authorization seam.

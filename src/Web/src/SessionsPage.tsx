@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { clearOfflineSession } from "./offlineSnapshot";
 
 interface SessionView {
   id: string;
@@ -52,6 +53,7 @@ export function SessionsPage() {
       if (!response.ok)
         throw new Error("Die Sitzung konnte nicht widerrufen werden.");
       if (session.isCurrent) {
+        clearOfflineSession();
         void navigate("/anmelden", { replace: true });
       } else {
         setSessions(

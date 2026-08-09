@@ -7,37 +7,89 @@ import { OrganizationMembersPage } from "./OrganizationMembersPage";
 import { PlatformOrganizationsPage } from "./PlatformOrganizationsPage";
 import { CampWorkspace } from "./CampWorkspace";
 import { CampsPage, CampSettingsPage } from "./CampsPage";
+import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
+import { OnlineOnly } from "./OnlineOnly";
 
 export function App() {
   return (
-    <Routes>
-      <Route path="/anmelden" element={<LoginPage />} />
-      <Route path="/einladung" element={<InvitationPage />} />
-      <Route path="/konto" element={<AccountPage />} />
-      <Route path="/konto/sitzungen" element={<SessionsPage />} />
-      <Route
-        path="/o/:organizationSlug/einstellungen/mitglieder"
-        element={<OrganizationMembersPage />}
-      />
-      <Route
-        path="/plattform/organisationen"
-        element={<PlatformOrganizationsPage />}
-      />
-      <Route path="/o/:organizationSlug/camps" element={<CampsPage />} />
-      <Route
-        path="/o/:organizationSlug/camps/:campSlug/einstellungen"
-        element={<CampSettingsPage />}
-      />
-      <Route
-        path="/o/:organizationSlug/camps/:campSlug/*"
-        element={<CampWorkspace />}
-      />
-      <Route
-        path="*"
-        element={
-          <Navigate replace to="/o/sonnenhoehe/camps/sommerfreizeit-2026" />
-        }
-      />
-    </Routes>
+    <>
+      <PwaUpdatePrompt />
+      <Routes>
+        <Route
+          path="/anmelden"
+          element={
+            <OnlineOnly>
+              <LoginPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/einladung"
+          element={
+            <OnlineOnly>
+              <InvitationPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/konto"
+          element={
+            <OnlineOnly>
+              <AccountPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/konto/sitzungen"
+          element={
+            <OnlineOnly>
+              <SessionsPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/o/:organizationSlug/einstellungen/mitglieder"
+          element={
+            <OnlineOnly>
+              <OrganizationMembersPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/plattform/organisationen"
+          element={
+            <OnlineOnly>
+              <PlatformOrganizationsPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/o/:organizationSlug/camps"
+          element={
+            <OnlineOnly>
+              <CampsPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/o/:organizationSlug/camps/:campSlug/einstellungen"
+          element={
+            <OnlineOnly>
+              <CampSettingsPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/o/:organizationSlug/camps/:campSlug/*"
+          element={<CampWorkspace />}
+        />
+        <Route
+          path="*"
+          element={
+            <Navigate replace to="/o/sonnenhoehe/camps/sommerfreizeit-2026" />
+          }
+        />
+      </Routes>
+    </>
   );
 }

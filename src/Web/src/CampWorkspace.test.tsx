@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
+import { saveOfflineSnapshot } from "./offlineSnapshot";
 
 type CalendarMutationInfo = {
   event: {
@@ -78,6 +79,30 @@ function requestPath(request: RequestInfo | URL) {
   if (typeof request === "string") return request;
   return request instanceof URL ? request.toString() : request.url;
 }
+
+const offlineWorkspaceFixture = {
+  organizationId: "20000000-0000-0000-0000-000000000001",
+  organizationName: "Sonnenhöhe e. V.",
+  organizationSlug: "sonnenhoehe",
+  organizationRole: 1,
+  campId: "30000000-0000-0000-0000-000000000001",
+  campSlug: "sommerfreizeit-2026",
+  campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",
+  camp: {
+    id: "30000000-0000-0000-0000-000000000001",
+    organizationId: "20000000-0000-0000-0000-000000000001",
+    name: "Sommerfreizeit 2026",
+    slug: "sommerfreizeit-2026",
+    description: "Gemeinsame Woche am See",
+    startsOn: "2026-08-01",
+    endsOn: "2026-08-08",
+    timeZoneId: "Europe/Berlin",
+    defaultPortions: 42,
+    status: 0,
+    period: 1,
+    version: 4,
+  },
+};
 
 describe("camp workspace", () => {
   afterEach(() => {
@@ -4287,11 +4312,186 @@ describe("camp workspace", () => {
     );
   });
 
-  it("marks offline mode and prevents planning writes", () => {
+  it("shows the synchronized read-only schedule offline without network access", async () => {
+    saveOfflineSnapshot(
+      {
+        organizationId: "20000000-0000-0000-0000-000000000001",
+        organizationName: "Sonnenhöhe e. V.",
+        organizationSlug: "sonnenhoehe",
+        organizationRole: 1,
+        campId: "30000000-0000-0000-0000-000000000001",
+        campSlug: "sommerfreizeit-2026",
+        campBase: "/o/sonnenhoehe/camps/sommerfreizeit-2026",
+        camp: {
+          id: "30000000-0000-0000-0000-000000000001",
+          organizationId: "20000000-0000-0000-0000-000000000001",
+          name: "Sommerfreizeit 2026",
+          slug: "sommerfreizeit-2026",
+          description: "Gemeinsame Woche am See",
+          startsOn: "2026-08-01",
+          endsOn: "2026-08-08",
+          timeZoneId: "Europe/Berlin",
+          defaultPortions: 42,
+          status: 0,
+          period: 1,
+          version: 4,
+        },
+      },
+      {
+        schedule: [
+          {
+            id: "schedule-offline",
+            title: "Geländespiel aus dem Offline-Stand",
+            description: "",
+            location: "Wald",
+            category: "Programm",
+            status: 1,
+            responsibleUserIds: [],
+            audience: "Alle",
+            overlapsAnotherEntry: false,
+            timing: {
+              isAllDay: false,
+              startsAtUtc: "2026-08-03T12:00:00Z",
+              endsAtUtc: "2026-08-03T14:00:00Z",
+            },
+            version: 1,
+          },
+        ],
+      },
+    );
     vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
-    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/dateien");
-    expect(screen.getByText(/^Offline/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /hochladen/ })).toBeDisabled();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            "/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan",
+          ]}
+        >
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+
+    expect(
+      await screen.findByText(/^Offline · nur gespeicherter Stand/),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Zuletzt synchronisiert:/)).toBeInTheDocument();
+    expect(
+      screen.getByText("Geländespiel aus dem Offline-Stand"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Eintrag erstellen" }),
+    ).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("keeps sensitive camp areas unavailable offline", () => {
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    vi.stubGlobal("fetch", vi.fn());
+
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/notizen");
+
+    expect(
+      screen.getByRole("heading", { name: "Offline nicht verfügbar" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Notizbuch" })).toBeNull();
+    expect(screen.queryByRole("link", { name: "Notizbuch" })).toBeNull();
+  });
+
+  it("keeps complete material and shopping details readable offline", async () => {
+    saveOfflineSnapshot(offlineWorkspaceFixture, {
+      material: {
+        summaries: [
+          {
+            id: "material-offline",
+            name: "Kletterseile",
+            quantity: { value: 3, unit: 4, customUnitName: null },
+            status: 1,
+            scheduleEntryId: null,
+            version: 2,
+          },
+        ],
+        requirements: [
+          {
+            id: "material-offline",
+            organizationId: offlineWorkspaceFixture.organizationId,
+            campId: offlineWorkspaceFixture.campId,
+            name: "Kletterseile",
+            description: "Für den Hochseilgarten",
+            quantity: { value: 3, unit: 4, customUnitName: null },
+            responsibleUserIds: [],
+            procurementSource: "Materiallager",
+            note: "Vor Abfahrt prüfen",
+            status: 1,
+            scheduleEntryId: null,
+            version: 2,
+          },
+        ],
+      },
+      shopping: {
+        summaries: [
+          {
+            id: "shopping-offline",
+            name: "Vorratseinkauf",
+            openItemCount: 1,
+            checkedItemCount: 0,
+            version: 3,
+            changeSequence: 4,
+          },
+        ],
+        lists: [
+          {
+            id: "shopping-offline",
+            organizationId: offlineWorkspaceFixture.organizationId,
+            campId: offlineWorkspaceFixture.campId,
+            name: "Vorratseinkauf",
+            items: [
+              {
+                id: "item-offline",
+                shoppingListId: "shopping-offline",
+                name: "Äpfel",
+                quantity: { value: 20, unit: 4, customUnitName: null },
+                responsibleUserIds: [],
+                store: "Hofladen",
+                note: null,
+                source: { kind: 0, label: "Spontan" },
+                isChecked: false,
+                checkedByUserId: null,
+                checkedAt: null,
+                version: 1,
+              },
+            ],
+            version: 3,
+            changeSequence: 4,
+          },
+        ],
+      },
+    });
+    vi.spyOn(window.navigator, "onLine", "get").mockReturnValue(false);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    expect(screen.getByText("Kletterseile")).toBeInTheDocument();
+    expect(screen.getByText("Vorratseinkauf")).toBeInTheDocument();
+    expect(screen.getByText("Gespeicherter Stand")).toBeInTheDocument();
+    expect(screen.queryByText("Aktualisierung alle 15 Sekunden")).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Vorratseinkauf öffnen" }),
+    );
+    expect(await screen.findByText(/20 Stück Äpfel/)).toBeInTheDocument();
+    expect(
+      screen.getByRole("checkbox", { name: "Äpfel abhaken" }),
+    ).toBeDisabled();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("searches the current camp and exposes real CSV downloads", async () => {

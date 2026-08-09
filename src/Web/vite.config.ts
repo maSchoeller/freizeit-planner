@@ -8,20 +8,34 @@ export default defineConfig({
     VitePWA({
       registerType: "prompt",
       manifest: {
+        id: "/",
         name: "Freizeit-Cockpit",
-        short_name: "Cockpit",
+        short_name: "Freizeit",
         description: "Gemeinsam christliche Freizeiten planen",
         theme_color: "#0f766e",
         background_color: "#f4fbfa",
         display: "standalone",
         lang: "de-DE",
         start_url: "/",
+        scope: "/",
+        categories: ["productivity", "lifestyle"],
         icons: [
-          { src: "/icons/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icons/icon-512.png", sizes: "512x512", type: "image/png" },
+          {
+            src: "/icons/freizeit-cockpit.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "any",
+          },
+          {
+            src: "/icons/freizeit-cockpit.svg",
+            sizes: "any",
+            type: "image/svg+xml",
+            purpose: "maskable",
+          },
         ],
       },
       workbox: {
+        cleanupOutdatedCaches: true,
         navigateFallbackDenylist: [/^\/api\//, /^\/hilfe\//],
       },
     }),

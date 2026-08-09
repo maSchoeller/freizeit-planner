@@ -27,3 +27,6 @@
   use version tokens. The request transaction sets user, organization, camp, and operation context with transaction-
   local PostgreSQL settings before queries execute under the `freizeit_app` `NOBYPASSRLS` role.
 - Dependencies: may emit metadata-only Activity events. All modules may depend on its Contracts, never implementation.
+- Offline session boundary: explicit logout, revocation of the current browser session, leaving the active
+  Organization, and switching Organizations purge the single local Camp planning snapshot. Identity, account,
+  session and administration routes never render authenticated cached content while offline.

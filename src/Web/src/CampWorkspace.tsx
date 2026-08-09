@@ -3,7 +3,12 @@ import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import luxonPlugin from "@fullcalendar/luxon3";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  useMutation,
+  useQueries,
+  useQuery,
+  useQueryClient,
+} from "@tanstack/react-query";
 import {
   CalendarDays,
   ChefHat,
@@ -17,17 +22,10 @@ import {
 } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import {
-  Link,
-  NavLink,
-  Route,
-  Routes,
-  useLocation,
-  useParams,
-} from "react-router-dom";
+import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import {
-  clearOfflineSnapshot,
+  activateOfflineOrganization,
   loadOfflineSnapshot,
   saveOfflineSnapshot,
 } from "./offlineSnapshot";
@@ -879,12 +877,13 @@ async function mutateCateringJson<T>(
   return (await response.json()) as T;
 }
 
-function useCampQuery<T>(key: string, path: string) {
+function useCampQuery<T>(key: string, path: string, enabled = true) {
   const { organizationId, campId } = useCampRuntime();
   return useQuery({
     queryKey: [organizationId, campId, key],
     queryFn: () => getJson<T>(path),
     retry: false,
+    enabled,
   });
 }
 
@@ -946,6 +945,13 @@ async function resolveCampRuntime(
   organizationSlug: string,
   campSlug: string,
 ): Promise<CampRuntime> {
+  const offlineSnapshot = loadOfflineSnapshot({
+    organizationSlug,
+    campSlug,
+  });
+  if (!navigator.onLine && offlineSnapshot)
+    return offlineSnapshot.workspace as CampRuntime;
+
   const membershipsResponse = await fetch("/api/v1/account/memberships", {
     credentials: "same-origin",
   });
@@ -965,7 +971,7 @@ async function resolveCampRuntime(
   if (!campResponse.ok)
     throw new Error("Das Camp wurde nicht gefunden oder ist nicht zugänglich.");
   const camp = (await campResponse.json()) as WorkspaceCamp;
-  return {
+  const runtime: CampRuntime = {
     organizationId: membership.organizationId,
     organizationName: membership.organizationName,
     organizationSlug,
@@ -975,18 +981,26 @@ async function resolveCampRuntime(
     campBase: `/o/${organizationSlug}/camps/${camp.slug}`,
     camp,
   };
+  activateOfflineOrganization(runtime.organizationId);
+  return runtime;
 }
 
 function CampWorkspaceShell() {
   const runtime = useCampRuntime();
   const { campBase, camp } = runtime;
-  const location = useLocation();
   const [offline, setOffline] = useState(!navigator.onLine);
+  const offlineSnapshot = offline
+    ? loadOfflineSnapshot({
+        organizationId: runtime.organizationId,
+        campId: runtime.campId,
+      })
+    : null;
   const account = useQuery({
     queryKey: ["account"],
     queryFn: () => getJson<Account>("/api/v1/account"),
     retry: false,
     staleTime: 5 * 60 * 1000,
+    enabled: !offline,
   });
   useEffect(() => {
     const online = () => setOffline(false);
@@ -998,11 +1012,15 @@ function CampWorkspaceShell() {
       window.removeEventListener("offline", offlineHandler);
     };
   }, []);
-  useEffect(() => {
-    if (!location.pathname.startsWith(campBase)) clearOfflineSnapshot();
-  }, [location.pathname]);
   const readOnly = offline || camp.status === 1;
-  const accountDisplayName = account.data?.displayName?.trim();
+  const accountDisplayName = offline
+    ? undefined
+    : account.data?.displayName?.trim();
+  const visibleNavigation = offline
+    ? navigation.filter(({ to }) =>
+        ["tagesplan", "essen", "logistik"].includes(to),
+      )
+    : navigation;
 
   return (
     <div className="app-shell">
@@ -1031,17 +1049,26 @@ function CampWorkspaceShell() {
                 ? "Archiviert · nur lesen"
                 : "Online"}
           </span>
-          <Link
-            className="profile-button"
-            aria-label={
-              accountDisplayName
-                ? `Kontomenü von ${accountDisplayName} öffnen`
-                : "Kontomenü öffnen"
-            }
-            to="/konto"
-          >
-            {accountDisplayName ? accountInitials(accountDisplayName) : "…"}
-          </Link>
+          {offline ? (
+            <span
+              className="profile-button"
+              aria-label="Kontomenü ist offline nicht verfügbar"
+            >
+              …
+            </span>
+          ) : (
+            <Link
+              className="profile-button"
+              aria-label={
+                accountDisplayName
+                  ? `Kontomenü von ${accountDisplayName} öffnen`
+                  : "Kontomenü öffnen"
+              }
+              to="/konto"
+            >
+              {accountDisplayName ? accountInitials(accountDisplayName) : "…"}
+            </Link>
+          )}
         </div>
       </header>
       <div className="workspace">
@@ -1050,7 +1077,7 @@ function CampWorkspaceShell() {
           <p className="camp-name">{camp.name}</p>
           <nav aria-label="Camp-Navigation">
             <ul>
-              {navigation.map(({ to, label, icon: Icon, end }) => (
+              {visibleNavigation.map(({ to, label, icon: Icon, end }) => (
                 <li key={label}>
                   <NavLink to={to ? `${campBase}/${to}` : campBase} end={end}>
                     <Icon aria-hidden="true" size={20} />
@@ -1071,31 +1098,109 @@ function CampWorkspaceShell() {
               Änderungen sind erst nach der Reaktivierung möglich.
             </p>
           ) : null}
+          {offline && offlineSnapshot ? (
+            <p className="offline-snapshot-notice" role="status">
+              Offline-Snapshot · Zuletzt synchronisiert:{" "}
+              {formatGermanDateTime(offlineSnapshot.synchronizedAt)}
+            </p>
+          ) : null}
           <Routes>
-            <Route index element={<OverviewPage />} />
+            <Route
+              index
+              element={offline ? <OfflineStartPage /> : <OverviewPage />}
+            />
             <Route
               path="tagesplan"
-              element={<SchedulePage offline={readOnly} />}
+              element={<SchedulePage offline={offline} readOnly={readOnly} />}
             />
-            <Route path="essen" element={<MealsPage offline={readOnly} />} />
+            <Route
+              path="essen"
+              element={<MealsPage offline={offline} readOnly={readOnly} />}
+            />
             <Route
               path="logistik"
-              element={<LogisticsPage offline={readOnly} />}
+              element={<LogisticsPage offline={offline} readOnly={readOnly} />}
             />
             <Route
               path="andachten"
-              element={<DevotionsPage offline={readOnly} />}
+              element={
+                offline ? (
+                  <OfflineUnavailablePage />
+                ) : (
+                  <DevotionsPage offline={readOnly} />
+                )
+              }
             />
-            <Route path="notizen" element={<NotesPage offline={readOnly} />} />
-            <Route path="dateien" element={<FilesPage offline={readOnly} />} />
+            <Route
+              path="notizen"
+              element={
+                offline ? (
+                  <OfflineUnavailablePage />
+                ) : (
+                  <NotesPage offline={readOnly} />
+                )
+              }
+            />
+            <Route
+              path="dateien"
+              element={
+                offline ? (
+                  <OfflineUnavailablePage />
+                ) : (
+                  <FilesPage offline={readOnly} />
+                )
+              }
+            />
             <Route
               path="suche"
-              element={<SearchTrashPage offline={readOnly} />}
+              element={
+                offline ? (
+                  <OfflineUnavailablePage />
+                ) : (
+                  <SearchTrashPage offline={readOnly} />
+                )
+              }
             />
           </Routes>
         </main>
       </div>
     </div>
+  );
+}
+
+function OfflineStartPage() {
+  const { campBase } = useCampRuntime();
+  return (
+    <>
+      <PageHeading eyebrow="Offline" title="Gespeicherte Planung">
+        <p>
+          Verfügbar sind ausschließlich der zuletzt synchronisierte Tagesplan,
+          Speiseplan, Materialbedarf und Einkauf.
+        </p>
+      </PageHeading>
+      <div className="card-grid offline-area-grid">
+        <Link className="card" to={`${campBase}/tagesplan`}>
+          Tagesplan öffnen
+        </Link>
+        <Link className="card" to={`${campBase}/essen`}>
+          Speiseplan öffnen
+        </Link>
+        <Link className="card" to={`${campBase}/logistik`}>
+          Material und Einkauf öffnen
+        </Link>
+      </div>
+    </>
+  );
+}
+
+function OfflineUnavailablePage() {
+  return (
+    <PageHeading eyebrow="Offline" title="Offline nicht verfügbar">
+      <p>
+        Dieser Bereich enthält sensible oder administrative Daten und steht
+        deshalb nur mit Internetverbindung zur Verfügung.
+      </p>
+    </PageHeading>
   );
 }
 
@@ -1374,14 +1479,22 @@ function SummaryCard({
   );
 }
 
-function SchedulePage({ offline }: { offline: boolean }) {
-  const { organizationId, campId, camp } = useCampRuntime();
+function SchedulePage({
+  offline,
+  readOnly,
+}: {
+  offline: boolean;
+  readOnly: boolean;
+}) {
+  const runtime = useCampRuntime();
+  const { organizationId, campId, camp } = runtime;
   const toDateExclusive = nextLocalDate(camp.endsOn);
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${toDateExclusive}`;
-  const query = useCampQuery<ScheduleEntry[]>("schedule", path);
+  const query = useCampQuery<ScheduleEntry[]>("schedule", path, !offline);
   const candidatesQuery = useCampQuery<CampMemberSummary[]>(
     "responsibility-candidates",
     `/api/v1/organizations/${organizationId}/camps/${campId}/responsibility-candidates`,
+    !offline,
   );
   const queryClient = useQueryClient();
   const scheduleQueryKey = [organizationId, campId, "schedule"] as const;
@@ -1642,11 +1755,12 @@ function SchedulePage({ offline }: { offline: boolean }) {
       await queryClient.invalidateQueries({ queryKey: scheduleQueryKey });
     },
   });
-  const stored = (loadOfflineSnapshot()?.schedule ?? []) as ScheduleEntry[];
+  const stored = (loadOfflineSnapshot({ organizationId, campId })?.schedule ??
+    []) as ScheduleEntry[];
   const entries = query.data ?? (offline ? stored : []);
   const filesEntry = entries.find((entry) => entry.id === filesEntryId);
   useEffect(() => {
-    if (query.data) saveOfflineSnapshot({ schedule: query.data });
+    if (query.data) saveOfflineSnapshot(runtime, { schedule: query.data });
   }, [query.data]);
   const events = entries.map((entry) => ({
     id: entry.id,
@@ -1715,7 +1829,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
           allDayText="Ganztägig"
           height="auto"
           events={events}
-          editable={!offline && !update.isPending}
+          editable={!readOnly && !update.isPending}
           eventDrop={(info) => {
             const entry = entries.find((item) => item.id === info.event.id);
             if (!entry) {
@@ -1765,7 +1879,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
           <h2 id="agenda-title">Barrierearme Agenda</h2>
           <button
             className="primary-action"
-            disabled={offline}
+            disabled={readOnly}
             onClick={() => {
               setCreateStatus("");
               setCreateOpen(true);
@@ -1992,7 +2106,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
               <button
                 className="primary-action"
                 type="submit"
-                disabled={offline || create.isPending}
+                disabled={readOnly || create.isPending}
               >
                 Zeitplaneintrag anlegen
               </button>
@@ -2186,7 +2300,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
               <button
                 className="primary-action"
                 type="submit"
-                disabled={offline || update.isPending}
+                disabled={readOnly || update.isPending}
               >
                 Änderungen speichern
               </button>
@@ -2239,7 +2353,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
                 </button>
                 <button
                   className="secondary-action"
-                  disabled={offline || update.isPending}
+                  disabled={readOnly || update.isPending}
                   aria-label={`${entry.title} bearbeiten`}
                   onClick={() => {
                     setUpdateStatus("");
@@ -2253,7 +2367,7 @@ function SchedulePage({ offline }: { offline: boolean }) {
                 </button>
                 <button
                   className="danger-action"
-                  disabled={offline || remove.isPending}
+                  disabled={readOnly || remove.isPending}
                   aria-label={`${entry.title} löschen`}
                   onClick={() => {
                     setDeleteStatus("");
@@ -2275,8 +2389,8 @@ function SchedulePage({ offline }: { offline: boolean }) {
             ownerId={filesEntry.id}
             ownerName={filesEntry.title}
             ownerNoun="den Zeitplaneintrag"
-            canUpload={!offline}
-            canDelete={!offline}
+            canUpload={!readOnly}
+            canDelete={!readOnly}
           />
         ) : null}
         {deleteCandidate && (
@@ -4315,12 +4429,19 @@ function MealDetailPanel({
   );
 }
 
-function MealsPage({ offline }: { offline: boolean }) {
-  const { organizationId, organizationRole, campId, camp } = useCampRuntime();
+function MealsPage({
+  offline,
+  readOnly,
+}: {
+  offline: boolean;
+  readOnly: boolean;
+}) {
+  const runtime = useCampRuntime();
+  const { organizationId, organizationRole, campId, camp } = runtime;
   const canManageLibrary = organizationRole === 0 || organizationRole === 1;
   const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/catering/meals`;
-  const query = useCampQuery<Meal[]>("meals", path);
+  const query = useCampQuery<Meal[]>("meals", path, !offline);
   const recipes = useQuery({
     queryKey: [organizationId, "catering", "recipes"],
     queryFn: () =>
@@ -4328,6 +4449,7 @@ function MealsPage({ offline }: { offline: boolean }) {
         `/api/v1/organizations/${organizationId}/catering/recipes`,
       ),
     retry: false,
+    enabled: !offline,
   });
   const [showRecipeForm, setShowRecipeForm] = useState(false);
   const [showIngredientLibrary, setShowIngredientLibrary] = useState(false);
@@ -4472,7 +4594,10 @@ function MealsPage({ offline }: { offline: boolean }) {
   });
   const meals =
     query.data ??
-    (offline ? ((loadOfflineSnapshot()?.meals ?? []) as Meal[]) : []);
+    (offline
+      ? ((loadOfflineSnapshot({ organizationId, campId })?.meals ??
+          []) as Meal[])
+      : []);
   const filteredRecipes = (recipes.data ?? []).filter((recipe) =>
     recipe.name
       .toLocaleLowerCase("de-DE")
@@ -4488,7 +4613,7 @@ function MealsPage({ offline }: { offline: boolean }) {
       ),
     );
   useEffect(() => {
-    if (query.data) saveOfflineSnapshot({ meals: query.data });
+    if (query.data) saveOfflineSnapshot(runtime, { meals: query.data });
   }, [query.data]);
   return (
     <>
@@ -4502,83 +4627,85 @@ function MealsPage({ offline }: { offline: boolean }) {
         <PrintButton scope="meals">Mahlzeiten drucken</PrintButton>
       </div>
       <QueryState loading={query.isLoading && !offline} error={query.error} />
-      <div className="toolbar">
-        <button
-          type="button"
-          className="primary-action"
-          disabled={offline}
-          aria-expanded={showMealForm}
-          onClick={() => {
-            setShowMealForm((current) => !current);
-            setSelectedMealId(null);
-            setSelectedRecipeId(null);
-            setShowRecipeForm(false);
-            setShowIngredientLibrary(false);
-            setMealNotice("");
-          }}
-        >
-          {showMealForm ? "Mahlzeitformular schließen" : "Mahlzeit planen"}
-        </button>
-        <button
-          type="button"
-          className="secondary-action"
-          disabled={offline || !canManageLibrary}
-          aria-expanded={showRecipeForm}
-          title={
-            canManageLibrary
-              ? undefined
-              : "Nur Owner und Organisations-Admins verwalten Rezepte."
-          }
-          onClick={() => {
-            setShowRecipeForm((current) => !current);
-            setShowIngredientLibrary(false);
-            setSelectedRecipeId(null);
-            setShowMealForm(false);
-            setSelectedMealId(null);
-            setRecipeNotice("");
-          }}
-        >
-          {showRecipeForm ? "Rezeptformular schließen" : "Rezept anlegen"}
-        </button>
-        <button
-          type="button"
-          className="secondary-action"
-          disabled={offline || !canManageLibrary}
-          aria-expanded={showIngredientLibrary}
-          title={
-            canManageLibrary
-              ? undefined
-              : "Nur Owner und Organisations-Admins verwalten Zutaten."
-          }
-          onClick={() => {
-            setShowIngredientLibrary((current) => !current);
-            setShowRecipeForm(false);
-            setSelectedRecipeId(null);
-            setShowMealForm(false);
-            setSelectedMealId(null);
-            setRecipeNotice("");
-          }}
-        >
-          {showIngredientLibrary
-            ? "Zutatenverwaltung schließen"
-            : "Zutaten verwalten"}
-        </button>
-        <label className="search-field">
-          Rezepte suchen
-          <input
-            type="search"
-            placeholder="z. B. Kartoffelsuppe"
-            value={recipeFilter}
-            onChange={(event) => setRecipeFilter(event.target.value)}
-          />
-        </label>
-      </div>
+      {!offline ? (
+        <div className="toolbar">
+          <button
+            type="button"
+            className="primary-action"
+            disabled={readOnly}
+            aria-expanded={showMealForm}
+            onClick={() => {
+              setShowMealForm((current) => !current);
+              setSelectedMealId(null);
+              setSelectedRecipeId(null);
+              setShowRecipeForm(false);
+              setShowIngredientLibrary(false);
+              setMealNotice("");
+            }}
+          >
+            {showMealForm ? "Mahlzeitformular schließen" : "Mahlzeit planen"}
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            disabled={readOnly || !canManageLibrary}
+            aria-expanded={showRecipeForm}
+            title={
+              canManageLibrary
+                ? undefined
+                : "Nur Owner und Organisations-Admins verwalten Rezepte."
+            }
+            onClick={() => {
+              setShowRecipeForm((current) => !current);
+              setShowIngredientLibrary(false);
+              setSelectedRecipeId(null);
+              setShowMealForm(false);
+              setSelectedMealId(null);
+              setRecipeNotice("");
+            }}
+          >
+            {showRecipeForm ? "Rezeptformular schließen" : "Rezept anlegen"}
+          </button>
+          <button
+            type="button"
+            className="secondary-action"
+            disabled={readOnly || !canManageLibrary}
+            aria-expanded={showIngredientLibrary}
+            title={
+              canManageLibrary
+                ? undefined
+                : "Nur Owner und Organisations-Admins verwalten Zutaten."
+            }
+            onClick={() => {
+              setShowIngredientLibrary((current) => !current);
+              setShowRecipeForm(false);
+              setSelectedRecipeId(null);
+              setShowMealForm(false);
+              setSelectedMealId(null);
+              setRecipeNotice("");
+            }}
+          >
+            {showIngredientLibrary
+              ? "Zutatenverwaltung schließen"
+              : "Zutaten verwalten"}
+          </button>
+          <label className="search-field">
+            Rezepte suchen
+            <input
+              type="search"
+              placeholder="z. B. Kartoffelsuppe"
+              value={recipeFilter}
+              onChange={(event) => setRecipeFilter(event.target.value)}
+            />
+          </label>
+        </div>
+      ) : null}
       {mealNotice ? (
         <p className="form-feedback" role="status">
           {mealNotice}
         </p>
       ) : null}
-      {showMealForm ? (
+      {!offline && showMealForm ? (
         <form
           className="schedule-create-form meal-create-form"
           aria-labelledby="new-meal-heading"
@@ -4698,27 +4825,27 @@ function MealsPage({ offline }: { offline: boolean }) {
           </div>
         </form>
       ) : null}
-      {showIngredientLibrary ? (
+      {!offline && showIngredientLibrary ? (
         <IngredientLibraryPanel
           organizationId={organizationId}
           onClose={() => setShowIngredientLibrary(false)}
         />
       ) : null}
-      {selectedRecipeId ? (
+      {!offline && selectedRecipeId ? (
         <RecipeDetailPanel
           organizationId={organizationId}
           recipeId={selectedRecipeId}
           canManage={canManageLibrary}
-          readOnly={offline}
+          readOnly={readOnly}
           onClose={() => setSelectedRecipeId(null)}
         />
       ) : null}
-      {selectedMealId ? (
+      {!offline && selectedMealId ? (
         <MealDetailPanel
           organizationId={organizationId}
           campId={campId}
           mealId={selectedMealId}
-          readOnly={offline}
+          readOnly={readOnly}
           onClose={() => setSelectedMealId(null)}
           onDeleted={(name) => {
             setSelectedMealId(null);
@@ -4731,7 +4858,7 @@ function MealsPage({ offline }: { offline: boolean }) {
           {recipeNotice}
         </p>
       ) : null}
-      {showRecipeForm ? (
+      {!offline && showRecipeForm ? (
         <form
           className="schedule-create-form recipe-form"
           aria-labelledby="new-recipe-heading"
@@ -4979,43 +5106,47 @@ function MealsPage({ offline }: { offline: boolean }) {
           </div>
         </form>
       ) : null}
-      <section aria-labelledby="recipe-library-heading">
-        <div className="section-heading">
-          <h2 id="recipe-library-heading">Rezeptbibliothek</h2>
-        </div>
-        <QueryState loading={recipes.isLoading} error={recipes.error} />
-        <div className="card-grid">
-          {filteredRecipes.map((recipe) => (
-            <article className="card" key={recipe.id}>
-              <p className="eyebrow">
-                Version {recipe.currentVersionNumber} · {recipe.basePortions}{" "}
-                Basisportionen
+      {!offline ? (
+        <section aria-labelledby="recipe-library-heading">
+          <div className="section-heading">
+            <h2 id="recipe-library-heading">Rezeptbibliothek</h2>
+          </div>
+          <QueryState loading={recipes.isLoading} error={recipes.error} />
+          <div className="card-grid">
+            {filteredRecipes.map((recipe) => (
+              <article className="card" key={recipe.id}>
+                <p className="eyebrow">
+                  Version {recipe.currentVersionNumber} · {recipe.basePortions}{" "}
+                  Basisportionen
+                </p>
+                <h3>{recipe.name}</h3>
+                <button
+                  className="secondary-action"
+                  type="button"
+                  disabled={readOnly}
+                  aria-label={`${recipe.name} öffnen`}
+                  aria-expanded={selectedRecipeId === recipe.id}
+                  onClick={() => {
+                    setSelectedRecipeId(recipe.id);
+                    setSelectedMealId(null);
+                    setShowMealForm(false);
+                    setShowRecipeForm(false);
+                    setShowIngredientLibrary(false);
+                    setRecipeNotice("");
+                  }}
+                >
+                  Rezept öffnen
+                </button>
+              </article>
+            ))}
+            {!recipes.isLoading && filteredRecipes.length === 0 ? (
+              <p className="empty-state">
+                Noch kein passendes Rezept vorhanden.
               </p>
-              <h3>{recipe.name}</h3>
-              <button
-                className="secondary-action"
-                type="button"
-                disabled={offline}
-                aria-label={`${recipe.name} öffnen`}
-                aria-expanded={selectedRecipeId === recipe.id}
-                onClick={() => {
-                  setSelectedRecipeId(recipe.id);
-                  setSelectedMealId(null);
-                  setShowMealForm(false);
-                  setShowRecipeForm(false);
-                  setShowIngredientLibrary(false);
-                  setRecipeNotice("");
-                }}
-              >
-                Rezept öffnen
-              </button>
-            </article>
-          ))}
-          {!recipes.isLoading && filteredRecipes.length === 0 ? (
-            <p className="empty-state">Noch kein passendes Rezept vorhanden.</p>
-          ) : null}
-        </div>
-      </section>
+            ) : null}
+          </div>
+        </section>
+      ) : null}
       <section aria-labelledby="meal-list-heading" data-print-section="meals">
         <div className="section-heading">
           <h2 id="meal-list-heading">Geplante Mahlzeiten</h2>
@@ -5034,7 +5165,7 @@ function MealsPage({ offline }: { offline: boolean }) {
                 className="secondary-action"
                 aria-label={`${meal.name} öffnen`}
                 aria-expanded={selectedMealId === meal.id}
-                disabled={offline}
+                disabled={readOnly}
                 onClick={() => {
                   setSelectedMealId(meal.id);
                   setSelectedRecipeId(null);
@@ -5390,8 +5521,18 @@ function ShoppingItemEditForm({
   );
 }
 
-function LogisticsPage({ offline }: { offline: boolean }) {
-  const { organizationId, campId, camp } = useCampRuntime();
+function LogisticsPage({
+  offline,
+  readOnly,
+}: {
+  offline: boolean;
+  readOnly: boolean;
+}) {
+  const runtime = useCampRuntime();
+  const { organizationId, campId, camp } = runtime;
+  const storedSnapshot = offline
+    ? loadOfflineSnapshot({ organizationId, campId })
+    : null;
   const queryClient = useQueryClient();
   const basePath = `/api/v1/organizations/${organizationId}/camps/${campId}/logistics`;
   const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(
@@ -5435,6 +5576,11 @@ function LogisticsPage({ offline }: { offline: boolean }) {
     queryFn: () =>
       getJson<MaterialRequirementSummary[]>(`${basePath}/material`),
     retry: false,
+    enabled: !offline,
+    initialData: offline
+      ? (storedSnapshot?.material?.summaries as
+          MaterialRequirementSummary[] | undefined)
+      : undefined,
   });
   const selectedMaterial = useQuery({
     queryKey: [organizationId, campId, "material", selectedMaterialId],
@@ -5442,8 +5588,15 @@ function LogisticsPage({ offline }: { offline: boolean }) {
       getJson<MaterialRequirement>(
         `${basePath}/material/${selectedMaterialId}`,
       ),
-    enabled: selectedMaterialId !== null,
+    enabled: selectedMaterialId !== null && !offline,
     retry: false,
+    initialData: () =>
+      offline
+        ? (
+            storedSnapshot?.material?.requirements as
+              MaterialRequirement[] | undefined
+          )?.find((item) => item.id === selectedMaterialId)
+        : undefined,
   });
   const scheduleEntries = useQuery({
     queryKey: [organizationId, campId, "material-schedule-candidates"],
@@ -5452,6 +5605,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         `/api/v1/organizations/${organizationId}/camps/${campId}/schedule?fromDate=${camp.startsOn}&toDateExclusive=${nextLocalDate(camp.endsOn)}`,
       ),
     retry: false,
+    enabled: !offline,
   });
   const members = useQuery({
     queryKey: [organizationId, campId, "responsibility-candidates"],
@@ -5460,11 +5614,17 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         `/api/v1/organizations/${organizationId}/camps/${campId}/responsibility-candidates`,
       ),
     retry: false,
+    enabled: !offline,
   });
   const shoppingLists = useQuery({
     queryKey: [organizationId, campId, "shopping-lists"],
     queryFn: () => getJson<ShoppingListSummary[]>(`${basePath}/shopping-lists`),
     retry: false,
+    enabled: !offline,
+    initialData: offline
+      ? (storedSnapshot?.shopping?.summaries as
+          ShoppingListSummary[] | undefined)
+      : undefined,
     refetchInterval: offline ? false : 15_000,
     refetchOnWindowFocus: !offline,
   });
@@ -5472,11 +5632,67 @@ function LogisticsPage({ offline }: { offline: boolean }) {
     queryKey: [organizationId, campId, "shopping-list", selectedListId],
     queryFn: () =>
       getJson<ShoppingList>(`${basePath}/shopping-lists/${selectedListId}`),
-    enabled: selectedListId !== null,
+    enabled: selectedListId !== null && !offline,
     retry: false,
     refetchInterval: offline ? false : 15_000,
     refetchOnWindowFocus: !offline,
+    initialData: () =>
+      offline
+        ? (storedSnapshot?.shopping?.lists as ShoppingList[] | undefined)?.find(
+            (item) => item.id === selectedListId,
+          )
+        : undefined,
   });
+  const materialSnapshotQueries = useQueries({
+    queries: offline
+      ? []
+      : (material.data ?? []).map((item) => ({
+          queryKey: [organizationId, campId, "material", item.id],
+          queryFn: () =>
+            getJson<MaterialRequirement>(`${basePath}/material/${item.id}`),
+          retry: false,
+        })),
+  });
+  const shoppingSnapshotQueries = useQueries({
+    queries: offline
+      ? []
+      : (shoppingLists.data ?? []).map((item) => ({
+          queryKey: [organizationId, campId, "shopping-list", item.id],
+          queryFn: () =>
+            getJson<ShoppingList>(`${basePath}/shopping-lists/${item.id}`),
+          retry: false,
+        })),
+  });
+  useEffect(() => {
+    if (
+      !offline &&
+      material.data &&
+      materialSnapshotQueries.every((query) => query.data)
+    )
+      saveOfflineSnapshot(runtime, {
+        material: {
+          summaries: material.data,
+          requirements: materialSnapshotQueries.flatMap((query) =>
+            query.data ? [query.data] : [],
+          ),
+        },
+      });
+  }, [offline, material.data, materialSnapshotQueries]);
+  useEffect(() => {
+    if (
+      !offline &&
+      shoppingLists.data &&
+      shoppingSnapshotQueries.every((query) => query.data)
+    )
+      saveOfflineSnapshot(runtime, {
+        shopping: {
+          summaries: shoppingLists.data,
+          lists: shoppingSnapshotQueries.flatMap((query) =>
+            query.data ? [query.data] : [],
+          ),
+        },
+      });
+  }, [offline, shoppingLists.data, shoppingSnapshotQueries]);
   const updateListSummary = (
     listId: string,
     update: (summary: ShoppingListSummary) => ShoppingListSummary,
@@ -5919,7 +6135,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         <section className="settings-section" data-print-section="material">
           <div className="section-heading">
             <h2>Materialbedarf</h2>
-            {!offline ? (
+            {!readOnly ? (
               <button
                 type="button"
                 className="primary-action"
@@ -5983,13 +6199,17 @@ function LogisticsPage({ offline }: { offline: boolean }) {
         <section className="settings-section" data-print-section="shopping">
           <div className="section-heading">
             <h2>Einkaufslisten</h2>
-            <span className="status">Aktualisierung alle 15 Sekunden</span>
+            <span className="status">
+              {offline
+                ? "Gespeicherter Stand"
+                : "Aktualisierung alle 15 Sekunden"}
+            </span>
           </div>
           <QueryState
             loading={shoppingLists.isLoading}
             error={shoppingLists.error}
           />
-          {!offline ? (
+          {!readOnly ? (
             <form
               className="shopping-list-create"
               onSubmit={(event) => {
@@ -6068,7 +6288,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   <h2>{selectedMaterial.data.name}</h2>
                 </div>
                 <div className="toolbar compact-toolbar">
-                  {!offline ? (
+                  {!readOnly ? (
                     <>
                       <button
                         type="button"
@@ -6253,7 +6473,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   </div>
                 </section>
               ) : null}
-              {shoppingLists.data?.length === 0 && !offline ? (
+              {shoppingLists.data?.length === 0 && !readOnly ? (
                 <p className="form-hint">
                   Lege zuerst eine Einkaufsliste an, um Material zu übernehmen.
                 </p>
@@ -6398,8 +6618,8 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                 ownerId={selectedMaterial.data.id}
                 ownerName={selectedMaterial.data.name}
                 ownerNoun="das Material"
-                canUpload={!offline}
-                canDelete={!offline}
+                canUpload={!readOnly}
+                canDelete={!readOnly}
               />
             </>
           ) : null}
@@ -6429,7 +6649,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   <h2>{selectedList.data.name}</h2>
                 </div>
                 <div className="toolbar compact-toolbar">
-                  {!offline ? (
+                  {!readOnly ? (
                     <>
                       <button
                         type="button"
@@ -6557,7 +6777,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                   </div>
                 </section>
               ) : null}
-              {!offline ? (
+              {!readOnly ? (
                 <form
                   className="schedule-create-form shopping-item-create"
                   aria-label="Spontane Einkaufsposition"
@@ -6654,7 +6874,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                       <input
                         type="checkbox"
                         checked={item.isChecked}
-                        disabled={offline || checkItem.isPending}
+                        disabled={readOnly || checkItem.isPending}
                         aria-label={`${item.name} ${item.isChecked ? "wieder öffnen" : "abhaken"}`}
                         onChange={(event) =>
                           checkItem.mutate({
@@ -6680,7 +6900,7 @@ function LogisticsPage({ offline }: { offline: boolean }) {
                         am {formatGermanDateTime(item.checkedAt)}
                       </small>
                     ) : null}
-                    {!offline && editingItemId !== item.id ? (
+                    {!readOnly && editingItemId !== item.id ? (
                       <div className="shopping-item-actions">
                         <button
                           type="button"

@@ -3,6 +3,10 @@ import { Link, useNavigate } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
+import {
+  clearOfflineOrganization,
+  clearOfflineSession,
+} from "./offlineSnapshot";
 
 type Account = components["schemas"]["AccountView"];
 type Membership = components["schemas"]["AccountMembershipView"];
@@ -23,20 +27,29 @@ export function AccountPage() {
   useEffect(() => {
     const controller = new AbortController();
     void Promise.all([
-      api.GET("/api/v1/account", { signal: controller.signal }),
-      api.GET("/api/v1/account/memberships", { signal: controller.signal }),
+      fetch("/api/v1/account", {
+        credentials: "same-origin",
+        signal: controller.signal,
+      }),
+      fetch("/api/v1/account/memberships", {
+        credentials: "same-origin",
+        signal: controller.signal,
+      }),
     ])
-      .then(([accountResult, membershipResult]) => {
-        if (accountResult.response.status === 401) {
+      .then(async ([accountResponse, membershipResponse]) => {
+        if (accountResponse.status === 401) {
           void navigate("/anmelden", { replace: true });
           return;
         }
-        if (!accountResult.data || !membershipResult.data) {
+        if (!accountResponse.ok || !membershipResponse.ok) {
           throw new Error("Kontodaten konnten nicht geladen werden.");
         }
-        setAccount(accountResult.data);
-        setDisplayName(accountResult.data.displayName);
-        setMemberships(membershipResult.data);
+        const accountResult = (await accountResponse.json()) as Account;
+        const membershipResult =
+          (await membershipResponse.json()) as Membership[];
+        setAccount(accountResult);
+        setDisplayName(accountResult.displayName);
+        setMemberships(membershipResult);
       })
       .catch((caught: unknown) => {
         if (caught instanceof DOMException && caught.name === "AbortError")
@@ -163,6 +176,20 @@ export function AccountPage() {
           (item) => item.organizationId !== membership.organizationId,
         ),
       );
+      clearOfflineOrganization(membership.organizationId);
+    });
+  }
+
+  async function logout() {
+    await mutate("logout", async (token) => {
+      const response = await fetch("/api/v1/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-TOKEN": token },
+      });
+      if (!response.ok) throw new Error("Die Abmeldung ist fehlgeschlagen.");
+      clearOfflineSession();
+      void navigate("/anmelden", { replace: true });
     });
   }
 
@@ -233,6 +260,14 @@ export function AccountPage() {
               <p>
                 <Link to="/konto/sitzungen">Aktive Sitzungen verwalten</Link>
               </p>
+              <button
+                className="secondary-action"
+                disabled={busy !== null}
+                onClick={() => void logout()}
+                type="button"
+              >
+                {busy === "logout" ? "Wird abgemeldet …" : "Abmelden"}
+              </button>
               {account.isPlatformAdmin ? (
                 <p>
                   <Link to="/plattform/organisationen">

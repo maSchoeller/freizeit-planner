@@ -28,7 +28,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | F02 attachments                       | verified    | Magic-byte/MIME/extension checks, quotas, private authorized image/PDF delivery             | Meal and schedule files were unreachable from owners   | 28 Files, 50 React + full gate/mobile browsers       | Files/Camps/Catering contexts, help       | pending   | Complete A01 activity/trash            |
 | A01 activity/trash                    | verified    | Metadata-only feed, soft delete/restore and deterministic 30-day purge                      | Restore caches stale; feed omitted actor/type in UI    | 13 Activity, 32 API, 58 React + full gate/browser    | Activity/domain contexts, trash help      | pending   | Complete A02 search/export/print       |
 | A02 search/export/print               | verified    | Tenant-safe filtered search, CSV formula protection, German print views                     | Metadata filters and scoped print views absent in UI   | 62 React + PostgreSQL RLS + full gate/mobile browser | Activity context and search/export help   | pending   | Complete P01 PWA/offline               |
-| P01 PWA/offline                       | pending     | Install/update; read-only four-area snapshot; purge on logout/org switch                    | pending                                                | pending                                              | PWA docs/help                             | pending   | after CRUD                             |
+| P01 PWA/offline                       | verified    | Install/update; read-only four-area snapshot; purge on logout/org switch                    | Cold start lacked scoped complete offline projections  | 68 React + full gate/PWA/mobile browser green        | PWA architecture and offline help         | pending   | Complete O01 operations                |
 | O01 operations                        | in_progress | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Cleanup test exposed the stub and Migrator double-open | 4 Cleanup + 29 Identity + PostgreSQL erasure green   | cleanup runbook and module contexts       | pending   | provision least-privilege DB jobs role |
 | Z01 Azure/CI                          | pending     | azd/Bicep/containers/workflows locally validate; no cloud mutation                          | pending                                                | pending                                              | deployment docs                           | pending   | after F01/O01                          |
 | V01 full verification                 | pending     | Format/lint/build/tests, coverage, three browsers/viewports, axe, visual inspection, smoke  | pending                                                | pending                                              | all docs/screenshots                      | pending   | after all slices                       |
@@ -384,3 +384,14 @@ This file is the resumable evidence ledger. Commands are run from the repository
   At 610 px the 595 px search/trash page showed the restored status and empty state without clipping or overflow. The
   full gate passed in 237.5 seconds with build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green. K01
   is verified.
+- 2026-08-09: P01 now builds an installable German PWA with manifest identity/icons, generated service worker,
+  obsolete-cache cleanup, an explicit offline-ready notice and a user-controlled update prompt. The sole versioned
+  browser snapshot is scoped to one Organization/Camp, timestamps and stores exactly schedule, meal plan, complete
+  material, and complete shopping projections; a cold start resolves only that stored workspace. Offline routes
+  perform no API reads or writes, expose only those four read-only planning areas, and replace identity,
+  administration, notes, devotions, files, search and activity with an explicit unavailable state. Logout, current
+  session revocation, Organization switch and leaving the active Organization purge the snapshot. The red journeys
+  first exposed an unscoped partial snapshot, network-dependent workspace resolution and missing logout/update UX.
+  All 68 React tests pass. At 610 px, Tagesplan, Logistik and a blocked note route stayed within the viewport; visual
+  inspection corrected a false polling claim and a joined material summary. The full gate passed in 328.5 seconds
+  with warning-free builds, PostgreSQL RLS/privacy, PWA manifest/service worker and Help green; P01 is verified.

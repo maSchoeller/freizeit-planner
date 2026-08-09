@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import { SettingsLayout } from "./OrganizationMembersPage";
+import { activateOfflineOrganization } from "./offlineSnapshot";
 
 type Membership = components["schemas"]["AccountMembershipView"];
 type CampSummary = components["schemas"]["CampSummary"];
@@ -61,6 +62,7 @@ export function CampsPage() {
           organizationSlug,
           controller.signal,
         );
+        activateOfflineOrganization(currentMembership.organizationId);
         const response = await fetch(
           `/api/v1/organizations/${currentMembership.organizationId}/camps`,
           { credentials: "same-origin", signal: controller.signal },

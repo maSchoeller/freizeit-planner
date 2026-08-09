@@ -403,6 +403,10 @@ h2 {
 .agenda-list li div {
   color: #587270;
 }
+.material-summaries li > div {
+  display: grid;
+  gap: 0.25rem;
+}
 .agenda-list li div {
   display: grid;
   flex: 1;
@@ -499,6 +503,36 @@ h2 {
 button:disabled {
   opacity: 0.55;
   cursor: not-allowed;
+}
+.offline-snapshot-notice {
+  margin: 0 0 1rem;
+  padding: 0.85rem 1rem;
+  border: 1px solid #7dd3fc;
+  border-radius: 0.8rem;
+  background: #e8f8ff;
+  color: #164e63;
+  font-weight: 700;
+}
+.offline-area-grid .card {
+  color: inherit;
+  font-weight: 750;
+  text-decoration: none;
+}
+.pwa-prompt {
+  position: fixed;
+  z-index: 50;
+  right: 1rem;
+  bottom: 1rem;
+  width: min(28rem, calc(100vw - 2rem));
+  padding: 1rem;
+  border: 1px solid #7dd3fc;
+  border-radius: 1rem;
+  background: #fff;
+  box-shadow: 0 1rem 2.5rem rgb(15 118 110 / 18%);
+}
+.pwa-prompt h2,
+.pwa-prompt p {
+  margin-top: 0;
 }
 @media print {
   @page {

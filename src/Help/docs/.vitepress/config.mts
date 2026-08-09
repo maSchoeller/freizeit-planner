@@ -21,6 +21,10 @@ export default defineConfig({
             text: "Organisationen, Camps und Rollen",
             link: "/organisationen-camps-rollen",
           },
+          {
+            text: "Offline-Nutzung und Updates",
+            link: "/offline-nutzung",
+          },
         ],
       },
       {

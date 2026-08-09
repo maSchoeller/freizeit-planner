@@ -72,3 +72,5 @@
   one local Npgsql transaction; attachment composition remains a host seam.
 - Privacy maintenance deletes meals/snapshots, recipes/versions and ingredients for a claimed Organization in bounded,
   idempotent batches. Catering stores no user audit identifiers that require account pseudonymization.
+- Offline projection stores only the synchronized Camp meal plan. Recipe-library content, recipe details, files and
+  every meal mutation remain online-only; no offline draft or synchronization queue exists.

@@ -11,3 +11,6 @@ der oberen Navigationsleiste; am Desktop steht links die vollständige Navigatio
 
 Alle Änderungen benötigen eine Internetverbindung. Die ausdrücklich synchronisierten Tages-, Speise-, Material-
 und Einkaufspläne bleiben offline als deutlich gekennzeichneter, schreibgeschützter Stand verfügbar.
+
+Wie du die App installierst, einen gespeicherten Camp-Stand erkennst und wieder online weiterarbeitest, erklärt
+[Offline-Nutzung und Updates](./offline-nutzung.md).
