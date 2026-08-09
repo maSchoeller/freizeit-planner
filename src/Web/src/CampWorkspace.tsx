@@ -550,12 +550,43 @@ type IngredientMergeResult = {
   target: Ingredient;
   revisedRecipeIds: string[];
 };
-type Note = {
+type NoteSummary = {
   id: string;
   title: string;
   plainTextExcerpt: string;
   tags: string[];
   isPinned: boolean;
+  linkCount: number;
+  state: number;
+  updatedAt: string;
+  trashedAt: string | null;
+  purgeAfter: string | null;
+  version: number;
+};
+type NoteLink = {
+  type: number;
+  targetId: string;
+  targetTitle: string;
+};
+type NotebookNote = {
+  id: string;
+  organizationId: string;
+  campId: string;
+  title: string;
+  markdown: string;
+  renderedHtml: string;
+  tags: string[];
+  isPinned: boolean;
+  links: NoteLink[];
+  state: number;
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  trashedAt: string | null;
+  trashedBy: string | null;
+  purgeAfter: string | null;
+  version: number;
 };
 type Devotion = {
   id: string;
@@ -7397,8 +7428,85 @@ function DevotionsPage({ offline }: { offline: boolean }) {
 
 function NotesPage({ offline }: { offline: boolean }) {
   const { organizationId, campId } = useCampRuntime();
+  const queryClient = useQueryClient();
   const path = `/api/v1/organizations/${organizationId}/camps/${campId}/notes`;
-  const query = useCampQuery<Note[]>("notes", path);
+  const query = useCampQuery<NoteSummary[]>("notes", path);
+  const [creating, setCreating] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
+  const [title, setTitle] = useState("");
+  const [markdown, setMarkdown] = useState("");
+  const [tagInput, setTagInput] = useState("");
+  const [isPinned, setIsPinned] = useState(false);
+  const [searchText, setSearchText] = useState("");
+  const [notice, setNotice] = useState("");
+  const detail = useQuery({
+    queryKey: [organizationId, campId, "note", selectedNoteId],
+    queryFn: () => getJson<NotebookNote>(`${path}/${selectedNoteId}`),
+    enabled: selectedNoteId !== null,
+    retry: false,
+    staleTime: Number.POSITIVE_INFINITY,
+  });
+  const createNote = useMutation({
+    mutationFn: () =>
+      mutateCateringJson<NotebookNote>(path, "POST", {
+        title,
+        markdown,
+        tags: tagInput
+          .split(",")
+          .map((tag) => tag.trim())
+          .filter(Boolean),
+        isPinned,
+        links: [],
+      }),
+    onSuccess: (created) => {
+      const excerpt = created.markdown
+        .replace(/[#*_`[\]()]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+        .slice(0, 180);
+      queryClient.setQueryData<NoteSummary[]>(
+        [organizationId, campId, "notes"],
+        (current) => [
+          {
+            id: created.id,
+            title: created.title,
+            plainTextExcerpt: excerpt,
+            tags: created.tags,
+            isPinned: created.isPinned,
+            linkCount: created.links.length,
+            state: created.state,
+            updatedAt: created.updatedAt,
+            trashedAt: created.trashedAt,
+            purgeAfter: created.purgeAfter,
+            version: created.version,
+          },
+          ...(current ?? []),
+        ],
+      );
+      queryClient.setQueryData(
+        [organizationId, campId, "note", created.id],
+        created,
+      );
+      setSelectedNoteId(created.id);
+      setCreating(false);
+      setNotice(`${created.title} wurde angelegt.`);
+    },
+  });
+  const appendMarkdown = (value: string) => {
+    setMarkdown((current) => `${current}${current ? "\n" : ""}${value}`);
+  };
+  const normalizedSearch = searchText.trim().toLocaleLowerCase("de-DE");
+  const visibleNotes = query.data?.filter(
+    (note) =>
+      !normalizedSearch ||
+      note.title.toLocaleLowerCase("de-DE").includes(normalizedSearch) ||
+      note.plainTextExcerpt
+        .toLocaleLowerCase("de-DE")
+        .includes(normalizedSearch) ||
+      note.tags.some((tag) =>
+        tag.toLocaleLowerCase("de-DE").includes(normalizedSearch),
+      ),
+  );
   return (
     <>
       <PageHeading eyebrow="Gemeinsam festhalten" title="Notizbuch">
@@ -7407,32 +7515,198 @@ function NotesPage({ offline }: { offline: boolean }) {
           Tabellen und eingebettete Bilder sind gesperrt.
         </p>
       </PageHeading>
+      {notice ? (
+        <p className="form-feedback" role="status">
+          {notice}
+        </p>
+      ) : null}
       <QueryState loading={query.isLoading} error={query.error} />
       <div className="toolbar">
-        <button className="primary-action" disabled={offline}>
+        <button
+          type="button"
+          className="primary-action"
+          disabled={offline}
+          onClick={() => {
+            setCreating(true);
+            setNotice("");
+          }}
+        >
           Notiz anlegen
         </button>
         <label className="search-field">
           Notizen durchsuchen
-          <input type="search" />
+          <input
+            type="search"
+            value={searchText}
+            onChange={(event) => setSearchText(event.target.value)}
+          />
         </label>
       </div>
+      {creating ? (
+        <form
+          className="schedule-create-form note-form"
+          aria-label="Notiz anlegen"
+          onSubmit={(event) => {
+            event.preventDefault();
+            setNotice("");
+            createNote.mutate();
+          }}
+        >
+          <h2>Gemeinsame Notiz anlegen</h2>
+          <p className="form-hint">
+            Die Notiz ist für das gesamte zugewiesene Camp-Team sichtbar.
+            Roh-HTML, Tabellen und eingebettete Bilder werden nicht akzeptiert.
+          </p>
+          <label>
+            Titel
+            <input
+              required
+              value={title}
+              onChange={(event) => setTitle(event.target.value)}
+            />
+          </label>
+          <div className="markdown-toolbar" aria-label="Markdown-Werkzeuge">
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => appendMarkdown("## Überschrift")}
+            >
+              Überschrift einfügen
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => appendMarkdown("**fetter Text**")}
+            >
+              Fett einfügen
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => appendMarkdown("*kursiver Text*")}
+            >
+              Kursiv einfügen
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => appendMarkdown("- Listeneintrag")}
+            >
+              Liste einfügen
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              onClick={() => appendMarkdown("[Linktext](https://example.org)")}
+            >
+              Link einfügen
+            </button>
+          </div>
+          <label>
+            Markdown-Inhalt
+            <textarea
+              required
+              value={markdown}
+              onChange={(event) => setMarkdown(event.target.value)}
+            />
+          </label>
+          <label>
+            Tags
+            <input
+              value={tagInput}
+              onChange={(event) => setTagInput(event.target.value)}
+              placeholder="Team, Ablauf"
+            />
+          </label>
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={isPinned}
+              onChange={(event) => setIsPinned(event.target.checked)}
+            />
+            Notiz anheften
+          </label>
+          {createNote.error ? (
+            <p role="alert" className="error-message">
+              {createNote.error.message}
+            </p>
+          ) : null}
+          <div className="toolbar">
+            <button
+              type="submit"
+              className="primary-action"
+              disabled={createNote.isPending}
+            >
+              Notiz speichern
+            </button>
+            <button
+              type="button"
+              className="secondary-action"
+              disabled={createNote.isPending}
+              onClick={() => setCreating(false)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </form>
+      ) : null}
       <div className="card-grid">
-        {query.data?.map((note) => (
+        {visibleNotes?.map((note) => (
           <article className="card" key={note.id}>
             <p className="eyebrow">
-              {note.isPinned
-                ? "Angeheftet"
-                : note.tags.join(" · ") || "Ohne Tags"}
+              {note.isPinned ? "Angeheftet · " : ""}
+              {note.tags.join(" · ") || "Ohne Tags"}
             </p>
             <h2>{note.title}</h2>
             <p>{note.plainTextExcerpt}</p>
-            <button className="secondary-action" disabled={offline}>
-              Öffnen
+            <button
+              type="button"
+              className="secondary-action"
+              aria-label={`${note.title} öffnen`}
+              onClick={() => {
+                setSelectedNoteId(note.id);
+                setNotice("");
+              }}
+            >
+              Notiz öffnen
             </button>
           </article>
         ))}
       </div>
+      {selectedNoteId ? (
+        <section
+          className="settings-section note-detail"
+          aria-label="Geöffnete Notiz"
+        >
+          <QueryState loading={detail.isLoading} error={detail.error} />
+          {detail.data ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">
+                    <span>
+                      {detail.data.isPinned ? "Angeheftet" : "Gemeinsame Notiz"}
+                    </span>{" "}
+                    <span>{detail.data.tags.join(" · ") || "Ohne Tags"}</span>
+                  </p>
+                  <h2>{detail.data.title}</h2>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  onClick={() => setSelectedNoteId(null)}
+                >
+                  Notiz schließen
+                </button>
+              </div>
+              <div
+                className="rendered-markdown"
+                dangerouslySetInnerHTML={{ __html: detail.data.renderedHtml }}
+              />
+            </>
+          ) : null}
+        </section>
+      ) : null}
     </>
   );
 }

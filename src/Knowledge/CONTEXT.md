@@ -49,3 +49,8 @@
   logs. Files attachments remain a later host/Files composition seam.
 - Privacy maintenance deletes an Organization's complete notebook and pseudonymizes required creator/updater/trash
   audit fields with the non-identifying empty UUID before Identity finalizes an erased account.
+- The Camp notebook page creates a shared note through the versioned HTTP contract with antiforgery, comma-separated
+  tags and an optional pin. Its small Markdown toolbar inserts only supported constructs. The UI opens the returned
+  version directly from cache and renders only server-produced `RenderedHtml`; raw client Markdown is never treated
+  as trusted HTML. The current list can be narrowed by title, excerpt or tag. Typed links, revision, trash and private
+  attachments remain later UI slices; no module persistence crosses the Contracts/HTTP boundary.

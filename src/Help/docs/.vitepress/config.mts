@@ -43,6 +43,10 @@ export default defineConfig({
             link: "/andachten-bibel",
           },
           {
+            text: "Notizbuch und Dateien",
+            link: "/notizen-dateien",
+          },
+          {
             text: "Suche, Aktivität, Druck und CSV",
             link: "/suche-aktivitaet-export",
           },

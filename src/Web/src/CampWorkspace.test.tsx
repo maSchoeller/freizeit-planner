@@ -3545,6 +3545,105 @@ describe("camp workspace", () => {
     expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
   });
 
+  it("creates and opens a shared pinned Markdown note", async () => {
+    const noteId = "52000000-0000-0000-0000-000000000001";
+    const created = {
+      id: noteId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      title: "Erste Schritte",
+      markdown:
+        "## Treffpunkt\n**Wichtig:** Alle bringen ihr Namensschild mit.",
+      renderedHtml:
+        "<h2>Treffpunkt</h2><p><strong>Wichtig:</strong> Alle bringen ihr Namensschild mit.</p>",
+      tags: ["Team", "Ablauf"],
+      isPinned: true,
+      links: [],
+      state: 0,
+      createdAt: "2026-08-09T20:00:00Z",
+      createdBy: "10000000-0000-0000-0000-000000000001",
+      updatedAt: "2026-08-09T20:00:00Z",
+      updatedBy: "10000000-0000-0000-0000-000000000001",
+      trashedAt: null,
+      trashedBy: null,
+      purgeAfter: null,
+      version: 1,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (init?.method === "POST" && path.endsWith("/notes"))
+          return Promise.resolve(
+            new Response(JSON.stringify(created), {
+              status: 201,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        if (path.endsWith("/notes"))
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/notizen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Notiz anlegen" }),
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Titel" }),
+      created.title,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Markdown-Inhalt" }),
+      created.markdown,
+    );
+    await user.type(
+      screen.getByRole("textbox", { name: "Tags" }),
+      "Team, Ablauf",
+    );
+    await user.click(screen.getByRole("checkbox", { name: "Notiz anheften" }));
+    await user.click(screen.getByRole("button", { name: "Notiz speichern" }));
+
+    expect(
+      await screen.findByText("Erste Schritte wurde angelegt."),
+    ).toHaveAttribute("role", "status");
+    expect(
+      await screen.findByRole("heading", { name: "Treffpunkt" }),
+    ).toBeVisible();
+    expect(screen.getByText("Wichtig:", { selector: "strong" })).toBeVisible();
+    expect(screen.getByText("Team · Ablauf")).toBeVisible();
+    const createCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith("/notes") && init?.method === "POST",
+    );
+    expect(JSON.parse(createCall?.[1]?.body as string)).toEqual({
+      title: created.title,
+      markdown: created.markdown,
+      tags: ["Team", "Ablauf"],
+      isPinned: true,
+      links: [],
+    });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(
