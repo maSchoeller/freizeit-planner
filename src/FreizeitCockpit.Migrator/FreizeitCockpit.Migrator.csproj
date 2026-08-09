@@ -12,6 +12,8 @@
     <ProjectReference Include="../FreizeitCockpit.ServiceDefaults/FreizeitCockpit.ServiceDefaults.csproj" />
     <ProjectReference Include="../Identity/Identity.Implementation/Identity.Implementation.csproj" />
     <ProjectReference Include="../Knowledge/Knowledge.Implementation/Knowledge.Implementation.csproj" />
+    <ProjectReference Include="../Logistics/Logistics.Implementation/Logistics.Implementation.csproj" />
+    <ProjectReference Include="../Files/Files.Implementation/Files.Implementation.csproj" />
     <ProjectReference Include="../Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
   </ItemGroup>
 </Project>

@@ -10,6 +10,10 @@ using Identity.Contracts;
 using Identity.Implementation;
 using Knowledge.Contracts;
 using Knowledge.Implementation;
+using Logistics.Contracts;
+using Logistics.Implementation;
+using Files.Contracts;
+using Files.Implementation;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -117,6 +121,18 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use devotion planning must supply IDevotionPlanning."));
     builder.Services.AddScoped<ICampNotebook>(_ =>
         throw new InvalidOperationException("Tests that use the camp notebook must supply ICampNotebook."));
+    builder.Services.AddScoped<IMaterialPlanning>(_ =>
+        throw new InvalidOperationException("Tests that use material planning must supply IMaterialPlanning."));
+    builder.Services.AddScoped<IShoppingPlanning>(_ =>
+        throw new InvalidOperationException("Tests that use shopping planning must supply IShoppingPlanning."));
+    builder.Services.AddScoped<IShoppingTransfer>(_ =>
+        throw new InvalidOperationException("Tests that use shopping transfer must supply IShoppingTransfer."));
+    builder.Services.AddScoped<IShoppingAudit>(_ =>
+        throw new InvalidOperationException("Tests that use shopping audit must supply IShoppingAudit."));
+    builder.Services.AddScoped<IAttachmentCatalog>(_ =>
+        throw new InvalidOperationException("Tests that use attachments must supply IAttachmentCatalog."));
+    builder.Services.AddScoped<IAttachmentReader>(_ =>
+        throw new InvalidOperationException("Tests that read attachments must supply IAttachmentReader."));
 }
 else
 {
@@ -211,6 +227,44 @@ else
     builder.Services.AddScoped<KnowledgeService>();
     builder.Services.AddScoped<ICampNotebook>(services => services.GetRequiredService<KnowledgeService>());
     builder.Services.AddScoped<INotebookRetention>(services => services.GetRequiredService<KnowledgeService>());
+    builder.Services.AddDbContext<LogisticsDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<ILogisticsState, EfLogisticsState>();
+    builder.Services.AddScoped<LogisticsPlanningService>();
+    builder.Services.AddScoped<IMaterialPlanning>(services => services.GetRequiredService<LogisticsPlanningService>());
+    builder.Services.AddScoped<IShoppingPlanning>(services => services.GetRequiredService<LogisticsPlanningService>());
+    builder.Services.AddScoped<IShoppingTransfer>(services => services.GetRequiredService<LogisticsPlanningService>());
+    builder.Services.AddScoped<IShoppingAudit>(services => services.GetRequiredService<LogisticsPlanningService>());
+    builder.Services.AddDbContext<FilesDbContext>((services, options) =>
+        options
+            .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
+            .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
+    builder.Services.AddScoped<IAttachmentState, EfAttachmentState>();
+    builder.Services.AddScoped<IAttachmentOwnerAuthorization, AttachmentOwnerAuthorizationAdapter>();
+    builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
+    {
+        var connectionString = builder.Configuration.GetConnectionString("blobs");
+        Azure.Storage.Blobs.BlobContainerClient container;
+        if (!string.IsNullOrWhiteSpace(connectionString))
+        {
+            container = new Azure.Storage.Blobs.BlobContainerClient(connectionString, "attachments");
+        }
+        else
+        {
+            var serviceUri = builder.Configuration["Storage:BlobServiceUri"]
+                ?? throw new InvalidOperationException("Storage:BlobServiceUri must be configured.");
+            container = new Azure.Storage.Blobs.BlobContainerClient(
+                new Uri(new Uri(serviceUri), "attachments"),
+                new Azure.Identity.DefaultAzureCredential());
+        }
+        return new AzurePrivateBlobStorage(container);
+    });
+    builder.Services.AddScoped<AttachmentService>();
+    builder.Services.AddScoped<IAttachmentCatalog>(services => services.GetRequiredService<AttachmentService>());
+    builder.Services.AddScoped<IAttachmentReader>(services => services.GetRequiredService<AttachmentService>());
+    builder.Services.AddScoped<IAttachmentMaintenance>(services => services.GetRequiredService<AttachmentService>());
 }
 
 var app = builder.Build();
@@ -246,6 +300,8 @@ app.MapCampPlanningEndpoints();
 app.MapCateringEndpoints();
 app.MapSpiritualEndpoints();
 app.MapKnowledgeEndpoints();
+app.MapLogisticsEndpoints();
+app.MapFileEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

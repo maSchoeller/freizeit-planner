@@ -1,6 +1,7 @@
 using Camps.Contracts;
 using Catering.Contracts;
 using Knowledge.Contracts;
+using Logistics.Contracts;
 using Spiritual.Contracts;
 
 internal sealed class KnowledgeCampContextAdapter(ICampPlanningDefaults camps) : IKnowledgeCampContext
@@ -20,7 +21,9 @@ internal sealed class NoteLinkTargetResolver(
     ISchedulePlanning schedule,
     ICampMealPlanning meals,
     IOrganizationCateringLibrary recipes,
-    IDevotionPlanning devotions) : INoteLinkTargetResolver
+    IDevotionPlanning devotions,
+    IMaterialPlanning materials,
+    IShoppingPlanning shopping) : INoteLinkTargetResolver
 {
     public async Task<IReadOnlyList<ResolvedNoteLink>> ResolveAsync(
         NoteLinkResolutionRequest request,
@@ -48,7 +51,8 @@ internal sealed class NoteLinkTargetResolver(
                 NoteLinkTargetType.Meal => await ResolveMealAsync(request, link, cancellationToken),
                 NoteLinkTargetType.Recipe => await ResolveRecipeAsync(request, link, cancellationToken),
                 NoteLinkTargetType.Devotion => await ResolveDevotionAsync(request, link, cancellationToken),
-                NoteLinkTargetType.MaterialRequirement or NoteLinkTargetType.ShoppingList => null,
+                NoteLinkTargetType.MaterialRequirement => await ResolveMaterialAsync(request, link, cancellationToken),
+                NoteLinkTargetType.ShoppingList => await ResolveShoppingListAsync(request, link, cancellationToken),
                 _ => null
             };
         }
@@ -88,5 +92,21 @@ internal sealed class NoteLinkTargetResolver(
         var value = await devotions.GetAsync(new DevotionKey(request.ActorId, request.OrganizationId,
             request.CampId, link.TargetId), cancellationToken);
         return value is null ? null : new ResolvedNoteLink(link.Type, link.TargetId, value.Topic);
+    }
+
+    private async Task<ResolvedNoteLink?> ResolveMaterialAsync(
+        NoteLinkResolutionRequest request, NoteLinkReference link, CancellationToken cancellationToken)
+    {
+        var value = await materials.GetAsync(new MaterialRequest(request.ActorId, request.OrganizationId,
+            request.CampId, link.TargetId), cancellationToken);
+        return value is null ? null : new ResolvedNoteLink(link.Type, link.TargetId, value.Name);
+    }
+
+    private async Task<ResolvedNoteLink?> ResolveShoppingListAsync(
+        NoteLinkResolutionRequest request, NoteLinkReference link, CancellationToken cancellationToken)
+    {
+        var value = await shopping.GetAsync(new ShoppingListRequest(request.ActorId, request.OrganizationId,
+            request.CampId, link.TargetId), cancellationToken);
+        return value is null ? null : new ResolvedNoteLink(link.Type, link.TargetId, value.Name);
     }
 }

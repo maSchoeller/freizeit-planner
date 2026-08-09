@@ -68,6 +68,15 @@
           "OpenTelemetry.PersistentStorage.FileSystem": "1.0.3"
         }
       },
+      "Azure.Storage.Common": {
+        "type": "Transitive",
+        "resolved": "12.28.0",
+        "contentHash": "5l8YhNrks38zKLGFW2BBFLwieyamH/xauABSASsdpZv79G0f+n2n22IjkRmUqCmALSupkwRHh2LOhbW3yj5Qgw==",
+        "dependencies": {
+          "Azure.Core": "1.55.0",
+          "System.IO.Hashing": "10.0.3"
+        }
+      },
       "Microsoft.ApplicationInsights": {
         "type": "Transitive",
         "resolved": "2.23.0",
@@ -555,6 +564,11 @@
         "resolved": "10.0.10",
         "contentHash": "OvGz3PrzuAI/Sj7LTcXcCe3FClRI1IyRMZjNONcZtFh+Ww7nAtSh4kh08r8KVe/xxkXJPjR0Y1jF7H+N42d4xQ=="
       },
+      "System.IO.Hashing": {
+        "type": "Transitive",
+        "resolved": "10.0.3",
+        "contentHash": "La6ICwsdTKhVX+LKN+pvFjQRR3LhLwq3uKdi2knjLzRyPYBSydF4cjXidYxIiTcDD6XVYdsBWQEI8ZxiZ/OdIg=="
+      },
       "System.Memory.Data": {
         "type": "Transitive",
         "resolved": "10.0.9",
@@ -657,6 +671,20 @@
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
       },
+      "files.contracts": {
+        "type": "Project"
+      },
+      "files.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Azure.Storage.Blobs": "[12.29.1, )",
+          "Files.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
       "freizeitcockpit.servicedefaults": {
         "type": "Project",
         "dependencies": {
@@ -685,11 +713,15 @@
           "Camps.Implementation": "[1.0.0, )",
           "Catering.Contracts": "[1.0.0, )",
           "Catering.Implementation": "[1.0.0, )",
+          "Files.Contracts": "[1.0.0, )",
+          "Files.Implementation": "[1.0.0, )",
           "FreizeitCockpit.ServiceDefaults": "[1.0.0, )",
           "Identity.Contracts": "[1.0.0, )",
           "Identity.Implementation": "[1.0.0, )",
           "Knowledge.Contracts": "[1.0.0, )",
           "Knowledge.Implementation": "[1.0.0, )",
+          "Logistics.Contracts": "[1.0.0, )",
+          "Logistics.Implementation": "[1.0.0, )",
           "Microsoft.AspNetCore.OpenApi": "[10.0.10, )",
           "Microsoft.OpenApi": "[2.11.0, )",
           "Spiritual.Contracts": "[1.0.0, )",
@@ -717,6 +749,20 @@
           "Identity.Contracts": "[1.0.0, )",
           "Knowledge.Contracts": "[1.0.0, )",
           "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
+        }
+      },
+      "logistics.contracts": {
+        "type": "Project"
+      },
+      "logistics.implementation": {
+        "type": "Project",
+        "dependencies": {
+          "Camps.Contracts": "[1.0.0, )",
+          "Identity.Contracts": "[1.0.0, )",
+          "Logistics.Contracts": "[1.0.0, )",
+          "Microsoft.EntityFrameworkCore": "[10.0.10, )",
+          "Microsoft.EntityFrameworkCore.Relational": "[10.0.10, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.3, )"
         }
       },
@@ -753,6 +799,16 @@
           "OpenTelemetry.Extensions.Hosting": "1.15.3",
           "OpenTelemetry.Instrumentation.AspNetCore": "1.15.2",
           "OpenTelemetry.Instrumentation.Http": "1.15.1"
+        }
+      },
+      "Azure.Storage.Blobs": {
+        "type": "CentralTransitive",
+        "requested": "[12.29.1, )",
+        "resolved": "12.29.1",
+        "contentHash": "pWh7xZBto8YcwiO853AB3uijTfVqs9PDte0Bu9/Zd8O9nwKiitWm0Jej1vsNkmYUzeG1552f8vJPjmtW30pBUQ==",
+        "dependencies": {
+          "Azure.Core": "1.55.0",
+          "Azure.Storage.Common": "12.28.0"
         }
       },
       "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {

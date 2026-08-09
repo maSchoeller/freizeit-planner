@@ -3,6 +3,8 @@ using Catering.Implementation;
 using FreizeitCockpit.ServiceDefaults;
 using Identity.Implementation;
 using Knowledge.Implementation;
+using Logistics.Implementation;
+using Files.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Spiritual.Implementation;
@@ -25,6 +27,10 @@ builder.Services.AddDbContext<SpiritualDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 builder.Services.AddDbContext<KnowledgeDbContext>((services, options) =>
     options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<LogisticsDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
+builder.Services.AddDbContext<FilesDbContext>((services, options) =>
+    options.UseNpgsql(services.GetRequiredService<NpgsqlConnection>()));
 
 using var host = builder.Build();
 var dataSource = host.Services.GetRequiredService<NpgsqlDataSource>();
@@ -42,6 +48,8 @@ try
     await scope.ServiceProvider.GetRequiredService<CateringDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<SpiritualDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<KnowledgeDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<LogisticsDbContext>().Database.MigrateAsync();
+    await scope.ServiceProvider.GetRequiredService<FilesDbContext>().Database.MigrateAsync();
 
     await IdentitySeeder.SeedAsync(
         identityDb,
