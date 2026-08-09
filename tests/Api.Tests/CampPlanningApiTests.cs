@@ -90,6 +90,35 @@ public sealed class CampPlanningApiTests
     }
 
     [Fact]
+    public async Task ArchivingCampRequiresIfMatchAndReturnsTheNewVersion()
+    {
+        var planning = new PlanningFake();
+        var (client, sender) = CreateClient(planning);
+        using (client)
+        {
+            var cancellationToken = TestContext.Current.CancellationToken;
+            await LoginAsync(client, sender, cancellationToken);
+            var uri = $"/api/v1/organizations/{planning.OrganizationId}/camps/{planning.CampId}/status";
+            var body = new { status = CampStatus.Archived };
+            var csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            using var missingVersion = CreateJsonRequest(HttpMethod.Patch, uri, body, csrf);
+            using var rejected = await client.SendAsync(missingVersion, cancellationToken);
+
+            csrf = await GetAntiforgeryAsync(client, cancellationToken);
+            using var versioned = CreateJsonRequest(HttpMethod.Patch, uri, body, csrf);
+            versioned.Headers.IfMatch.ParseAdd("\"4\"");
+            using var response = await client.SendAsync(versioned, cancellationToken);
+            var camp = await response.Content.ReadFromJsonAsync<CampView>(cancellationToken);
+
+            Assert.Equal((HttpStatusCode)428, rejected.StatusCode);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.Equal(CampStatus.Archived, camp?.Status);
+            Assert.Equal(4, planning.ExpectedVersion);
+            Assert.Equal("\"5\"", response.Headers.ETag?.Tag);
+        }
+    }
+
+    [Fact]
     public async Task ScheduleEndpointMapsLocalTimingAndVersion()
     {
         var planning = new PlanningFake();
@@ -548,7 +577,11 @@ public sealed class CampPlanningApiTests
                 1));
         }
 
-        private CampView Camp(string name, string slug, long version) => new(
+        private CampView Camp(
+            string name,
+            string slug,
+            long version,
+            CampStatus status = CampStatus.Active) => new(
             CampId,
             OrganizationId,
             name,
@@ -558,7 +591,7 @@ public sealed class CampPlanningApiTests
             new DateOnly(2027, 8, 8),
             "Europe/Berlin",
             42,
-            CampStatus.Active,
+            status,
             CampPeriod.Upcoming,
             version);
 
@@ -593,7 +626,15 @@ public sealed class CampPlanningApiTests
 
         public Task<CampView> ChangeStatusAsync(
             ChangeCampStatus command,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
+            CancellationToken cancellationToken)
+        {
+            ExpectedVersion = command.ExpectedVersion;
+            return Task.FromResult(Camp(
+                "Sommerfreizeit",
+                "sommerfreizeit",
+                command.ExpectedVersion + 1,
+                command.Status));
+        }
 
         public Task<IReadOnlyList<ScheduleEntryView>> ListAsync(
             ScheduleRangeQuery query,

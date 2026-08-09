@@ -735,6 +735,70 @@ button:disabled {
   gap: 1rem;
   max-width: 34rem;
 }
+.camp-periods {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+}
+.camp-list {
+  display: grid;
+  gap: 0.8rem;
+  padding: 0;
+  list-style: none;
+}
+.camp-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: #fff;
+}
+.camp-card > div {
+  display: grid;
+  gap: 0.3rem;
+}
+.camp-card strong {
+  font-size: 1.1rem;
+}
+.camp-card span:not(.status) {
+  color: #496766;
+}
+.camp-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+.camp-form-grid label {
+  display: grid;
+  gap: 0.35rem;
+  color: var(--petrol-900);
+  font-weight: 750;
+}
+.camp-form-grid .full-width {
+  grid-column: 1 / -1;
+}
+.camp-form-grid input,
+.camp-form-grid textarea {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  color: var(--petrol-900);
+  background: #fff;
+  font: inherit;
+}
+.camp-form-grid textarea {
+  min-height: 7rem;
+  resize: vertical;
+}
+.camp-form-grid :disabled {
+  color: #496766;
+  background: #f7f5ef;
+}
 .schedule-create-form {
   margin-bottom: 1.25rem;
   padding: 1rem;
@@ -933,6 +997,16 @@ button:disabled {
   outline-offset: 2px;
 }
 @media (max-width: 600px) {
+  .camp-card,
+  .camp-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .camp-form-grid .full-width {
+    grid-column: auto;
+  }
+  .camp-card .secondary-action {
+    width: 100%;
+  }
   .session-list li {
     align-items: stretch;
     flex-direction: column;

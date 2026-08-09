@@ -23,6 +23,17 @@ Organisationsrolle.
 Es bleibt immer mindestens ein aktiver Owner. Die Organisation kann nur ein Owner nach einer frischen Anmeldung und
 der exakten Eingabe des Organisations-Slugs zur Löschung vormerken; auch hier gilt eine Karenz von 30 Tagen.
 
+## Camps anlegen und verwalten
+
+Öffne unter **Mein Konto → Organisationen** die Camp-Liste einer Organisation. Dort stehen zukünftige, laufende und
+vergangene Camps getrennt. Owner und Organisations-Admins können **Camp anlegen** wählen und Name, eindeutigen Slug,
+Beschreibung, Zeitraum, IANA-Zeitzone und Standardportionen festlegen.
+
+Über **Einstellungen** lassen sich diese Angaben mit Versionsschutz ändern. **Camp archivieren** macht das gesamte
+Camp schreibgeschützt; Lesen, Drucken und Exportieren bleiben möglich. Berechtigte Personen können es in denselben
+Einstellungen mit **Camp reaktivieren** wieder für Änderungen öffnen. Wird zwischenzeitlich eine neuere Version
+gespeichert, lade die Seite neu und wiederhole deine Änderung auf Basis des aktuellen Stands.
+
 ## Mitglieder verwalten
 
 Owner und Organisations-Admins öffnen unter **Mein Konto → Organisationen** die Mitgliederverwaltung. Eine Rolle

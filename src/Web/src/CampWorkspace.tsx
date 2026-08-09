@@ -12,6 +12,7 @@ import {
   FileText,
   NotebookPen,
   Search,
+  Settings,
   ShoppingCart,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -37,6 +38,7 @@ const navigation = [
   { to: "notizen", label: "Notizbuch", icon: NotebookPen },
   { to: "dateien", label: "Dateien", icon: FileText },
   { to: "suche", label: "Suche & Papierkorb", icon: Search },
+  { to: "einstellungen", label: "Camp-Einstellungen", icon: Settings },
 ];
 
 type ScheduleEntry = {

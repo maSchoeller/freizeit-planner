@@ -6,6 +6,7 @@ import { AccountPage } from "./AccountPage";
 import { OrganizationMembersPage } from "./OrganizationMembersPage";
 import { PlatformOrganizationsPage } from "./PlatformOrganizationsPage";
 import { CampWorkspace } from "./CampWorkspace";
+import { CampsPage, CampSettingsPage } from "./CampsPage";
 
 export function App() {
   return (
@@ -21,6 +22,11 @@ export function App() {
       <Route
         path="/plattform/organisationen"
         element={<PlatformOrganizationsPage />}
+      />
+      <Route path="/o/:organizationSlug/camps" element={<CampsPage />} />
+      <Route
+        path="/o/:organizationSlug/camps/:campSlug/einstellungen"
+        element={<CampSettingsPage />}
       />
       <Route
         path="/o/:organizationSlug/camps/:campSlug/*"

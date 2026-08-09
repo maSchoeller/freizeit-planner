@@ -29,6 +29,10 @@
   failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures. Create and
   edit forms select one or more responsibility candidates from Identity's minimized camp-readable directory;
   responsibilities affect presentation only and are revalidated by Camps on every write.
+- Lifecycle UI: the Organization Camp list resolves the tenant through the signed-in account memberships, groups
+  Camps by upcoming/ongoing/past, and links only readable results. Owner/Admin creation uses antiforgery; settings
+  update, archive, and reactivate use antiforgery plus the current numeric Version in `If-Match`. Archived fields are
+  disabled in the browser while the API remains authoritative.
 - Atomic workflows: the shared host begins one local Npgsql transaction, creates the ScheduleEntry, then gives its
   identifier to Catering or Spiritual, whose host adapters revalidate it through `IScheduleReferenceAccess` with
   `LinkForWrite`. A failure after Camps has persisted is rolled back across every enlisted DbContext. Linked deletion

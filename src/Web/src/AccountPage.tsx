@@ -333,6 +333,9 @@ export function AccountPage() {
                       <div>
                         <strong>{membership.organizationName}</strong>
                         <span>{roleLabel(membership.role)}</span>
+                        <Link to={`/o/${membership.organizationSlug}/camps`}>
+                          Camps anzeigen
+                        </Link>
                         {membership.role === 0 || membership.role === 1 ? (
                           <Link
                             to={`/o/${membership.organizationSlug}/einstellungen/mitglieder?organizationId=${membership.organizationId}`}

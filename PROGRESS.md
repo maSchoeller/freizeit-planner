@@ -17,7 +17,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | I01 passwordless identity             | verified    | Hashed six-digit code, expiry, attempts/rates, generic response, sessions and revoke        | Missing-CSRF API test returned HTTP 500                | Full verify passed in 87.0 s                         | Identity context, login/session help      | `84d5da1` | Start I02 invitation tests             |
 | I02 invitations and account lifecycle | verified    | Invite rotation/revoke; memberships; reauth; verified email; 30-day account/tenant deletion | Missing lifecycle contracts caused compile failure     | Full verify passed in 86.9 s plus Aspire smoke       | Identity context, account/role help       | `98fb62d` | Start I03 authorization                |
 | I03 tenant authorization              | verified    | Role matrix, last owner, suspension, IDOR protection and RLS isolation                      | Missing authorization contracts caused compile failure | Full verify 382.3 s; PostgreSQL/Aspire/browser smoke | auth/RLS docs and role help               | `dc0c859` | Start C01/T01/S01 wave                 |
-| C01 camps                             | in_progress | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Contract acceptance test next                          | pending                                              | Camps context, help                       | pending   | module worktree active                 |
+| C01 camps                             | in_progress | Camp lifecycle, slugs, archive read-only/reactivate, dashboard                              | Missing lifecycle UI routes                            | 17 Camps, 29 API, 23 React + browser green           | Camps context, organization/camp help     | pending   | replace static dashboard and Camp IDs  |
 | C02 schedule                          | verified    | Agenda/calendar CRUD, overlap, timezone/DST, all-day, ETag, atomic links                    | Missing minimized responsibility directory and UI      | 30 Identity, 28 API, 21 React + RLS/browser green    | Camps/Identity contexts, schedule help    | pending   | Start next incomplete product slice    |
 | T01 ingredients and recipes           | in_progress | Normalize/merge, decimal units, recipe versions and attachments                             | Contract acceptance test next                          | pending                                              | Catering context, help                    | pending   | module worktree active                 |
 | T02 meals and snapshots               | in_progress | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Invalid schedule link was accepted                     | 14 Catering + atomic PostgreSQL green                | Catering context, schedule help           | pending   | complete meal and snapshot UI          |
@@ -160,3 +160,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   API 28/28, React 21/21, strict TypeScript, lint, and the PostgreSQL RLS/atomic tests. The rendered desktop form and
   its responsibility fieldset were inspected without clipping; the existing responsive form grid and keyboard path
   remain covered by the 320/390/768/1440 C02 passes and the semantic React interaction test.
+- 2026-08-09: C01 now has an Organization-scoped Camp list plus accessible creation and settings routes. The list
+  resolves the Organization ID from the signed-in account memberships, groups Camps as upcoming, ongoing or past,
+  and exposes readable archived Camps. Owner/Admin creation sends antiforgery; edits, archive and reactivation send
+  antiforgery plus the latest `If-Match` and advance the local version after every response. Archived forms disable
+  writes and explain that reading and exporting remain possible. Red React evidence showed both routes falling into
+  the old static workspace. Targeted evidence is Camp API 10/10 and React 23/23 with strict TypeScript and lint.
+  Rendered list, creation and settings pages have labeled regions and controls, coherent narrow-window layout and no
+  horizontal overflow. C01 remains open until the workspace resolves the Camp dynamically and its dashboard uses
+  real schedule/responsibility/procurement data instead of static examples. The complete repository gate passed in
+  189.6 seconds with warning-free builds, all PostgreSQL smokes, generated artifacts, PWA and help output green.
