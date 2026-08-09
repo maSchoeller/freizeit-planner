@@ -11,6 +11,11 @@ public interface IAttachmentState
         bool includeDeleted,
         CancellationToken cancellationToken);
 
+    ValueTask<IReadOnlyList<AttachmentRecord>> ListTrashAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken);
+
     ValueTask<AttachmentRecord?> FindAsync(
         Guid organizationId,
         Guid? campId,

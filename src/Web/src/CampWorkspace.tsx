@@ -2,7 +2,7 @@ import FullCalendar from "@fullcalendar/react";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import timeGridPlugin from "@fullcalendar/timegrid";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDays,
   ChefHat,
@@ -21,6 +21,7 @@ import {
   loadOfflineSnapshot,
   saveOfflineSnapshot,
 } from "./offlineSnapshot";
+import { getAntiforgeryToken } from "./api/security";
 
 const organizationId = "20000000-0000-0000-0000-000000000001";
 const campId = "30000000-0000-0000-0000-000000000001";
@@ -86,6 +87,15 @@ type SearchResult = {
   metadata: Record<string, string>;
   updatedAt: string;
   version: number;
+};
+type CampTrashItem = {
+  objectType: "Note" | "Devotion" | "Attachment";
+  objectId: string;
+  title: string;
+  deletedAt: string;
+  purgeAt: string;
+  version: number;
+  restorePath: string;
 };
 
 async function getJson<T>(path: string): Promise<T> {
@@ -194,7 +204,10 @@ export function CampWorkspace() {
             />
             <Route path="notizen" element={<NotesPage offline={offline} />} />
             <Route path="dateien" element={<FilesPage offline={offline} />} />
-            <Route path="suche" element={<SearchTrashPage />} />
+            <Route
+              path="suche"
+              element={<SearchTrashPage offline={offline} />}
+            />
           </Routes>
         </main>
       </div>
@@ -694,9 +707,10 @@ function FilesPage({ offline }: { offline: boolean }) {
   );
 }
 
-function SearchTrashPage() {
+function SearchTrashPage({ offline }: { offline: boolean }) {
   const [query, setQuery] = useState("");
   const [objectType, setObjectType] = useState("");
+  const queryClient = useQueryClient();
   const normalizedQuery = query.trim();
   const search = useQuery({
     queryKey: [organizationId, campId, "search", normalizedQuery, objectType],
@@ -706,6 +720,30 @@ function SearchTrashPage() {
       ),
     enabled: normalizedQuery.length >= 2,
     retry: false,
+  });
+  const trash = useCampQuery<CampTrashItem[]>(
+    "trash",
+    `/api/v1/organizations/${organizationId}/camps/${campId}/trash`,
+  );
+  const restore = useMutation({
+    mutationFn: async (item: CampTrashItem) => {
+      const token = await getAntiforgeryToken();
+      const response = await fetch(item.restorePath, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "X-CSRF-TOKEN": token,
+          "If-Match": `"${item.version}"`,
+        },
+      });
+      if (!response.ok)
+        throw new Error("Der Inhalt konnte nicht wiederhergestellt werden.");
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: [organizationId, campId, "trash"],
+      });
+    },
   });
   const exportBase = `/api/v1/organizations/${organizationId}/camps/${campId}/exports`;
   return (
@@ -774,7 +812,38 @@ function SearchTrashPage() {
       </section>
       <section className="settings-section">
         <h2>Papierkorb</h2>
-        <p className="empty-state">Der Papierkorb ist leer.</p>
+        <QueryState
+          loading={trash.isLoading}
+          error={trash.error ?? restore.error}
+        />
+        {trash.data?.length ? (
+          <ul className="detail-list">
+            {trash.data.map((item) => (
+              <li key={`${item.objectType}-${item.objectId}`}>
+                <strong>{item.title}</strong>
+                <span>
+                  {searchTypeLabel[item.objectType] ?? item.objectType} ·
+                  endgültige Löschung am{" "}
+                  {new Intl.DateTimeFormat("de-DE").format(
+                    new Date(item.purgeAt),
+                  )}
+                </span>
+                <button
+                  className="secondary-action"
+                  disabled={offline || restore.isPending}
+                  onClick={() => restore.mutate(item)}
+                  aria-label={`${item.title} wiederherstellen`}
+                >
+                  Wiederherstellen
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          !trash.isLoading && (
+            <p className="empty-state">Der Papierkorb ist leer.</p>
+          )
+        )}
       </section>
       <div className="toolbar">
         <a

@@ -350,6 +350,8 @@ public sealed class KnowledgeService : ICampNotebook, INotebookRetention
             note.Links.Count,
             note.State,
             note.UpdatedAt,
+            note.TrashedAt,
+            note.PurgeAfter,
             note.Version);
     }
 

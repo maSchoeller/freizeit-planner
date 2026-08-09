@@ -219,6 +219,7 @@ else
             .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
             .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
     builder.Services.AddScoped<IDevotionState, EfDevotionState>();
+    builder.Services.AddScoped<IDevotionCampContext, DevotionCampContextAdapter>();
     builder.Services.AddHttpClient<IBiblePassageProvider, HttpBiblePassageProvider>(client =>
     {
         client.BaseAddress = new Uri(
@@ -321,6 +322,7 @@ app.MapKnowledgeEndpoints();
 app.MapLogisticsEndpoints();
 app.MapFileEndpoints();
 app.MapActivityEndpoints();
+app.MapTrashEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");

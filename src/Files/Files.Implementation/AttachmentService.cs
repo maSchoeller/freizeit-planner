@@ -37,6 +37,24 @@ public sealed class AttachmentService(
             .ToArray();
     }
 
+    public async Task<IReadOnlyList<AttachmentView>> ListTrashAsync(
+        AttachmentTrashQuery query,
+        CancellationToken cancellationToken)
+    {
+        await RequireCampManagementAsync(
+            query.ActorId,
+            query.OrganizationId,
+            query.CampId,
+            cancellationToken);
+
+        return (await state.ListTrashAsync(
+                query.OrganizationId,
+                query.CampId,
+                cancellationToken))
+            .Select(ToView)
+            .ToArray();
+    }
+
     public async Task<AttachmentView> UploadAsync(
         UploadAttachment command,
         Stream content,
@@ -116,6 +134,17 @@ public sealed class AttachmentService(
         ChangeAttachmentLifecycle command,
         CancellationToken cancellationToken)
     {
+        if (command.CampId is not { } campId)
+        {
+            throw Rule(
+                "attachment_restore_scope_invalid",
+                "Anhänge der Rezeptbibliothek können nicht über den Camp-Papierkorb wiederhergestellt werden.");
+        }
+        await RequireCampManagementAsync(
+            command.ActorId,
+            command.OrganizationId,
+            campId,
+            cancellationToken);
         var attachment = await RequireAttachmentAsync(command, cancellationToken);
         _ = await RequireOwnerAccessAsync(
             command.ActorId,
@@ -318,6 +347,21 @@ public sealed class AttachmentService(
             throw Rule("attachment_access_denied", "Du darfst auf diesen Anhang nicht zugreifen.");
         }
         return expectedScope;
+    }
+
+    private async Task RequireCampManagementAsync(
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        var decision = await tenantAccessControl.AuthorizeCampAsync(
+            new CampAccessRequest(actorId, organizationId, campId, CampAction.ManageCamp),
+            cancellationToken);
+        if (!decision.Allowed)
+        {
+            throw Rule("attachment_access_denied", "Du darfst den Papierkorb nicht verwalten.");
+        }
     }
 
     private async Task RequireQuotaAccessAsync(

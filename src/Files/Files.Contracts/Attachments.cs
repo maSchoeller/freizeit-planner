@@ -6,6 +6,10 @@ public interface IAttachmentCatalog
         AttachmentOwnerQuery query,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<AttachmentView>> ListTrashAsync(
+        AttachmentTrashQuery query,
+        CancellationToken cancellationToken);
+
     Task<AttachmentView> UploadAsync(
         UploadAttachment command,
         Stream content,
@@ -61,6 +65,11 @@ public sealed record AttachmentOwnerQuery(
     Guid? CampId,
     AttachmentOwnerReference Owner,
     bool IncludeDeleted = false);
+
+public sealed record AttachmentTrashQuery(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId);
 
 public sealed record UploadAttachment(
     Guid ActorId,

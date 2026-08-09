@@ -19,6 +19,8 @@
   optimistic-concurrency versions.
 - Dependencies: Identity Contracts supplies actor-aware camp authorization. Other modules may call only the narrow
   Activity Contracts and must coordinate their domain write plus event/index projection at the application boundary.
+- Trash composition: the Web root combines manager-authorized deleted summaries from Knowledge, Spiritual, and Files,
+  orders them chronologically, and returns versioned module restore paths. Activity does not acquire lifecycle ownership.
 - Privacy maintenance removes all journal/search rows for a claimed Organization. For account erasure in a retained
   Organization, immutable event actors are minimized to the shared pseudonymous UUID; titles and event semantics stay
   intact for the remaining tenant.

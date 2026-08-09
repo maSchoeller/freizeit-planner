@@ -218,6 +218,112 @@ public sealed class DevotionPlanningTests
         Assert.Equal(created.Version + 2, restored.Version);
     }
 
+    [Fact]
+    public async Task CampManagersCanListDeletedDevotionsWithDeterministicPurgeDeadline()
+    {
+        var state = new InMemoryDevotionState();
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero));
+        var planning = CreatePlanning(
+            state,
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            clock);
+        var created = await planning.CreateAsync(CreateCommand(), TestContext.Current.CancellationToken);
+        await planning.MoveToTrashAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version),
+            TestContext.Current.CancellationToken);
+
+        var trash = await planning.ListTrashAsync(
+            new DevotionScope(ActorId, OrganizationId, CampId),
+            TestContext.Current.CancellationToken);
+
+        var item = Assert.Single(trash);
+        Assert.Equal(created.Id, item.Id);
+        Assert.Equal(clock.GetUtcNow(), item.DeletedAt);
+        Assert.Equal(clock.GetUtcNow().AddDays(30), item.PurgeAt);
+        Assert.Equal(created.Version + 1, item.Version);
+    }
+
+    [Fact]
+    public async Task CampMemberCannotRestoreADevotionThroughTheDirectRouteSeam()
+    {
+        var state = new InMemoryDevotionState();
+        var accessControl = new DenyingManageCampAccessControl();
+        var planning = CreatePlanning(
+            state,
+            accessControl,
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var created = await planning.CreateAsync(CreateCommand(), cancellationToken);
+        await planning.MoveToTrashAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version),
+            cancellationToken);
+
+        var exception = await Assert.ThrowsAsync<SpiritualRuleException>(() => planning.RestoreAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version + 1),
+            cancellationToken));
+
+        Assert.Equal("camp_access_denied", exception.ErrorCode);
+    }
+
+    [Fact]
+    public async Task RetentionPermanentlyRemovesDevotionsAtThirtyDays()
+    {
+        var state = new InMemoryDevotionState();
+        var clock = new ManualTimeProvider(new DateTimeOffset(2026, 8, 9, 10, 0, 0, TimeSpan.Zero));
+        var planning = CreatePlanning(
+            state,
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            clock);
+        var created = await planning.CreateAsync(CreateCommand(), TestContext.Current.CancellationToken);
+        await planning.MoveToTrashAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version),
+            TestContext.Current.CancellationToken);
+        var retention = new DevotionRetentionService(state, clock);
+
+        var beforeDeadline = await retention.PurgeExpiredDevotionsAsync(
+            10,
+            TestContext.Current.CancellationToken);
+        clock.Advance(TimeSpan.FromDays(30));
+        var atDeadline = await retention.PurgeExpiredDevotionsAsync(
+            10,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, beforeDeadline.PurgedDevotions);
+        Assert.Equal(1, atDeadline.PurgedDevotions);
+        Assert.Null(await state.FindAsync(OrganizationId, CampId, created.Id, TestContext.Current.CancellationToken));
+    }
+
+    [Fact]
+    public async Task ArchivedCampCannotRestoreADevotionThroughTheDirectRouteSeam()
+    {
+        var state = new InMemoryDevotionState();
+        var planning = CreatePlanning(
+            state,
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var created = await planning.CreateAsync(CreateCommand(), cancellationToken);
+        await planning.MoveToTrashAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version),
+            cancellationToken);
+        var archivedPlanning = CreatePlanning(
+            state,
+            new AllowingAccessControl(),
+            new ResultBibleProvider(BiblePassageFetchResult.Unavailable()),
+            TimeProvider.System,
+            new FixedDevotionCampContext(true));
+
+        var exception = await Assert.ThrowsAsync<SpiritualRuleException>(() => archivedPlanning.RestoreAsync(
+            new ChangeDevotionLifecycle(ActorId, OrganizationId, CampId, created.Id, created.Version + 1),
+            cancellationToken));
+
+        Assert.Equal("camp_archived", exception.ErrorCode);
+    }
+
     private static readonly Guid ActorId = Guid.Parse("71000000-0000-0000-0000-000000000001");
     private static readonly Guid OrganizationId = Guid.Parse("72000000-0000-0000-0000-000000000001");
     private static readonly Guid CampId = Guid.Parse("73000000-0000-0000-0000-000000000001");
@@ -227,8 +333,14 @@ public sealed class DevotionPlanningTests
         IDevotionState state,
         ITenantAccessControl accessControl,
         IBiblePassageProvider provider,
-        TimeProvider timeProvider) =>
-        new DevotionPlanningService(state, accessControl, provider, timeProvider);
+        TimeProvider timeProvider,
+        IDevotionCampContext? campContext = null) =>
+        new DevotionPlanningService(
+            state,
+            accessControl,
+            campContext ?? new FixedDevotionCampContext(false),
+            provider,
+            timeProvider);
 #pragma warning restore CA1859
 
     private static CreateDevotion CreateCommand() => new(
@@ -270,6 +382,29 @@ public sealed class DevotionPlanningTests
             Task.FromResult(request.Action == CampAction.Read
                 ? TenantAccessDecision.Permit(TenantRole.Viewer)
                 : TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied));
+    }
+
+    private sealed class DenyingManageCampAccessControl : ITenantAccessControl
+    {
+        public Task<TenantAccessDecision> AuthorizeOrganizationAsync(
+            OrganizationAccessRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(TenantAccessDecision.Permit(TenantRole.Member));
+
+        public Task<TenantAccessDecision> AuthorizeCampAsync(
+            CampAccessRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(request.Action == CampAction.ManageCamp
+                ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
+                : TenantAccessDecision.Permit(TenantRole.Member));
+    }
+
+    private sealed class FixedDevotionCampContext(bool isArchived) : IDevotionCampContext
+    {
+        public Task<DevotionCampContext> GetAsync(
+            DevotionCampContextRequest request,
+            CancellationToken cancellationToken) =>
+            Task.FromResult(new DevotionCampContext(isArchived));
     }
 
     private sealed class SuccessfulBibleProvider(DateTimeOffset retrievedAt) : IBiblePassageProvider
@@ -324,10 +459,26 @@ public sealed class DevotionPlanningTests
 
         public ValueTask SaveAsync(DevotionRecord devotion, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
+
+        public ValueTask<int> PurgeDueAsync(
+            DateTimeOffset cutoff,
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            var due = devotions
+                .Where(item => item.DeletedAt is not null && item.DeletedAt <= cutoff)
+                .OrderBy(item => item.DeletedAt)
+                .Take(batchSize)
+                .ToArray();
+            var removed = devotions.RemoveAll(item => due.Contains(item));
+            return ValueTask.FromResult(removed);
+        }
     }
 
     private sealed class ManualTimeProvider(DateTimeOffset current) : TimeProvider
     {
         public override DateTimeOffset GetUtcNow() => current;
+
+        public void Advance(TimeSpan duration) => current = current.Add(duration);
     }
 }

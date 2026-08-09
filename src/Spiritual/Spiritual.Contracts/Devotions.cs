@@ -6,6 +6,10 @@ public interface IDevotionPlanning
         DevotionScope scope,
         CancellationToken cancellationToken);
 
+    Task<IReadOnlyList<TrashedDevotion>> ListTrashAsync(
+        DevotionScope scope,
+        CancellationToken cancellationToken);
+
     Task<DevotionDetails?> GetAsync(
         DevotionKey key,
         CancellationToken cancellationToken);
@@ -37,6 +41,29 @@ public interface IDevotionPlanning
     Task<IReadOnlyList<BibleTranslationView>> ListBibleTranslationsAsync(
         CancellationToken cancellationToken);
 }
+
+public interface IDevotionRetention
+{
+    Task<DevotionPurgeResult> PurgeExpiredDevotionsAsync(
+        int batchSize,
+        CancellationToken cancellationToken);
+}
+
+public sealed record DevotionPurgeResult(int PurgedDevotions);
+
+public interface IDevotionCampContext
+{
+    Task<DevotionCampContext> GetAsync(
+        DevotionCampContextRequest request,
+        CancellationToken cancellationToken);
+}
+
+public sealed record DevotionCampContextRequest(
+    Guid ActorId,
+    Guid OrganizationId,
+    Guid CampId);
+
+public sealed record DevotionCampContext(bool IsArchived);
 
 public sealed record DevotionScope(Guid ActorId, Guid OrganizationId, Guid CampId);
 
@@ -91,6 +118,15 @@ public sealed record DevotionSummary(
     IReadOnlyList<Guid> ResponsibleUserIds,
     Guid? ScheduleEntryId,
     bool HasBibleSnapshot,
+    long Version);
+
+public sealed record TrashedDevotion(
+    Guid Id,
+    Guid OrganizationId,
+    Guid CampId,
+    string Topic,
+    DateTimeOffset DeletedAt,
+    DateTimeOffset PurgeAt,
     long Version);
 
 public sealed record DevotionDetails(

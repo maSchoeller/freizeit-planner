@@ -3,6 +3,7 @@ using FreizeitCockpit.Cleanup;
 using Identity.Contracts;
 using Knowledge.Contracts;
 using Microsoft.Extensions.Logging.Abstractions;
+using Spiritual.Contracts;
 using Xunit;
 
 namespace Cleanup.Tests;
@@ -15,10 +16,12 @@ public sealed class CleanupJobTests
         var identity = new RecordingIdentityMaintenance();
         var notes = new RecordingNotebookRetention();
         var attachments = new RecordingAttachmentMaintenance();
+        var devotions = new RecordingDevotionRetention();
         var job = new CleanupJob(
             identity,
             notes,
             attachments,
+            devotions,
             [],
             NullLogger<CleanupJob>.Instance,
             new CleanupOptions { BatchSize = 37, RequiredErasureAreas = [] });
@@ -29,9 +32,11 @@ public sealed class CleanupJobTests
         Assert.Equal(37, notes.BatchSize);
         Assert.Equal(37, attachments.PurgeBatchSize);
         Assert.Equal(37, attachments.GrantsBatchSize);
+        Assert.Equal(37, devotions.BatchSize);
         Assert.Equal(2, result.Identity.ExpiredLoginChallenges);
         Assert.Equal(3, result.Notes.PurgedNotes);
         Assert.Equal(4, result.Attachments.MetadataPurged);
+        Assert.Equal(8, result.Devotions.PurgedDevotions);
         Assert.Equal(7, result.ExpiredAttachmentReadGrants);
     }
 
@@ -42,6 +47,7 @@ public sealed class CleanupJobTests
             new RecordingIdentityMaintenance(),
             new RecordingNotebookRetention(),
             new RecordingAttachmentMaintenance(retryableFailures: 1),
+            new RecordingDevotionRetention(),
             [],
             NullLogger<CleanupJob>.Instance,
             new CleanupOptions { RequiredErasureAreas = [] });
@@ -64,6 +70,7 @@ public sealed class CleanupJobTests
             identity,
             new RecordingNotebookRetention(),
             new RecordingAttachmentMaintenance(),
+            new RecordingDevotionRetention(),
             [area],
             NullLogger<CleanupJob>.Instance,
             new CleanupOptions { RequiredErasureAreas = ["test"] });
@@ -84,6 +91,7 @@ public sealed class CleanupJobTests
             identity,
             new RecordingNotebookRetention(),
             new RecordingAttachmentMaintenance(),
+            new RecordingDevotionRetention(),
             [],
             NullLogger<CleanupJob>.Instance,
             new CleanupOptions());
@@ -199,6 +207,19 @@ public sealed class CleanupJobTests
         {
             GrantsBatchSize = batchSize;
             return Task.FromResult(7);
+        }
+    }
+
+    private sealed class RecordingDevotionRetention : IDevotionRetention
+    {
+        public int BatchSize { get; private set; }
+
+        public Task<DevotionPurgeResult> PurgeExpiredDevotionsAsync(
+            int batchSize,
+            CancellationToken cancellationToken)
+        {
+            BatchSize = batchSize;
+            return Task.FromResult(new DevotionPurgeResult(8));
         }
     }
 }

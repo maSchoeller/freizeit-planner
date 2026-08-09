@@ -87,6 +87,25 @@ VALUES
     ('72000000-0000-0000-0000-000000000002', '10000000-0000-0000-0000-000000000004',
      '20000000-0000-0000-0000-000000000002', '30000000-0000-0000-0000-000000000002',
      'Created', 'Note', '71000000-0000-0000-0000-000000000002', 'Bleibt anonymisiert', now(), 1);
+
+INSERT INTO spiritual.bible_snapshots
+    ("Id", organization_id, camp_id, devotion_id, "Reference", "TextExcerpt",
+     "TechnicalTranslationId", "TranslationDisplayName", "License", "Attribution", "RetrievedAt", "Origin")
+VALUES
+    ('73000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', '74000000-0000-0000-0000-000000000001',
+     'Johannes 3,16', 'Text', 'deu1951', 'Schlachter 1951', 'CC BY 4.0', 'Test', now(), 'Manual');
+
+INSERT INTO spiritual.devotions
+    ("Id", organization_id, camp_id, "Topic", "BibleReference", "Translation", "CoreMessage",
+     "MarkdownContent", "ResponsibleUserIds", "MaterialNotes", current_bible_snapshot_id,
+     "CreatedAt", "UpdatedAt", "DeletedAt", "Version")
+VALUES
+    ('74000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000002',
+     '30000000-0000-0000-0000-000000000002', 'Abgelaufene Andacht', 'Johannes 3,16',
+     'Schlachter1951', 'Kernaussage', '# Inhalt', ARRAY[]::uuid[], '',
+     '73000000-0000-0000-0000-000000000001', now() - interval '40 days', now() - interval '31 days',
+     now() - interval '31 days', 2);
 '@ | Out-Null
 
         dotnet run --project src/FreizeitCockpit.Cleanup/FreizeitCockpit.Cleanup.csproj `
@@ -134,6 +153,14 @@ BEGIN
                    WHERE organization_id = '20000000-0000-0000-0000-000000000002'
                      AND actor_id = '00000000-0000-0000-0000-000000000000') THEN
         RAISE EXCEPTION 'remaining activity was not pseudonymized';
+    END IF;
+    IF EXISTS (SELECT FROM spiritual.devotions
+               WHERE "Id" = '74000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired devotion remained';
+    END IF;
+    IF EXISTS (SELECT FROM spiritual.bible_snapshots
+               WHERE "Id" = '73000000-0000-0000-0000-000000000001') THEN
+        RAISE EXCEPTION 'expired devotion snapshot remained';
     END IF;
 END
 $assert$;

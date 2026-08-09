@@ -142,4 +142,57 @@ public sealed class AttachmentLifecycleTests
         Assert.Equal(new AttachmentPurgeResult(1, 1, 0), retried);
         Assert.Empty(fixture.State.Attachments);
     }
+
+    [Fact]
+    public async Task CampTrashListsDeletedAttachmentsAcrossOwners()
+    {
+        var fixture = AttachmentFixture.Create();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var attachment = await fixture.UploadPngAsync(cancellationToken);
+        await fixture.Catalog.MoveToTrashAsync(
+            new ChangeAttachmentLifecycle(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                fixture.CampId,
+                attachment.Id,
+                attachment.Version),
+            cancellationToken);
+
+        var trash = await fixture.Catalog.ListTrashAsync(
+            new AttachmentTrashQuery(fixture.ActorId, fixture.OrganizationId, fixture.CampId),
+            cancellationToken);
+
+        var item = Assert.Single(trash);
+        Assert.Equal(attachment.Id, item.Id);
+        Assert.Equal(AttachmentLifecycleState.Deleted, item.State);
+        Assert.Equal(fixture.Clock.GetUtcNow().AddDays(30), item.PurgeAt);
+    }
+
+    [Fact]
+    public async Task CampMemberCannotRestoreAnAttachmentThroughTheDirectRouteSeam()
+    {
+        var fixture = AttachmentFixture.Create();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var attachment = await fixture.UploadPngAsync(cancellationToken);
+        await fixture.Catalog.MoveToTrashAsync(
+            new ChangeAttachmentLifecycle(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                fixture.CampId,
+                attachment.Id,
+                attachment.Version),
+            cancellationToken);
+        fixture.TenantAccess.DeniedCampActions.Add(Identity.Contracts.CampAction.ManageCamp);
+
+        var exception = await Assert.ThrowsAsync<FilesRuleException>(() => fixture.Catalog.RestoreAsync(
+            new ChangeAttachmentLifecycle(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                fixture.CampId,
+                attachment.Id,
+                attachment.Version + 1),
+            cancellationToken));
+
+        Assert.Equal("attachment_access_denied", exception.ErrorCode);
+    }
 }

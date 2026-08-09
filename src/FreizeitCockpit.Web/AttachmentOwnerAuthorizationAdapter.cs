@@ -8,6 +8,7 @@ using Spiritual.Contracts;
 
 internal sealed class AttachmentOwnerAuthorizationAdapter(
     ITenantAccessControl access,
+    ICampPlanningDefaults campDefaults,
     ISchedulePlanning schedule,
     ICampMealPlanning meals,
     IOrganizationCateringLibrary recipes,
@@ -31,6 +32,13 @@ internal sealed class AttachmentOwnerAuthorizationAdapter(
                 new CampAccessRequest(request.ActorId, request.OrganizationId, campId, action), cancellationToken);
             if (!decision.Allowed || !await OwnerExistsAsync(request, campId, cancellationToken))
                 return AttachmentOwnerAccessDecision.Deny();
+            if (request.Action != AttachmentOwnerAction.Read)
+            {
+                var camp = await campDefaults.GetAsync(
+                    new CampAccessQuery(request.ActorId, request.OrganizationId, campId),
+                    cancellationToken);
+                if (camp.Status == CampStatus.Archived) return AttachmentOwnerAccessDecision.Deny();
+            }
             return AttachmentOwnerAccessDecision.Permit(new AttachmentOwnerScope(
                 request.OrganizationId, campId, AttachmentQuotaScopeType.Camp));
         }

@@ -16,7 +16,8 @@
   PDFs use attachment disposition. Grants expire after 60 seconds, are bound to one actor, and are consumed atomically only
   after current owner authorization succeeds.
 - Lifecycle: deleting moves metadata to the trash, revokes grants, and schedules purge after 30 days. Restore requires the
-  current version and an unexpired purge deadline. Maintenance deletes the blob before hard-deleting metadata and leaves
+  current version, `ManageCamp`, current owner authorization, and an unexpired purge deadline. Camp managers can list
+  deleted attachments across all owner types for the root-owned aggregate Camp trash. Maintenance deletes the blob before hard-deleting metadata and leaves
   failed blob deletions retryable. `AttachmentMaintenanceService` is the cleanup-host-only implementation and also
   removes expired single-use read grants in bounded batches.
 - Persistence/security: owns PostgreSQL schema `files`. Tenant rows carry `organization_id`; camp rows also carry `camp_id`.

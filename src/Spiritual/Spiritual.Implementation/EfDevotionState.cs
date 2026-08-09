@@ -75,6 +75,40 @@ public sealed class EfDevotionState(SpiritualDbContext dbContext) : IDevotionSta
         await SaveChangesAsync(cancellationToken);
     }
 
+    public async ValueTask<int> PurgeDueAsync(
+        DateTimeOffset cutoff,
+        int batchSize,
+        CancellationToken cancellationToken)
+    {
+        var ids = await dbContext.Devotions
+            .AsNoTracking()
+            .Where(item => item.DeletedAt != null && item.DeletedAt <= cutoff)
+            .OrderBy(item => item.DeletedAt)
+            .ThenBy(item => item.Id)
+            .Take(batchSize)
+            .Select(item => item.Id)
+            .ToArrayAsync(cancellationToken);
+        if (ids.Length == 0)
+        {
+            return 0;
+        }
+
+        await using var transaction = await dbContext.Database.BeginTransactionAsync(cancellationToken);
+        await dbContext.Devotions
+            .Where(item => ids.Contains(item.Id))
+            .ExecuteUpdateAsync(
+                setters => setters.SetProperty(item => item.CurrentBibleSnapshotId, (Guid?)null),
+                cancellationToken);
+        await dbContext.BibleSnapshots
+            .Where(item => ids.Contains(item.DevotionId))
+            .ExecuteDeleteAsync(cancellationToken);
+        var deleted = await dbContext.Devotions
+            .Where(item => ids.Contains(item.Id))
+            .ExecuteDeleteAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
+        return deleted;
+    }
+
     private async Task<IReadOnlyList<DevotionRecord>> MapAsync(
         IReadOnlyList<DevotionEntity> entities,
         CancellationToken cancellationToken)

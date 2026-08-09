@@ -17,6 +17,48 @@
         }
       }
     },
+    "/api/v1/organizations/{organizationId}/camps/{campId}/trash": {
+      "get": {
+        "tags": [
+          "TrashEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampTrashItem"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/auth/code": {
       "post": {
         "tags": [
@@ -4524,6 +4566,49 @@
           }
         }
       },
+      "CampTrashItem": {
+        "required": [
+          "objectType",
+          "objectId",
+          "title",
+          "deletedAt",
+          "purgeAt",
+          "version",
+          "restorePath"
+        ],
+        "type": "object",
+        "properties": {
+          "objectType": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "purgeAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          },
+          "restorePath": {
+            "type": "string"
+          }
+        }
+      },
       "CampView": {
         "required": [
           "id",
@@ -6009,6 +6094,9 @@
   "tags": [
     {
       "name": "FreizeitCockpit.Web"
+    },
+    {
+      "name": "TrashEndpoints"
     },
     {
       "name": "IdentityEndpoints"

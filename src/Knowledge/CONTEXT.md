@@ -43,6 +43,8 @@
   and uses the jobs database identity rather than the interactive runtime role.
 - Every mutation carries an expected Version for host-level `If-Match`; trash records actor/time and a deterministic
   purge timestamp, while restore clears deletion metadata and increments Version.
+- Trashed note summaries expose deletion and purge timestamps to the root-owned aggregate Camp trash endpoint;
+  only `ManageCamp` actors can request these summaries or restore a note.
 - Activity/Search receive metadata or bounded summaries only. Markdown is never written to activity or diagnostic
   logs. Files attachments remain a later host/Files composition seam.
 - Privacy maintenance deletes an Organization's complete notebook and pseudonymizes required creator/updater/trash

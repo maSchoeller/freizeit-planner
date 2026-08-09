@@ -10,6 +10,11 @@
 - Interface: `IDevotionPlanning` owns versioned CRUD, soft-delete/restore, the curated translation catalog, explicit
   provider refresh, and explicit manual snapshots. `IBiblePassageProvider` is the single outbound provider seam;
   expected reference, timeout, and availability failures are typed results and never erase an existing snapshot.
+- Trash: `ListTrashAsync` and restore require `CampAction.ManageCamp`; deleted summaries expose deterministic 30-day
+  deadlines to the root aggregate trash. `IDevotionRetention` is cleanup-only and permanently removes due devotions
+  plus every related immutable Bible snapshot in one transaction without materializing or validating domain content.
+- `IDevotionCampContext` is a host-provided Camps adapter. Every mutation rechecks the authoritative archive state;
+  archived Camps remain readable but cannot create, edit, trash, restore, or refresh devotion content.
 - Persistence: `SpiritualDbContext` stores versioned devotions and append-only Bible snapshots in schema `spiritual`.
   Both tables carry `organization_id` and `camp_id`; forced PostgreSQL RLS uses request-local Identity context, denies
   Platform Admin content access, and grants the runtime role no snapshot update/delete privilege.

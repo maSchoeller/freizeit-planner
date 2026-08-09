@@ -92,6 +92,8 @@ public sealed record NoteSummary(
     int LinkCount,
     NoteState State,
     DateTimeOffset UpdatedAt,
+    DateTimeOffset? TrashedAt,
+    DateTimeOffset? PurgeAfter,
     long Version);
 
 public sealed record Note(

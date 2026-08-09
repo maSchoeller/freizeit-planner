@@ -26,6 +26,21 @@ public sealed class EfAttachmentState(FilesDbContext dbContext) : IAttachmentSta
             .ToArray();
     }
 
+    public async ValueTask<IReadOnlyList<AttachmentRecord>> ListTrashAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken) =>
+        (await dbContext.Attachments
+            .AsNoTracking()
+            .Where(item => item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.State == AttachmentLifecycleState.Deleted)
+            .OrderByDescending(item => item.DeletedAt)
+            .ThenBy(item => item.OriginalFileName)
+            .ToArrayAsync(cancellationToken))
+        .Select(ToRecord)
+        .ToArray();
+
     public async ValueTask<AttachmentRecord?> FindAsync(
         Guid organizationId,
         Guid? campId,

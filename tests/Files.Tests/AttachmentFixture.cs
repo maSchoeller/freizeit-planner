@@ -12,11 +12,12 @@ internal sealed class AttachmentFixture
         State = new InMemoryAttachmentState();
         Storage = new InMemoryPrivateBlobStorage();
         OwnerAuthorization = new ConfigurableOwnerAuthorization();
+        TenantAccess = new ConfigurableTenantAccessControl();
         Clock = new ManualTimeProvider(new DateTimeOffset(2026, 8, 7, 12, 0, 0, TimeSpan.Zero));
         Service = new AttachmentService(
             State,
             OwnerAuthorization,
-            new AllowingTenantAccessControl(),
+            TenantAccess,
             Storage,
             Clock);
     }
@@ -44,6 +45,8 @@ internal sealed class AttachmentFixture
     public InMemoryPrivateBlobStorage Storage { get; }
 
     public ConfigurableOwnerAuthorization OwnerAuthorization { get; }
+
+    public ConfigurableTenantAccessControl TenantAccess { get; }
 
     public ManualTimeProvider Clock { get; }
 
@@ -99,8 +102,10 @@ internal sealed class ConfigurableOwnerAuthorization : IAttachmentOwnerAuthoriza
     }
 }
 
-internal sealed class AllowingTenantAccessControl : ITenantAccessControl
+internal sealed class ConfigurableTenantAccessControl : ITenantAccessControl
 {
+    public HashSet<CampAction> DeniedCampActions { get; } = [];
+
     public Task<TenantAccessDecision> AuthorizeOrganizationAsync(
         OrganizationAccessRequest request,
         CancellationToken cancellationToken) =>
@@ -109,7 +114,9 @@ internal sealed class AllowingTenantAccessControl : ITenantAccessControl
     public Task<TenantAccessDecision> AuthorizeCampAsync(
         CampAccessRequest request,
         CancellationToken cancellationToken) =>
-        Task.FromResult(TenantAccessDecision.Permit(TenantRole.Member));
+        Task.FromResult(DeniedCampActions.Contains(request.Action)
+            ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
+            : TenantAccessDecision.Permit(TenantRole.Member));
 }
 
 internal sealed class InMemoryPrivateBlobStorage : IPrivateBlobStorage
@@ -216,6 +223,20 @@ internal sealed class InMemoryAttachmentState : IAttachmentState
                 && item.CampId == campId
                 && item.Owner == owner
                 && (includeDeleted || item.State == AttachmentLifecycleState.Available)).ToArray());
+        }
+    }
+
+    public ValueTask<IReadOnlyList<AttachmentRecord>> ListTrashAsync(
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        lock (gate)
+        {
+            return ValueTask.FromResult<IReadOnlyList<AttachmentRecord>>(attachments.Where(item =>
+                item.OrganizationId == organizationId
+                && item.CampId == campId
+                && item.State == AttachmentLifecycleState.Deleted).ToArray());
         }
     }
 

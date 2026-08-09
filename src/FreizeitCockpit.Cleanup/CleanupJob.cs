@@ -2,6 +2,7 @@ using Files.Contracts;
 using Identity.Contracts;
 using Knowledge.Contracts;
 using Microsoft.Extensions.Logging;
+using Spiritual.Contracts;
 
 namespace FreizeitCockpit.Cleanup;
 
@@ -17,6 +18,7 @@ public sealed record CleanupResult(
     IdentityCleanupResult Identity,
     NotePurgeResult Notes,
     AttachmentPurgeResult Attachments,
+    DevotionPurgeResult Devotions,
     int ExpiredAttachmentReadGrants);
 
 public sealed class CleanupRetryableException(int retryableFailures)
@@ -29,19 +31,20 @@ public sealed class CleanupJob(
     IIdentityMaintenance identityMaintenance,
     INotebookRetention notebookRetention,
     IAttachmentMaintenance attachmentMaintenance,
+    IDevotionRetention devotionRetention,
     IEnumerable<IDataErasure> dataErasures,
     ILogger<CleanupJob> logger,
     CleanupOptions options)
 {
     private static readonly Guid PseudonymousUserId = Guid.Empty;
 
-    private static readonly Action<ILogger, int, int, int, int, int, Exception?> LogCompleted =
-        LoggerMessage.Define<int, int, int, int, int>(
+    private static readonly Action<ILogger, int, int, int, int, int, int, Exception?> LogCompleted =
+        LoggerMessage.Define<int, int, int, int, int, int>(
             LogLevel.Information,
             new EventId(1001, "CleanupCompleted"),
             "Cleanup completed: {IdentityItems} identity items, {Notes} notes, "
                 + "{AttachmentMetadata} attachment records, {AttachmentBlobs} blobs, "
-                + "{ReadGrants} read grants.");
+                + "{ReadGrants} read grants, {Devotions} devotions.");
 
     public async Task<CleanupResult> RunAsync(CancellationToken cancellationToken)
     {
@@ -62,6 +65,9 @@ public sealed class CleanupJob(
         var attachments = await attachmentMaintenance.PurgeDueAsync(
             options.BatchSize,
             cancellationToken);
+        var devotions = await devotionRetention.PurgeExpiredDevotionsAsync(
+            options.BatchSize,
+            cancellationToken);
         var erasureFailures = await EraseDueDataAsync(cancellationToken);
 
         LogCompleted(
@@ -75,6 +81,7 @@ public sealed class CleanupJob(
             attachments.MetadataPurged,
             attachments.BlobsDeleted,
             expiredReadGrants,
+            devotions.PurgedDevotions,
             null);
 
         var retryableFailures = attachments.RetryableFailures + erasureFailures;
@@ -83,7 +90,7 @@ public sealed class CleanupJob(
             throw new CleanupRetryableException(retryableFailures);
         }
 
-        return new CleanupResult(identity, notes, attachments, expiredReadGrants);
+        return new CleanupResult(identity, notes, attachments, devotions, expiredReadGrants);
     }
 
     private async Task<int> EraseDueDataAsync(CancellationToken cancellationToken)

@@ -17,6 +17,19 @@ internal sealed class KnowledgeCampContextAdapter(ICampPlanningDefaults camps) :
     }
 }
 
+internal sealed class DevotionCampContextAdapter(ICampPlanningDefaults camps) : IDevotionCampContext
+{
+    public async Task<DevotionCampContext> GetAsync(
+        DevotionCampContextRequest request,
+        CancellationToken cancellationToken)
+    {
+        var camp = await camps.GetAsync(
+            new CampAccessQuery(request.ActorId, request.OrganizationId, request.CampId),
+            cancellationToken);
+        return new DevotionCampContext(camp.Status == CampStatus.Archived);
+    }
+}
+
 internal sealed class NoteLinkTargetResolver(
     ISchedulePlanning schedule,
     ICampMealPlanning meals,

@@ -17,4 +17,9 @@ public interface IDevotionState
     ValueTask AddAsync(DevotionRecord devotion, CancellationToken cancellationToken);
 
     ValueTask SaveAsync(DevotionRecord devotion, CancellationToken cancellationToken);
+
+    ValueTask<int> PurgeDueAsync(
+        DateTimeOffset cutoff,
+        int batchSize,
+        CancellationToken cancellationToken);
 }

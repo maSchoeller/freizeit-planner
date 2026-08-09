@@ -37,6 +37,44 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/organizations/{organizationId}/camps/{campId}/trash": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampTrashItem"][];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/auth/code": {
     parameters: {
       query?: never;
@@ -3890,6 +3928,19 @@ export interface components {
       period: components["schemas"]["CampPeriod"];
       /** Format: int64 */
       version: number | string;
+    };
+    CampTrashItem: {
+      objectType: string;
+      /** Format: uuid */
+      objectId: string;
+      title: string;
+      /** Format: date-time */
+      deletedAt: string;
+      /** Format: date-time */
+      purgeAt: string;
+      /** Format: int64 */
+      version: number | string;
+      restorePath: string;
     };
     CampView: {
       /** Format: uuid */

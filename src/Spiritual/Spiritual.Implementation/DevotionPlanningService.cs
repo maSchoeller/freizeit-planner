@@ -6,6 +6,7 @@ namespace Spiritual.Implementation;
 public sealed class DevotionPlanningService(
     IDevotionState state,
     ITenantAccessControl accessControl,
+    IDevotionCampContext campContext,
     IBiblePassageProvider bibleProvider,
     TimeProvider timeProvider) : IDevotionPlanning
 {
@@ -20,6 +21,34 @@ public sealed class DevotionPlanningService(
                 false,
                 cancellationToken))
             .Select(ToSummary)
+            .ToArray();
+    }
+
+    public async Task<IReadOnlyList<TrashedDevotion>> ListTrashAsync(
+        DevotionScope scope,
+        CancellationToken cancellationToken)
+    {
+        await RequireAccessAsync(
+            scope.ActorId,
+            scope.OrganizationId,
+            scope.CampId,
+            CampAction.ManageCamp,
+            cancellationToken);
+        return (await state.ListAsync(
+                scope.OrganizationId,
+                scope.CampId,
+                true,
+                cancellationToken))
+            .Where(item => item.DeletedAt is not null)
+            .OrderByDescending(item => item.DeletedAt)
+            .Select(item => new TrashedDevotion(
+                item.Id,
+                item.OrganizationId,
+                item.CampId,
+                item.Topic,
+                item.DeletedAt!.Value,
+                item.DeletedAt.Value.AddDays(30),
+                item.Version))
             .ToArray();
     }
 
@@ -45,6 +74,11 @@ public sealed class DevotionPlanningService(
             command.OrganizationId,
             command.CampId,
             CampAction.WriteContent,
+            cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
             cancellationToken);
         var devotion = new DevotionRecord(
             Guid.NewGuid(),
@@ -73,6 +107,11 @@ public sealed class DevotionPlanningService(
             command.CampId,
             CampAction.WriteContent,
             cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            cancellationToken);
         var devotion = await RequireDevotionAsync(
             command.OrganizationId,
             command.CampId,
@@ -96,7 +135,22 @@ public sealed class DevotionPlanningService(
         ChangeDevotionLifecycle command,
         CancellationToken cancellationToken)
     {
-        var devotion = await RequireWritableDevotionAsync(command, cancellationToken);
+        await RequireAccessAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            CampAction.ManageCamp,
+            cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            cancellationToken);
+        var devotion = await RequireDevotionAsync(
+            command.OrganizationId,
+            command.CampId,
+            command.DevotionId,
+            cancellationToken);
         devotion.Restore(command.ExpectedVersion, timeProvider.GetUtcNow());
         await state.SaveAsync(devotion, cancellationToken);
     }
@@ -110,6 +164,11 @@ public sealed class DevotionPlanningService(
             command.OrganizationId,
             command.CampId,
             CampAction.WriteContent,
+            cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
             cancellationToken);
         var devotion = await RequireDevotionAsync(
             command.OrganizationId,
@@ -161,6 +220,11 @@ public sealed class DevotionPlanningService(
             command.CampId,
             CampAction.WriteContent,
             cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            cancellationToken);
         var devotion = await RequireDevotionAsync(
             command.OrganizationId,
             command.CampId,
@@ -206,11 +270,31 @@ public sealed class DevotionPlanningService(
             command.CampId,
             CampAction.WriteContent,
             cancellationToken);
+        await RequireWritableCampAsync(
+            command.ActorId,
+            command.OrganizationId,
+            command.CampId,
+            cancellationToken);
         return await RequireDevotionAsync(
             command.OrganizationId,
             command.CampId,
             command.DevotionId,
             cancellationToken);
+    }
+
+    private async Task RequireWritableCampAsync(
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        CancellationToken cancellationToken)
+    {
+        var context = await campContext.GetAsync(
+            new DevotionCampContextRequest(actorId, organizationId, campId),
+            cancellationToken);
+        if (context.IsArchived)
+        {
+            throw Rule("camp_archived", "Archivierte Camps sind schreibgeschützt.");
+        }
     }
 
     private async Task<DevotionRecord> RequireDevotionAsync(

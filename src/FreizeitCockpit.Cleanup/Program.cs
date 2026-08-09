@@ -18,6 +18,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Npgsql;
 using Spiritual.Implementation;
+using Spiritual.Contracts;
 
 var builder = Host.CreateApplicationBuilder(args);
 builder.AddFreizeitServiceDefaults();
@@ -68,6 +69,8 @@ builder.Services.AddSingleton<IPrivateBlobStorage>(_ =>
 builder.Services.AddScoped<IIdentityMaintenance, IdentityMaintenanceService>();
 builder.Services.AddScoped<INotebookRetention, KnowledgeRetentionService>();
 builder.Services.AddScoped<IAttachmentMaintenance, AttachmentMaintenanceService>();
+builder.Services.AddScoped<IDevotionState, EfDevotionState>();
+builder.Services.AddScoped<IDevotionRetention, DevotionRetentionService>();
 builder.Services.AddScoped<IDataErasure, ActivityDataErasure>();
 builder.Services.AddScoped<IDataErasure, CampsDataErasure>();
 builder.Services.AddScoped<IDataErasure, CateringDataErasure>();
