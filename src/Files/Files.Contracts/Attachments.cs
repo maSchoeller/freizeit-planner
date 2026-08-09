@@ -15,7 +15,7 @@ public interface IAttachmentCatalog
         Stream content,
         CancellationToken cancellationToken);
 
-    Task MoveToTrashAsync(
+    Task<AttachmentView> MoveToTrashAsync(
         ChangeAttachmentLifecycle command,
         CancellationToken cancellationToken);
 

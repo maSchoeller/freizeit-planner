@@ -301,6 +301,13 @@ h2 {
   padding: 0.7rem 0;
   border-top: 1px solid #e3eeec;
 }
+.activity-card li > div {
+  display: grid;
+  gap: 0.2rem;
+}
+.activity-card small {
+  color: #587270;
+}
 .activity-card time {
   color: #587270;
   white-space: nowrap;

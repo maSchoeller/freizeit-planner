@@ -180,6 +180,20 @@ internal static class TrashEndpoints
                 exception.Message,
                 "Papierkorb konnte nicht geladen werden");
         }
+        catch (CampsRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(
+                exception.ErrorCode,
+                exception.Message,
+                "Papierkorb konnte nicht geladen werden");
+        }
+        catch (CateringRuleException exception)
+        {
+            return PlanningEndpointSupport.Problem(
+                exception.ErrorCode,
+                exception.Message,
+                "Papierkorb konnte nicht geladen werden");
+        }
     }
 }
 

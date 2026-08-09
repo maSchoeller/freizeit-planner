@@ -118,10 +118,10 @@ internal static class FileEndpoints
         if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version)) return PlanningEndpointSupport.PreconditionRequired();
         return await ExecuteAsync(async () =>
         {
-            await catalog.MoveToTrashAsync(new ChangeAttachmentLifecycle(actorId, organizationId,
+            var trashed = await catalog.MoveToTrashAsync(new ChangeAttachmentLifecycle(actorId, organizationId,
                 campId, attachmentId, version), cancellationToken);
             await activity.RemoveAsync(actorId, organizationId, campId, "Attachment", attachmentId,
-                "Datei", version + 1, cancellationToken);
+                trashed.OriginalFileName, trashed.Version, cancellationToken);
             return Results.NoContent();
         });
     }

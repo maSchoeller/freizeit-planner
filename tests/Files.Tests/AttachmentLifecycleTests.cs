@@ -19,7 +19,7 @@ public sealed class AttachmentLifecycleTests
                 attachment.Id),
             cancellationToken);
 
-        await fixture.Catalog.MoveToTrashAsync(
+        var trashed = await fixture.Catalog.MoveToTrashAsync(
             new ChangeAttachmentLifecycle(
                 fixture.ActorId,
                 fixture.OrganizationId,
@@ -39,6 +39,9 @@ public sealed class AttachmentLifecycleTests
             cancellationToken);
 
         Assert.Empty(fixture.State.Grants);
+        Assert.Equal(attachment.OriginalFileName, trashed.OriginalFileName);
+        Assert.Equal(AttachmentLifecycleState.Deleted, trashed.State);
+        Assert.Equal(attachment.Version + 1, trashed.Version);
         Assert.Equal(fixture.Clock.GetUtcNow().AddDays(30), purgeAt);
         Assert.Equal(AttachmentLifecycleState.Available, restored.State);
         Assert.Null(restored.PurgeAt);

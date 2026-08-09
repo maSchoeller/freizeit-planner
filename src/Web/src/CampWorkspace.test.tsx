@@ -248,6 +248,7 @@ describe("camp workspace", () => {
           {
             id: "a1",
             actorId: userId,
+            actorDisplayName: "Lea Beispiel",
             kind: 0,
             objectType: "ScheduleEntry",
             title: "Ankommen und Zimmer beziehen",
@@ -287,6 +288,7 @@ describe("camp workspace", () => {
       within(procurement).getByText("1 Material · 3 Einkauf"),
     ).toBeInTheDocument();
     expect(screen.queryByText("Geländespiel im Wald")).not.toBeInTheDocument();
+    expect(screen.getByText("Lea Beispiel · Zeitplan")).toBeInTheDocument();
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining(
         `/organizations/${organizationId}/camps/${campId}/schedule?fromDate=2027-01-02&toDateExclusive=2027-01-10`,
@@ -4408,6 +4410,85 @@ describe("camp workspace", () => {
       "If-Match": '"3"',
     });
   });
+
+  it.each([
+    ["ScheduleEntry", "schedule"],
+    ["Meal", "meals"],
+    ["MaterialRequirement", "material"],
+    ["ShoppingList", "shopping-lists"],
+    ["ShoppingItem", "shopping-lists"],
+    ["Devotion", "devotions"],
+    ["Note", "notes"],
+    ["Attachment", "files"],
+  ])(
+    "refreshes %s, search and activity after aggregate restore",
+    async (restoredType, queryScope) => {
+      const organizationId = "20000000-0000-0000-0000-000000000001";
+      const campId = "30000000-0000-0000-0000-000000000001";
+      const invalidate = vi.spyOn(QueryClient.prototype, "invalidateQueries");
+      const fetchMock = vi.fn(
+        (request: RequestInfo | URL, init?: RequestInit) => {
+          const path = requestPath(request);
+          if (path === "/api/v1/auth/antiforgery")
+            return Promise.resolve(
+              new Response(JSON.stringify({ token: "csrf-token" }), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+              }),
+            );
+          if (init?.method === "POST")
+            return Promise.resolve(new Response(null, { status: 200 }));
+          if (path.endsWith("/trash"))
+            return Promise.resolve(
+              new Response(
+                JSON.stringify([
+                  {
+                    objectType: restoredType,
+                    objectId: "41000000-0000-0000-0000-000000000009",
+                    title: restoredType,
+                    deletedAt: "2026-08-09T10:00:00Z",
+                    purgeAt: "2026-09-08T10:00:00Z",
+                    version: 3,
+                    restorePath: `/api/v1/restore-${restoredType}`,
+                  },
+                ]),
+                {
+                  status: 200,
+                  headers: { "Content-Type": "application/json" },
+                },
+              ),
+            );
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        },
+      );
+      vi.stubGlobal("fetch", fetchMock);
+      const user = userEvent.setup();
+      renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/suche");
+
+      await user.click(
+        await screen.findByRole("button", {
+          name: `${restoredType} wiederherstellen`,
+        }),
+      );
+      expect(
+        await screen.findByText(`${restoredType} wurde wiederhergestellt.`),
+      ).toHaveAttribute("role", "status");
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: [organizationId, campId, queryScope],
+      });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: [organizationId, campId, "search"],
+      });
+      expect(invalidate).toHaveBeenCalledWith({
+        queryKey: [organizationId, campId, "activity"],
+      });
+    },
+  );
 
   it("requires an explicit linked-content choice before deleting a schedule entry", async () => {
     const fetchMock = vi.fn(

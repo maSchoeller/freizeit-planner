@@ -4541,7 +4541,17 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampActivityEvent"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -4846,6 +4856,9 @@
           }
         }
       },
+      "ActivityKind": {
+        "type": "integer"
+      },
       "AmbiguousLocalTimeChoice": {
         "type": "integer",
         "default": 0
@@ -4920,6 +4933,58 @@
       },
       "BibleTranslation": {
         "type": "integer"
+      },
+      "CampActivityEvent": {
+        "required": [
+          "id",
+          "actorId",
+          "actorDisplayName",
+          "kind",
+          "objectType",
+          "objectId",
+          "title",
+          "timestamp",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "actorDisplayName": {
+            "type": "string"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/ActivityKind"
+          },
+          "objectType": {
+            "type": "string"
+          },
+          "objectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "title": {
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
       },
       "CampAssignmentView": {
         "required": [

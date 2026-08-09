@@ -6,8 +6,9 @@ Mahlzeiten, Material, Einkaufslisten, Andachten, Notizen und Dateien. Mit **Inha
 weiter eingrenzen.
 
 Auf der Camp-Übersicht zeigt **Jüngste Aktivitäten**, welche Planungsobjekte erstellt, geändert, in den Papierkorb
-verschoben oder wiederhergestellt wurden. Der Feed enthält nur Metadaten wie Titel, Aktion und Zeitpunkt, keine
-vollständigen Inhaltsänderungen.
+verschoben oder wiederhergestellt wurden. Zu jedem Eintrag siehst du Akteur, Zeitpunkt, Inhaltstyp und Titel. Ist ein
+Konto bereits gelöscht oder nicht mehr Teil des Camps, wird es entsprechend neutral bezeichnet. Der Feed enthält
+nur diese Metadaten und keine vollständigen Inhaltsänderungen.
 
 ## CSV und Druck
 
@@ -27,6 +28,7 @@ Einkaufspositionen dort gemeinsam sehen und während der 30-tägigen Aufbewahrun
 **Wiederherstellen** zurückholen. Das angezeigte Datum nennt den Tag der endgültigen Löschung. Im Offlinezustand ist
 die Wiederherstellung gesperrt. Nach erfolgreicher Wiederherstellung verschwindet der Eintrag aus dem Papierkorb und
 eine deutsche Statusmeldung bestätigt den Titel; eine Notiz erscheint anschließend wieder im Notizbuch. Nach Ablauf
+der Wiederherstellung werden auch der betroffene Planungsbereich, Suche und Aktivitätsfeed aktualisiert. Nach Ablauf
 der Frist entfernt der Bereinigungsprozess die Daten einschließlich
 zugehöriger Bibel-Snapshots beziehungsweise privater Datei-Blobs endgültig.
 

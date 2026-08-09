@@ -36,6 +36,9 @@
   Version and removes only the active row after the server moves it into 30-day trash. List rename consumes the
   current structural Version; whole-list deletion has its own acknowledgement and moves the aggregate and every item
   into 30-day trash. Returned list/item versions are chained through consecutive UI actions.
+- The host records each shopping-item create, update/check, trash and restore as its own metadata-only Activity event
+  with actor, object type and bounded item name, while also refreshing the parent list projection. No item notes or
+  other long content are copied into the immutable journal.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
 - The Camp material detail resolves responsible users through the minimized Identity directory and exposes a

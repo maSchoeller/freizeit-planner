@@ -706,6 +706,7 @@ type BibleTranslationView = {
 type ActivityEvent = {
   id: string;
   actorId: string;
+  actorDisplayName: string;
   kind: 0 | 1 | 2 | 3;
   objectType: string;
   title: string;
@@ -1289,9 +1290,15 @@ function OverviewPage() {
             <ul>
               {activity.data.map((event) => (
                 <li key={event.id}>
-                  <span>
-                    {activityKindLabel[event.kind]}: „{event.title}“
-                  </span>
+                  <div>
+                    <span>
+                      {activityKindLabel[event.kind]}: „{event.title}“
+                    </span>
+                    <small>
+                      {event.actorDisplayName} ·{" "}
+                      {searchTypeLabel[event.objectType] ?? event.objectType}
+                    </small>
+                  </div>
                   <time dateTime={event.timestamp}>
                     {new Intl.DateTimeFormat("de-DE", {
                       dateStyle: "short",
@@ -8327,11 +8334,18 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
         queryClient.invalidateQueries({
           queryKey: [organizationId, campId, "trash"],
         }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "search"],
+        }),
+        queryClient.invalidateQueries({
+          queryKey: [organizationId, campId, "activity"],
+        }),
       ];
-      if (item.objectType === "Note")
+      const restoredScope = restoredObjectQueryScope[item.objectType];
+      if (restoredScope)
         invalidations.push(
           queryClient.invalidateQueries({
-            queryKey: [organizationId, campId, "notes"],
+            queryKey: [organizationId, campId, restoredScope],
           }),
         );
       await Promise.all(invalidations);
@@ -8476,4 +8490,15 @@ const searchTypeLabel: Record<string, string> = {
   Devotion: "Andacht",
   Note: "Notiz",
   Attachment: "Datei",
+};
+
+const restoredObjectQueryScope: Record<string, string> = {
+  ScheduleEntry: "schedule",
+  Meal: "meals",
+  MaterialRequirement: "material",
+  ShoppingList: "shopping-lists",
+  ShoppingItem: "shopping-lists",
+  Devotion: "devotions",
+  Note: "notes",
+  Attachment: "files",
 };

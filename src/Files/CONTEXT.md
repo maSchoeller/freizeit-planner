@@ -25,6 +25,8 @@
   deleted attachments across all owner types for the root-owned aggregate Camp trash. Maintenance deletes the blob before hard-deleting metadata and leaves
   failed blob deletions retryable. `AttachmentMaintenanceService` is the cleanup-host-only implementation and also
   removes expired single-use read grants in bounded batches.
+- Moving an attachment to trash returns its updated public metadata so the host can journal the actual bounded
+  original filename and resulting Version without reading Files persistence or substituting a generic title.
 - Persistence/security: owns PostgreSQL schema `files`. Tenant rows carry `organization_id`; camp rows also carry `camp_id`.
   Forced RLS covers attachments and grants, rejects platform administrators from tenant content, and permits grants only to
   their actor. Pending-upload compensation may use the runtime delete policy; scheduled hard purge requires the privileged

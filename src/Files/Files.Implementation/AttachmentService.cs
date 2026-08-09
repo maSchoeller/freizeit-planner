@@ -113,7 +113,7 @@ public sealed class AttachmentService(
         }
     }
 
-    public async Task MoveToTrashAsync(
+    public async Task<AttachmentView> MoveToTrashAsync(
         ChangeAttachmentLifecycle command,
         CancellationToken cancellationToken)
     {
@@ -128,6 +128,7 @@ public sealed class AttachmentService(
         attachment.MoveToTrash(command.ExpectedVersion, timeProvider.GetUtcNow());
         await state.SaveAsync(attachment, cancellationToken);
         await state.RevokeReadGrantsAsync(attachment.Id, cancellationToken);
+        return ToView(attachment);
     }
 
     public async Task<AttachmentView> RestoreAsync(

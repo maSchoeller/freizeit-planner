@@ -78,6 +78,56 @@ public sealed class CampTrashApiTests
         Assert.Equal(Guid.Parse("10000000-0000-0000-0000-000000000001"), trash.ActorId);
     }
 
+    [Theory]
+    [InlineData("Camps")]
+    [InlineData("Catering")]
+    public async Task CampTrashReturnsAForbiddenProblemForModuleAccessDenial(string failingModule)
+    {
+        var sender = new CapturingSender();
+        var trash = new TrashFake(failingModule);
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IPasswordlessState>();
+                services.RemoveAll<ILoginCodeSender>();
+                services.RemoveAll<ICampNotebook>();
+                services.RemoveAll<IDevotionPlanning>();
+                services.RemoveAll<IAttachmentCatalog>();
+                services.RemoveAll<IMaterialPlanning>();
+                services.RemoveAll<IShoppingPlanning>();
+                services.RemoveAll<ISchedulePlanning>();
+                services.RemoveAll<ICampMealPlanning>();
+                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
+                services.AddSingleton<ILoginCodeSender>(sender);
+                services.AddSingleton<ICampNotebook>(trash);
+                services.AddSingleton<IDevotionPlanning>(trash);
+                services.AddSingleton<IAttachmentCatalog>(trash);
+                services.AddSingleton<IMaterialPlanning>(trash);
+                services.AddSingleton<IShoppingPlanning>(trash);
+                services.AddSingleton<ISchedulePlanning>(trash);
+                services.AddSingleton<ICampMealPlanning>(trash);
+            });
+        });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await LoginAsync(client, sender, cancellationToken);
+
+        using var response = await client.GetAsync(
+            $"/api/v1/organizations/{trash.OrganizationId}/camps/{trash.CampId}/trash",
+            cancellationToken);
+        using var document = JsonDocument.Parse(await response.Content.ReadAsStreamAsync(cancellationToken));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal("camp_access_denied", document.RootElement.GetProperty("errorCode").GetString());
+    }
+
     private static async Task LoginAsync(
         HttpClient client,
         CapturingSender sender,
@@ -123,7 +173,7 @@ public sealed class CampTrashApiTests
         }
     }
 
-    private sealed class TrashFake : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning,
+    private sealed class TrashFake(string? failingModule = null) : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning,
         IShoppingPlanning, ISchedulePlanning, ICampMealPlanning
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
@@ -207,6 +257,8 @@ public sealed class CampTrashApiTests
             ScheduleTrashQuery query,
             CancellationToken cancellationToken)
         {
+            if (failingModule == "Camps")
+                throw new CampsRuleException("camp_access_denied", "Kein Zugriff auf den Camp-Papierkorb.");
             IReadOnlyList<TrashedScheduleEntry> result = [new TrashedScheduleEntry(
                 Guid.Parse("40000000-0000-0000-0000-000000000007"), OrganizationId, CampId, "Tagesplan",
                 ParseTimestamp("2026-08-03T10:00:00Z"), ParseTimestamp("2026-09-02T10:00:00Z"), 8)];
@@ -217,6 +269,8 @@ public sealed class CampTrashApiTests
             MealTrashQuery request,
             CancellationToken cancellationToken)
         {
+            if (failingModule == "Catering")
+                throw new CateringRuleException("camp_access_denied", "Kein Zugriff auf den Camp-Papierkorb.");
             IReadOnlyList<TrashedMeal> result = [new TrashedMeal(
                 Guid.Parse("40000000-0000-0000-0000-000000000008"), OrganizationId, CampId, "Mahlzeit", null,
                 ParseTimestamp("2026-08-02T10:00:00Z"), ParseTimestamp("2026-09-01T10:00:00Z"), 9)];
@@ -239,7 +293,7 @@ public sealed class CampTrashApiTests
         public Task<IReadOnlyList<BibleTranslationView>> ListBibleTranslationsAsync(CancellationToken cancellationToken) => Unsupported<IReadOnlyList<BibleTranslationView>>();
         public Task<IReadOnlyList<AttachmentView>> ListAsync(AttachmentOwnerQuery query, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<AttachmentView>>();
         public Task<AttachmentView> UploadAsync(UploadAttachment command, Stream content, CancellationToken cancellationToken) => Unsupported<AttachmentView>();
-        public Task MoveToTrashAsync(ChangeAttachmentLifecycle command, CancellationToken cancellationToken) => Unsupported();
+        public Task<AttachmentView> MoveToTrashAsync(ChangeAttachmentLifecycle command, CancellationToken cancellationToken) => Unsupported<AttachmentView>();
         public Task<AttachmentView> RestoreAsync(ChangeAttachmentLifecycle command, CancellationToken cancellationToken) => Unsupported<AttachmentView>();
         public Task<AttachmentQuotaView> GetQuotaAsync(AttachmentQuotaQuery query, CancellationToken cancellationToken) => Unsupported<AttachmentQuotaView>();
         public Task<IReadOnlyList<MaterialRequirementSummary>> ListAsync(MaterialQuery query, CancellationToken cancellationToken) => Unsupported<IReadOnlyList<MaterialRequirementSummary>>();

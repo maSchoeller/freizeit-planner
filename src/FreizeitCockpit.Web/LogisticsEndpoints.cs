@@ -220,6 +220,9 @@ internal static class LogisticsEndpoints
             var result = await planning.AddSpontaneousItemAsync(
                 new AddSpontaneousShoppingItem(actorId, organizationId, campId, listId, body, version),
                 cancellationToken);
+            if (result.Item is { } item)
+                await UpsertShoppingItemActivityAsync(activity, actorId, organizationId, campId, item,
+                    ActivityKind.Created, cancellationToken);
             await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
                 cancellationToken);
             return Results.Ok(result);
@@ -246,6 +249,10 @@ internal static class LogisticsEndpoints
             var restored = await planning.RestoreItemAsync(
                 new RestoreShoppingItem(actorId, organizationId, campId, listId, itemId, version),
                 cancellationToken);
+            if (restored.Item is not { } item)
+                throw new LogisticsRuleException("shopping_item_not_found", "Die Einkaufsposition wurde nicht gefunden.");
+            await UpsertShoppingItemActivityAsync(activity, actorId, organizationId, campId, item,
+                ActivityKind.Restored, cancellationToken);
             await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
                 cancellationToken);
             context.Response.Headers["X-Change-Sequence"] = restored.ChangeSequence.ToString(
@@ -268,12 +275,32 @@ internal static class LogisticsEndpoints
         await planning.SetItemCheckedAsync(new SetShoppingItemChecked(actorId, organizationId, campId, listId,
             itemId, body.IsChecked, version), cancellationToken));
 
-    private static Task<IResult> DeleteShoppingItemAsync(Guid organizationId, Guid campId, Guid listId, Guid itemId,
+    private static async Task<IResult> DeleteShoppingItemAsync(Guid organizationId, Guid campId, Guid listId, Guid itemId,
         HttpContext context, IAntiforgery antiforgery, IShoppingPlanning planning, PlanningActivityWriter activity,
-        CancellationToken cancellationToken) =>
-        ChangeItemAsync(organizationId, campId, listId, context, antiforgery, planning, activity,
-            async (actorId, version) => await planning.DeleteItemAsync(
-            new DeleteShoppingItem(actorId, organizationId, campId, listId, itemId, version), cancellationToken));
+        CancellationToken cancellationToken)
+    {
+        if (await PlanningEndpointSupport.ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!PlanningEndpointSupport.TryActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var version))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var list = await planning.GetAsync(
+                new ShoppingListRequest(actorId, organizationId, campId, listId), cancellationToken)
+                ?? throw new LogisticsRuleException("shopping_list_not_found", "Die Einkaufsliste wurde nicht gefunden.");
+            var item = list.Items.FirstOrDefault(candidate => candidate.Id == itemId)
+                ?? throw new LogisticsRuleException("shopping_item_not_found", "Die Einkaufsposition wurde nicht gefunden.");
+            var result = await planning.DeleteItemAsync(
+                new DeleteShoppingItem(actorId, organizationId, campId, listId, itemId, version), cancellationToken);
+            await activity.RemoveAsync(actorId, organizationId, campId, "ShoppingItem", itemId, item.Name,
+                version + 1, cancellationToken);
+            await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
+                cancellationToken);
+            context.Response.Headers["X-Change-Sequence"] = result.ChangeSequence.ToString(
+                System.Globalization.CultureInfo.InvariantCulture);
+            return Results.Ok(result);
+        });
+    }
 
     private static async Task<IResult> ListAuditAsync(Guid organizationId, Guid campId, Guid listId, Guid itemId,
         HttpContext context, IShoppingAudit audit, CancellationToken cancellationToken) => await ExecuteAsync(async () =>
@@ -353,6 +380,9 @@ internal static class LogisticsEndpoints
         return await ExecuteAsync(async () =>
         {
             var result = await action(actorId, version);
+            if (result.Item is { } item)
+                await UpsertShoppingItemActivityAsync(activity, actorId, organizationId, campId, item,
+                    ActivityKind.Updated, context.RequestAborted);
             await RefreshShoppingActivityAsync(planning, activity, actorId, organizationId, campId, listId,
                 context.RequestAborted);
             context.Response.Headers["X-Change-Sequence"] = result.ChangeSequence.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -400,6 +430,30 @@ internal static class LogisticsEndpoints
                 System.Globalization.CultureInfo.InvariantCulture)
         },
         list.Version,
+        cancellationToken);
+
+    private static Task UpsertShoppingItemActivityAsync(
+        PlanningActivityWriter activity,
+        Guid actorId,
+        Guid organizationId,
+        Guid campId,
+        ShoppingItem item,
+        ActivityKind kind,
+        CancellationToken cancellationToken) => activity.UpsertAsync(
+        actorId,
+        organizationId,
+        campId,
+        kind,
+        "ShoppingItem",
+        item.Id,
+        item.Name,
+        string.Join(' ', item.Name, item.Store, item.Note, item.Source.Label),
+        new Dictionary<string, string>
+        {
+            ["checked"] = item.IsChecked.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            ["source"] = item.Source.Kind.ToString()
+        },
+        item.Version,
         cancellationToken);
 
     private static async Task<IResult> ExecuteAsync(Func<Task<IResult>> action)

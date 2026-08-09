@@ -4004,7 +4004,9 @@ export interface paths {
           headers: {
             [name: string]: unknown;
           };
-          content?: never;
+          content: {
+            "application/json": components["schemas"]["CampActivityEvent"][];
+          };
         };
       };
     };
@@ -4230,6 +4232,7 @@ export interface components {
       deletionScheduledAt: null | string;
       isPlatformAdmin: boolean;
     };
+    ActivityKind: number;
     /** @default 0 */
     AmbiguousLocalTimeChoice: number;
     AntiforgeryResponse: {
@@ -4252,6 +4255,22 @@ export interface components {
     };
     BibleSnapshotOrigin: number;
     BibleTranslation: number;
+    CampActivityEvent: {
+      /** Format: uuid */
+      id: string;
+      /** Format: uuid */
+      actorId: string;
+      actorDisplayName: string;
+      kind: components["schemas"]["ActivityKind"];
+      objectType: string;
+      /** Format: uuid */
+      objectId: string;
+      title: string;
+      /** Format: date-time */
+      timestamp: string;
+      /** Format: int64 */
+      version: number | string;
+    };
     CampAssignmentView: {
       /** Format: uuid */
       userId: string;

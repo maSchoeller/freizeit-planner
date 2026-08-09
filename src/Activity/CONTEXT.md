@@ -8,6 +8,9 @@
 - Journal: `IActivityJournal` records and lists Created, Updated, Trashed, and Restored events. Recording requires
   `CampAction.WriteContent`; listing requires `CampAction.Read`. All queries are actor-authorized and scoped by both
   `OrganizationId` and `CampId`.
+- The Web host enriches listed events with the current display name from Identity's minimized Camp member directory.
+  A pseudonymized actor is shown as `Gelöschtes Konto`; an actor no longer in the current directory is shown as
+  `Ehemaliges Teammitglied`. The journal remains the source for actor id, time, object type and bounded title.
 - Search: `ICampSearchIndex` provides idempotent, source-version-ordered upsert/remove operations and tenant-safe
   search with object-type and exact metadata filters. A removal writes a tombstone so stale deliveries cannot
   resurrect a projection. Fachmodule remain responsible for trashing, restoring, and purging their own objects.
@@ -22,8 +25,9 @@
 - Trash composition: the Web root combines manager-authorized deleted summaries from Knowledge, Spiritual, Files, and Logistics,
   orders them chronologically, and returns versioned module restore paths. Activity does not acquire lifecycle ownership.
 - The aggregate trash UI calls the returned module path with antiforgery and `If-Match`. On success it removes the
-  item, announces its title in German and invalidates both the trash query and the restored module list (including
-  active Knowledge notes); Activity still does not own or mutate domain lifecycle state.
+  item, announces its title in German and invalidates trash, search, activity plus the restored module's active
+  query. The root endpoint maps Camps, Catering, Knowledge, Spiritual, Files and Logistics rule failures to a stable
+  Problem Detail instead of leaking an unhandled server error. Activity still does not own or mutate lifecycle state.
 - Privacy maintenance removes all journal/search rows for a claimed Organization. For account erasure in a retained
   Organization, immutable event actors are minimized to the shared pseudonymous UUID; titles and event semantics stay
   intact for the remaining tenant.
