@@ -4,6 +4,18 @@ Unter **Material & Einkauf** stehen Materialbedarf und gemeinsame Einkaufslisten
 verwenden dieselben servergespeicherten Planungsdaten wie Übersicht, Suche und Export; Beispielpositionen werden
 nicht lokal erzeugt.
 
+## Material prüfen und übernehmen
+
+Jede Materialzeile zeigt Menge, Einheit und Beschaffungsstatus. Mit **Material öffnen** lädst du Beschreibung,
+Beschaffungsquelle, Notiz und die im Camp verantwortlichen Personen. Material kann campweit geplant oder mit einem
+Zeitplaneintrag verknüpft sein; es ist keine Inventar-, Lager- oder Ausleihverwaltung.
+
+**In Einkaufsliste übernehmen** öffnet vor dem Speichern eine Prüfung. Wähle eine beliebige aktuelle Liste und passe
+bei Bedarf Bezeichnung, positive Dezimalmenge, Einheit, Geschäft, Notiz oder Verantwortliche an. Die Anwendung rundet
+nicht auf Verpackungsgrößen. Die Quellenreferenz auf genau diese Material-Version bleibt in der Einkaufsposition
+unveränderlich erhalten. Bei einer zwischenzeitlich geänderten Materialanforderung oder Liste prüfst du deren
+aktuellen Stand und startest die Übernahme erneut. Archivierte Camps bieten die Aktion nicht an.
+
 ## Einkaufslisten öffnen und aktualisieren
 
 Ein Camp kann mehrere benannte Einkaufslisten besitzen. **Einkaufsliste anlegen** erstellt eine weitere Liste.

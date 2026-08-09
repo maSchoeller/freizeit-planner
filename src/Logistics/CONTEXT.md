@@ -33,6 +33,11 @@
   into 30-day trash. Returned list/item versions are chained through consecutive UI actions.
 - `IShoppingTransfer` accepts reviewed catering or material lines atomically. Stored source references contain the
   exact meal/snapshot/ingredient/recipe version or material requirement/version and never change with the source.
+- The Camp material detail resolves responsible users through the minimized Identity directory and exposes a
+  reviewed material-to-list transfer. Writers choose any current Camp list and may revise name, positive decimal
+  quantity/unit, store, note and responsibilities before submission. The request carries antiforgery, the target
+  list Version as `If-Match` and body precondition, plus the independently loaded material Version; archived Camps
+  hide the transfer mutation. The resulting shopping item retains that exact material id/version provenance.
 - The host-composed meal transfer UI reads Catering-owned draft lines without exposing module internals, offers any
   current Camp list as the target, limits the unit selector to the draft's compatible units and never performs
   package rounding. The reviewed batch reaches `IShoppingTransfer` with antiforgery and the selected list Version;

@@ -574,7 +574,18 @@ type ActivityEvent = {
 type MaterialRequirementSummary = {
   id: string;
   name: string;
+  quantity: LogisticsQuantity;
   status: number;
+  scheduleEntryId: string | null;
+  version: number;
+};
+type MaterialRequirement = MaterialRequirementSummary & {
+  organizationId: string;
+  campId: string;
+  description: string | null;
+  responsibleUserIds: string[];
+  procurementSource: string | null;
+  note: string | null;
 };
 type ShoppingListSummary = {
   id: string;
@@ -617,6 +628,12 @@ type ShoppingListChange = {
   listVersion: number;
   changeSequence: number;
   item: ShoppingItem | null;
+};
+type ShoppingTransferResult = {
+  shoppingListId: string;
+  listVersion: number;
+  changeSequence: number;
+  items: ShoppingItem[];
 };
 type MealShoppingLine = {
   recipeSnapshotId: string;
@@ -4813,6 +4830,22 @@ function LogisticsPage({ offline }: { offline: boolean }) {
   const { organizationId, campId } = useCampRuntime();
   const queryClient = useQueryClient();
   const basePath = `/api/v1/organizations/${organizationId}/camps/${campId}/logistics`;
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string | null>(
+    null,
+  );
+  const [transferringMaterial, setTransferringMaterial] = useState(false);
+  const [materialTargetListId, setMaterialTargetListId] = useState("");
+  const [materialTransferName, setMaterialTransferName] = useState("");
+  const [materialTransferQuantity, setMaterialTransferQuantity] = useState("1");
+  const [materialTransferUnit, setMaterialTransferUnit] = useState("4");
+  const [materialTransferCustomUnit, setMaterialTransferCustomUnit] =
+    useState("");
+  const [materialTransferStore, setMaterialTransferStore] = useState("");
+  const [materialTransferNote, setMaterialTransferNote] = useState("");
+  const [
+    materialTransferResponsibleUserIds,
+    setMaterialTransferResponsibleUserIds,
+  ] = useState<string[]>([]);
   const [selectedListId, setSelectedListId] = useState<string | null>(null);
   const [listName, setListName] = useState("");
   const [itemName, setItemName] = useState("");
@@ -4833,6 +4866,15 @@ function LogisticsPage({ offline }: { offline: boolean }) {
     queryKey: [organizationId, campId, "material"],
     queryFn: () =>
       getJson<MaterialRequirementSummary[]>(`${basePath}/material`),
+    retry: false,
+  });
+  const selectedMaterial = useQuery({
+    queryKey: [organizationId, campId, "material", selectedMaterialId],
+    queryFn: () =>
+      getJson<MaterialRequirement>(
+        `${basePath}/material/${selectedMaterialId}`,
+      ),
+    enabled: selectedMaterialId !== null,
     retry: false,
   });
   const members = useQuery({
@@ -5124,6 +5166,64 @@ function LogisticsPage({ offline }: { offline: boolean }) {
       setNotice(`${name} wurde in den Papierkorb verschoben.`);
     },
   });
+  const transferMaterial = useMutation({
+    mutationFn: () => {
+      const requirement = selectedMaterial.data;
+      const list = shoppingLists.data?.find(
+        (candidate) => candidate.id === materialTargetListId,
+      );
+      if (!requirement || !list)
+        throw new Error("Wähle eine aktuelle Einkaufsliste aus.");
+      return mutateCateringJson<ShoppingTransferResult>(
+        `${basePath}/shopping-lists/${list.id}/transfer/material/${requirement.id}`,
+        "POST",
+        {
+          expectedListVersion: list.version,
+          expectedRequirementVersion: requirement.version,
+          content: {
+            name: materialTransferName,
+            quantity: {
+              value: Number(materialTransferQuantity),
+              unit: Number(materialTransferUnit),
+              customUnitName:
+                materialTransferUnit === "5"
+                  ? materialTransferCustomUnit
+                  : null,
+            },
+            responsibleUserIds: materialTransferResponsibleUserIds,
+            store: materialTransferStore || null,
+            note: materialTransferNote || null,
+          },
+        },
+        list.version,
+        "Die Einkaufsliste wurde zwischenzeitlich geändert. Prüfe die aktuelle Liste und versuche es erneut.",
+      );
+    },
+    onSuccess: (result) => {
+      const targetName =
+        shoppingLists.data?.find(
+          (candidate) => candidate.id === result.shoppingListId,
+        )?.name ?? "die Einkaufsliste";
+      updateListSummary(result.shoppingListId, (summary) => ({
+        ...summary,
+        openItemCount: summary.openItemCount + result.items.length,
+        version: result.listVersion,
+        changeSequence: result.changeSequence,
+      }));
+      void queryClient.invalidateQueries({
+        queryKey: [
+          organizationId,
+          campId,
+          "shopping-list",
+          result.shoppingListId,
+        ],
+      });
+      setTransferringMaterial(false);
+      setNotice(
+        `${selectedMaterial.data?.name ?? materialTransferName} wurde in ${targetName} übernommen.`,
+      );
+    },
+  });
   const memberNames = new Map(
     (members.data ?? []).map((member) => [member.userId, member.displayName]),
   );
@@ -5146,13 +5246,29 @@ function LogisticsPage({ offline }: { offline: boolean }) {
             <h2>Materialbedarf</h2>
           </div>
           <QueryState loading={material.isLoading} error={material.error} />
-          <ul className="detail-list">
+          <ul className="detail-list material-summaries">
             {material.data?.map((requirement) => (
               <li key={requirement.id}>
-                <strong>{requirement.name}</strong>
-                <span>
-                  {materialStatusLabels[requirement.status] ?? "Offen"}
-                </span>
+                <div>
+                  <strong>{requirement.name}</strong>
+                  <span>
+                    {formatLogisticsQuantity(requirement.quantity)} ·{" "}
+                    {materialStatusLabels[requirement.status] ?? "Offen"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  className="secondary-action"
+                  aria-label={`${requirement.name} öffnen`}
+                  aria-expanded={selectedMaterialId === requirement.id}
+                  onClick={() => {
+                    setSelectedMaterialId(requirement.id);
+                    setTransferringMaterial(false);
+                    setNotice("");
+                  }}
+                >
+                  Material öffnen
+                </button>
               </li>
             ))}
           </ul>
@@ -5227,6 +5343,250 @@ function LogisticsPage({ offline }: { offline: boolean }) {
           ) : null}
         </section>
       </div>
+      {selectedMaterialId ? (
+        <section
+          className="settings-section material-detail"
+          aria-label="Geöffneter Materialbedarf"
+        >
+          <QueryState
+            loading={selectedMaterial.isLoading}
+            error={selectedMaterial.error}
+          />
+          {selectedMaterial.data ? (
+            <>
+              <div className="section-heading">
+                <div>
+                  <p className="eyebrow">
+                    {materialStatusLabels[selectedMaterial.data.status] ??
+                      "Offen"}
+                  </p>
+                  <h2>{selectedMaterial.data.name}</h2>
+                </div>
+                <div className="toolbar compact-toolbar">
+                  {!offline ? (
+                    <button
+                      type="button"
+                      className="primary-action"
+                      aria-label={`${selectedMaterial.data.name} einkaufen`}
+                      disabled={shoppingLists.data?.length === 0}
+                      onClick={() => {
+                        const requirement = selectedMaterial.data;
+                        setMaterialTargetListId(
+                          shoppingLists.data?.[0]?.id ?? "",
+                        );
+                        setMaterialTransferName(requirement.name);
+                        setMaterialTransferQuantity(
+                          String(requirement.quantity.value),
+                        );
+                        setMaterialTransferUnit(
+                          String(requirement.quantity.unit),
+                        );
+                        setMaterialTransferCustomUnit(
+                          requirement.quantity.customUnitName ?? "",
+                        );
+                        setMaterialTransferStore(
+                          requirement.procurementSource ?? "",
+                        );
+                        setMaterialTransferNote(requirement.note ?? "");
+                        setMaterialTransferResponsibleUserIds(
+                          requirement.responsibleUserIds,
+                        );
+                        transferMaterial.reset();
+                        setTransferringMaterial(true);
+                      }}
+                    >
+                      In Einkaufsliste übernehmen
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    className="secondary-action"
+                    onClick={() => {
+                      setSelectedMaterialId(null);
+                      setTransferringMaterial(false);
+                    }}
+                  >
+                    Material schließen
+                  </button>
+                </div>
+              </div>
+              {selectedMaterial.data.description ? (
+                <p>{selectedMaterial.data.description}</p>
+              ) : null}
+              <dl className="definition-grid">
+                <div>
+                  <dt>Menge</dt>
+                  <dd>
+                    {formatLogisticsQuantity(selectedMaterial.data.quantity)}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Beschaffungsquelle</dt>
+                  <dd>
+                    {selectedMaterial.data.procurementSource ??
+                      "Nicht angegeben"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Verantwortlich</dt>
+                  <dd>
+                    {selectedMaterial.data.responsibleUserIds.length
+                      ? selectedMaterial.data.responsibleUserIds
+                          .map(
+                            (userId) =>
+                              memberNames.get(userId) ?? "Camp-Mitglied",
+                          )
+                          .join(", ")
+                      : "Nicht zugewiesen"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Notiz</dt>
+                  <dd>{selectedMaterial.data.note ?? "Keine Notiz"}</dd>
+                </div>
+              </dl>
+              {shoppingLists.data?.length === 0 && !offline ? (
+                <p className="form-hint">
+                  Lege zuerst eine Einkaufsliste an, um Material zu übernehmen.
+                </p>
+              ) : null}
+              {transferringMaterial ? (
+                <form
+                  className="schedule-create-form material-transfer"
+                  aria-label="Material in Einkaufsliste übernehmen"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    setNotice("");
+                    transferMaterial.mutate();
+                  }}
+                >
+                  <h3>Material übernehmen</h3>
+                  <p className="form-hint">
+                    Menge und Einheit können vor der Übernahme angepasst werden.
+                    Die Materialquelle bleibt nachvollziehbar erhalten.
+                  </p>
+                  <div className="camp-form-grid">
+                    <label>
+                      Ziel-Einkaufsliste
+                      <select
+                        required
+                        value={materialTargetListId}
+                        onChange={(event) =>
+                          setMaterialTargetListId(event.target.value)
+                        }
+                      >
+                        {shoppingLists.data?.map((list) => (
+                          <option key={list.id} value={list.id}>
+                            {list.name}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
+                      Bezeichnung der Einkaufsposition
+                      <input
+                        required
+                        value={materialTransferName}
+                        onChange={(event) =>
+                          setMaterialTransferName(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Menge für die Einkaufsposition
+                      <input
+                        required
+                        type="number"
+                        min="0.000001"
+                        step="any"
+                        inputMode="decimal"
+                        value={materialTransferQuantity}
+                        onChange={(event) =>
+                          setMaterialTransferQuantity(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>
+                      Einheit der Einkaufsposition
+                      <select
+                        value={materialTransferUnit}
+                        onChange={(event) =>
+                          setMaterialTransferUnit(event.target.value)
+                        }
+                      >
+                        {Object.entries(shoppingUnitLabels).map(
+                          ([unit, label]) => (
+                            <option key={unit} value={unit}>
+                              {label}
+                            </option>
+                          ),
+                        )}
+                      </select>
+                    </label>
+                    {materialTransferUnit === "5" ? (
+                      <label>
+                        Name der benutzerdefinierten Einheit
+                        <input
+                          required
+                          value={materialTransferCustomUnit}
+                          onChange={(event) =>
+                            setMaterialTransferCustomUnit(event.target.value)
+                          }
+                        />
+                      </label>
+                    ) : null}
+                    <label>
+                      Geschäft (optional)
+                      <input
+                        value={materialTransferStore}
+                        onChange={(event) =>
+                          setMaterialTransferStore(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label className="full-row">
+                      Notiz (optional)
+                      <textarea
+                        value={materialTransferNote}
+                        onChange={(event) =>
+                          setMaterialTransferNote(event.target.value)
+                        }
+                      />
+                    </label>
+                  </div>
+                  <ResponsibilityFields
+                    candidates={members.data ?? []}
+                    selected={materialTransferResponsibleUserIds}
+                    onChange={setMaterialTransferResponsibleUserIds}
+                  />
+                  {transferMaterial.error ? (
+                    <p role="alert" className="error-message">
+                      {transferMaterial.error.message}
+                    </p>
+                  ) : null}
+                  <div className="toolbar">
+                    <button
+                      type="submit"
+                      className="primary-action"
+                      disabled={transferMaterial.isPending}
+                    >
+                      Material übernehmen
+                    </button>
+                    <button
+                      type="button"
+                      className="secondary-action"
+                      disabled={transferMaterial.isPending}
+                      onClick={() => setTransferringMaterial(false)}
+                    >
+                      Abbrechen
+                    </button>
+                  </div>
+                </form>
+              ) : null}
+            </>
+          ) : null}
+        </section>
+      ) : null}
       {selectedListId ? (
         <section
           className="settings-section shopping-list-detail"

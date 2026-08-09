@@ -22,7 +22,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | T01 ingredients and recipes           | verified    | Normalize/merge, decimal units, recipe versions and private attachments                     | Recipe files were unreachable from their owner         | 14 Catering, 28 Files, 29 React + full gate/browser  | Catering/Files contexts, recipe help      | pending   | Start T02 meal and snapshot UI         |
 | T02 meals and snapshots               | verified    | Portion scaling, stable/refreshable snapshots and atomic schedule workflow                  | Reviewed shopping transfer was unreachable             | 14 Catering, 32 React + full gate/browser            | Catering/Logistics contexts, recipe help  | pending   | Start live Logistics UI                |
 | L01 material                          | in_progress | Camp/schedule material, responsibilities and procurement status                             | Hard delete removed material immediately               | 16 Logistics + PostgreSQL cleanup green              | Logistics context, help                   | pending   | complete UI and visual verification    |
-| L02 shopping                          | in_progress | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Sourced items had no edit or trash action              | 19 Logistics, 34 React + full gate/browser           | Logistics context, shopping help          | pending   | compose material into shopping lists   |
+| L02 shopping                          | verified    | Named lists, unified sourced items, editable transfer, concurrent check-off and polling     | Material summaries had no reviewed transfer action     | 19 Logistics, 35 React + full gate/browser           | Logistics context, shopping help          | pending   | Start complete L01 material UI         |
 | S01 devotions and Bible               | in_progress | Four translations, attribution, provider/stub, resilient immutable snapshots and refresh    | Invalid schedule link was accepted                     | 24 Spiritual + atomic PostgreSQL green               | Spiritual context, schedule help          | pending   | complete devotion and Bible UI         |
 | K01 notebook                          | pending     | Safe Markdown notes, tags, pins and typed links                                             | pending                                                | pending                                              | Knowledge context, help                   | pending   | after I03                              |
 | F02 attachments                       | pending     | Magic-byte/MIME/extension checks, quotas, private authorized image/PDF delivery             | pending                                                | pending                                              | Files context, help                       | pending   | after module CRUD                      |
@@ -274,3 +274,13 @@ This file is the resumable evidence ledger. Commands are run from the repository
   the same controls inside the 610 px viewport without a fixed minimum width. The full gate passed in 192.5 seconds
   with 19 Logistics and 34 React tests plus build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green.
   L02 remains open only for composing planned material into a shopping list and its final audit.
+- 2026-08-09: L02 closes with the reviewed material-to-shopping-list composition. A material summary now opens its
+  full server detail with description, decimal quantity/unit, procurement source, note, status and Camp-directory
+  responsibilities. Writers can choose any current Camp list and edit name, positive decimal quantity/unit, store,
+  note and responsibilities before transfer; archived Camps expose no action. The atomic request carries
+  antiforgery, list Version 5 in `If-Match` and the body, and independently loaded material Version 3. The resulting
+  item preserves that exact material id/version provenance. The red interaction first failed on the missing material
+  open action. All 35 React tests pass. In the rendered 610 px browser journey, the 578 px detail and 539.8 px form
+  remained inside the document; changing the quantity to six and submitting increased the live list counter from
+  zero to one and showed the German success status. The complete gate passed in 219.5 seconds with 19 Logistics plus
+  build, format, lint, PostgreSQL RLS/privacy, cleanup, PWA and Help green; L02 is verified.

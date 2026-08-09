@@ -1662,6 +1662,176 @@ describe("camp workspace", () => {
     });
   });
 
+  it("reviews a material requirement before transferring it to a chosen shopping list", async () => {
+    const materialId = "48000000-0000-0000-0000-000000000001";
+    const listId = "49000000-0000-0000-0000-000000000001";
+    const memberId = "10000000-0000-0000-0000-000000000001";
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.endsWith(
+            `/shopping-lists/${listId}/transfer/material/${materialId}`,
+          )
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                shoppingListId: listId,
+                listVersion: 6,
+                changeSequence: 12,
+                items: [
+                  {
+                    id: "4a000000-0000-0000-0000-000000000001",
+                    shoppingListId: listId,
+                    name: "Turnierbälle",
+                    quantity: { value: 6, unit: 4, customUnitName: null },
+                    responsibleUserIds: [memberId],
+                    store: "Sportgeschäft",
+                    note: "Größe 5",
+                    source: {
+                      kind: 2,
+                      label: "Material · Turnierbälle",
+                    },
+                    isChecked: false,
+                    checkedByUserId: null,
+                    checkedAt: null,
+                    version: 1,
+                  },
+                ],
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith(`/logistics/material/${materialId}`))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: materialId,
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                campId: "30000000-0000-0000-0000-000000000001",
+                name: "Turnierbälle",
+                description: "Für das Geländeturnier",
+                quantity: { value: 4, unit: 4, customUnitName: null },
+                responsibleUserIds: [memberId],
+                procurementSource: "Sportgeschäft",
+                note: "Größe 5",
+                status: 1,
+                scheduleEntryId: null,
+                version: 3,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/logistics/material"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: materialId,
+                  name: "Turnierbälle",
+                  quantity: { value: 4, unit: 4, customUnitName: null },
+                  status: 1,
+                  scheduleEntryId: null,
+                  version: 3,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/responsibility-candidates"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                { userId: memberId, displayName: "Miriam Muster" },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.endsWith("/logistics/shopping-lists"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: listId,
+                  name: "Großeinkauf Dienstag",
+                  openItemCount: 0,
+                  checkedItemCount: 0,
+                  version: 5,
+                  changeSequence: 11,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Turnierbälle öffnen" }),
+    );
+    expect(await screen.findByText("Für das Geländeturnier")).toBeVisible();
+    expect(screen.getByText("Miriam Muster")).toBeVisible();
+    await user.click(
+      screen.getByRole("button", { name: "Turnierbälle einkaufen" }),
+    );
+    expect(
+      screen.getByText(/^Menge und Einheit können vor der Übernahme/),
+    ).toBeVisible();
+    const quantity = screen.getByRole("spinbutton", {
+      name: "Menge für die Einkaufsposition",
+    });
+    await user.clear(quantity);
+    await user.type(quantity, "6");
+    await user.click(
+      screen.getByRole("button", { name: "Material übernehmen" }),
+    );
+    expect(
+      await screen.findByText(
+        "Turnierbälle wurde in Großeinkauf Dienstag übernommen.",
+      ),
+    ).toHaveAttribute("role", "status");
+
+    const transferCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(
+          `/shopping-lists/${listId}/transfer/material/${materialId}`,
+        ) && init?.method === "POST",
+    );
+    expect(transferCall?.[1]?.headers).toMatchObject({
+      "X-CSRF-TOKEN": "csrf-token",
+      "If-Match": '"5"',
+    });
+    expect(JSON.parse(transferCall?.[1]?.body as string)).toEqual({
+      expectedListVersion: 5,
+      expectedRequirementVersion: 3,
+      content: {
+        name: "Turnierbälle",
+        quantity: { value: 6, unit: 4, customUnitName: null },
+        responsibleUserIds: [memberId],
+        store: "Sportgeschäft",
+        note: "Größe 5",
+      },
+    });
+  });
+
   it("adds and checks live shopping items with independent versions", async () => {
     const listId = "49000000-0000-0000-0000-000000000001";
     const potatoId = "4a000000-0000-0000-0000-000000000001";
