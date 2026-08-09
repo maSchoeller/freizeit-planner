@@ -46,7 +46,7 @@
 - Trashed note summaries expose deletion and purge timestamps to the root-owned aggregate Camp trash endpoint;
   only `ManageCamp` actors can request these summaries or restore a note.
 - Activity/Search receive metadata or bounded summaries only. Markdown is never written to activity or diagnostic
-  logs. Files attachments remain a later host/Files composition seam.
+  logs. Note attachments stay behind the host/Files composition seam described below.
 - Privacy maintenance deletes an Organization's complete notebook and pseudonymizes required creator/updater/trash
   audit fields with the non-identifying empty UUID before Identity finalizes an erased account.
 - The Camp notebook page creates and revises a shared note through antiforgery-protected, versioned HTTP contracts;
@@ -55,9 +55,13 @@
   renders only server-produced `RenderedHtml`; raw client Markdown is never treated as trusted HTML. The current list
   can be narrowed by title, excerpt or tag.
 - Moving an opened note to trash requires an explicit acknowledgement and the current ETag version. The active list
-  and cached detail are removed only after the server confirms the 30-day soft delete. Camp trash restore and private
-  attachments remain later UI slices; no module persistence crosses the Contracts/HTTP boundary.
+  and cached detail are removed only after the server confirms the 30-day soft delete. Camp trash restore remains a
+  later UI slice; no module persistence crosses the Contracts/HTTP boundary.
 - While a create or revision form is open, the UI composes the authorized Camps, Catering, Logistics and Spiritual
   read endpoints into a typed target selector. Its write payload carries only `Type` and `TargetId`; Knowledge resolves
   and stores the trusted title snapshot under the current actor, Organization and Camp scope. Returned links display
-  their German type label and server title. Camp trash restore and private attachments remain later UI slices.
+  their German type label and server title. Camp trash restore remains a later UI slice.
+- An opened active Note composes the private Files HTTP routes with `ownerType=Note`. The Files owner authorization
+  adapter re-reads the scoped Note before list, upload, read grant or delete; Knowledge does not access Files storage
+  or persistence. The UI exposes Camp quota, allowed upload, short-lived open and versioned 30-day attachment trash.
+  Archived Camps retain file reads but hide all attachment mutations.

@@ -3941,6 +3941,178 @@ describe("camp workspace", () => {
     });
   });
 
+  it("uploads and moves a private note attachment to the camp trash", async () => {
+    const noteId = "52000000-0000-0000-0000-000000000004";
+    const attachmentId = "4f000000-0000-0000-0000-000000000006";
+    const note = {
+      id: noteId,
+      organizationId: "20000000-0000-0000-0000-000000000001",
+      campId: "30000000-0000-0000-0000-000000000001",
+      title: "Teamabsprachen",
+      markdown: "## Treffpunkt\nBitte pünktlich sein.",
+      renderedHtml: "<h2>Treffpunkt</h2><p>Bitte pünktlich sein.</p>",
+      tags: ["Team"],
+      isPinned: false,
+      links: [],
+      state: 0,
+      createdAt: "2026-08-09T20:00:00Z",
+      createdBy: "10000000-0000-0000-0000-000000000001",
+      updatedAt: "2026-08-09T20:00:00Z",
+      updatedBy: "10000000-0000-0000-0000-000000000001",
+      trashedAt: null,
+      trashedBy: null,
+      purgeAfter: null,
+      version: 1,
+    };
+    const attachment = {
+      id: attachmentId,
+      originalFileName: "Treffpunkt.pdf",
+      mediaType: 0,
+      contentType: "application/pdf",
+      sizeBytes: 204800,
+      version: 2,
+    };
+    const fetchMock = vi.fn(
+      (request: RequestInfo | URL, init?: RequestInit) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/auth/antiforgery")
+          return Promise.resolve(
+            new Response(JSON.stringify({ token: "csrf-token" }), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (
+          init?.method === "POST" &&
+          path.includes(`/files?ownerType=Note&ownerId=${noteId}`)
+        )
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                ...attachment,
+                id: "4f000000-0000-0000-0000-000000000007",
+                originalFileName: "Lageplan.png",
+                mediaType: 2,
+                contentType: "image/png",
+                sizeBytes: 8,
+                version: 1,
+              }),
+              { status: 201, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (
+          init?.method === "DELETE" &&
+          path.endsWith(`/files/${attachmentId}`)
+        )
+          return Promise.resolve(new Response(null, { status: 204 }));
+        if (path.endsWith("/files/quota"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                limitBytes: 104857600,
+                usedBytes: 1048576,
+                pendingBytes: 0,
+                availableBytes: 103809024,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path.includes(`/files?ownerType=Note&ownerId=${noteId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify([attachment]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path.endsWith(`/notes/${noteId}`))
+          return Promise.resolve(
+            new Response(JSON.stringify(note), {
+              status: 200,
+              headers: { "Content-Type": "application/json", ETag: '"1"' },
+            }),
+          );
+        if (path.endsWith("/notes"))
+          return Promise.resolve(
+            new Response(
+              JSON.stringify([
+                {
+                  id: noteId,
+                  title: note.title,
+                  plainTextExcerpt: "Treffpunkt Bitte pünktlich sein.",
+                  tags: note.tags,
+                  isPinned: false,
+                  linkCount: 0,
+                  state: 0,
+                  updatedAt: note.updatedAt,
+                  trashedAt: null,
+                  purgeAfter: null,
+                  version: 1,
+                },
+              ]),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      },
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const user = userEvent.setup();
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/notizen");
+
+    await user.click(
+      await screen.findByRole("button", { name: "Teamabsprachen öffnen" }),
+    );
+    const files = await screen.findByRole("region", {
+      name: "Dateien zu Teamabsprachen",
+    });
+    expect(await within(files).findByText("Treffpunkt.pdf")).toBeVisible();
+    const upload = new File(
+      [new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+      "Lageplan.png",
+      { type: "image/png" },
+    );
+    await user.upload(
+      within(files).getByLabelText("Datei für die Notiz"),
+      upload,
+    );
+    await user.click(
+      within(files).getByRole("button", { name: "Lageplan.png hochladen" }),
+    );
+    expect(
+      await within(files).findByText("Lageplan.png wurde sicher hochgeladen."),
+    ).toHaveAttribute("role", "status");
+
+    await user.click(
+      within(files).getByRole("button", { name: "Treffpunkt.pdf löschen" }),
+    );
+    await user.click(
+      within(files).getByRole("checkbox", {
+        name: "Treffpunkt.pdf wirklich in den Papierkorb verschieben",
+      }),
+    );
+    await user.click(
+      within(files).getByRole("button", {
+        name: "Datei in Papierkorb verschieben",
+      }),
+    );
+    expect(
+      await within(files).findByText(
+        "Treffpunkt.pdf wurde in den Papierkorb verschoben.",
+      ),
+    ).toHaveAttribute("role", "status");
+    const deleteCall = fetchMock.mock.calls.find(
+      ([request, init]) =>
+        requestPath(request).endsWith(`/files/${attachmentId}`) &&
+        init?.method === "DELETE",
+    );
+    expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
+  });
+
   it("offers every planning area as a real route", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/logistik");
     expect(

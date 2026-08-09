@@ -34,3 +34,7 @@ Administration wiederhergestellt werden.
 Private Dateien werden direkt am zugehörigen Planungsobjekt verwaltet. Unterstützt werden PDF, JPEG, PNG und WebP bis
 zehn MiB. Das Öffnen verwendet eine kurze, einmalige Leseberechtigung; Löschen verschiebt die Datei zunächst für 30
 Tage in den Camp-Papierkorb. Eine Malware-Prüfung ist nicht enthalten – lade nur vertrauenswürdige Dateien hoch.
+
+Öffne eine Notiz, um darunter ihre privaten Dateien zu sehen. Dort kannst du die Camp-Quota prüfen, eine erlaubte
+Datei hochladen, sie nach einer aktuellen Berechtigungsprüfung öffnen oder nach ausdrücklicher Bestätigung in den
+Papierkorb verschieben. In archivierten Camps bleiben vorhandene Dateien lesbar; Hochladen und Löschen sind gesperrt.

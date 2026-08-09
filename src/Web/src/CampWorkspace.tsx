@@ -2666,10 +2666,10 @@ function OwnerAttachmentsPanel({
 }: {
   organizationId: string;
   campId?: string;
-  ownerType: "Recipe" | "MaterialRequirement" | "Devotion";
+  ownerType: "Recipe" | "MaterialRequirement" | "Devotion" | "Note";
   ownerId: string;
   ownerName: string;
-  ownerNoun: "das Rezept" | "das Material" | "die Andacht";
+  ownerNoun: "das Rezept" | "das Material" | "die Andacht" | "die Notiz";
   canUpload: boolean;
   canDelete?: boolean;
 }) {
@@ -2932,11 +2932,13 @@ function OwnerAttachmentsPanel({
             uploadAttachment.mutate();
           }}
         >
-          <label>
-            Datei für {ownerNoun}
+          <label className="attachment-file-picker">
+            <span>Datei für {ownerNoun}</span>
             <input
               key={inputKey}
+              className="attachment-file-picker-input"
               type="file"
+              aria-label={`Datei für ${ownerNoun}`}
               accept="application/pdf,image/jpeg,image/png,image/webp"
               onChange={(event) => {
                 setSelectedFile(event.target.files?.[0] ?? null);
@@ -2944,6 +2946,12 @@ function OwnerAttachmentsPanel({
                 uploadAttachment.reset();
               }}
             />
+            <span className="attachment-file-picker-control">
+              <span className="secondary-action attachment-file-picker-button">
+                Datei auswählen
+              </span>
+              <span>{selectedFile?.name ?? "Keine Datei ausgewählt"}</span>
+            </span>
           </label>
           <button
             type="submit"
@@ -8093,6 +8101,16 @@ function NotesPage({ offline }: { offline: boolean }) {
                   </ul>
                 </section>
               ) : null}
+              <OwnerAttachmentsPanel
+                organizationId={organizationId}
+                campId={campId}
+                ownerType="Note"
+                ownerId={detail.data.id}
+                ownerName={detail.data.title}
+                ownerNoun="die Notiz"
+                canUpload={!offline}
+                canDelete={!offline}
+              />
               {!offline && !confirmTrash ? (
                 <button
                   type="button"
