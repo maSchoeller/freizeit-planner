@@ -42,6 +42,8 @@
   <Folder Name="/tests/">
     <Project Path="tests/Activity.Tests/Activity.Tests.csproj" />
     <Project Path="tests/Api.Tests/Api.Tests.csproj" />
+    <Project Path="tests/Architecture.Tests/Architecture.Tests.csproj" />
+    <Project Path="tests/Aspire.Tests/Aspire.Tests.csproj" />
     <Project Path="tests/Camps.Tests/Camps.Tests.csproj" />
     <Project Path="tests/Catering.Tests/Catering.Tests.csproj" />
     <Project Path="tests/Cleanup.Tests/Cleanup.Tests.csproj" />

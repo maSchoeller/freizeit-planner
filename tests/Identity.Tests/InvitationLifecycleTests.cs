@@ -250,6 +250,160 @@ public sealed class InvitationLifecycleTests
             || item.Partition.Contains("192.0.2.25", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void InvitationPepperMustBeCryptographicallySized()
+    {
+        var fixture = LifecycleFixture.Create();
+
+        Assert.Throws<ArgumentException>(() =>
+            new IdentityLifecycleService(fixture.State, fixture.Clock, new byte[31]));
+    }
+
+    [Fact]
+    public async Task PlatformInvitationValidatesActorSlugEmailAndConflicts()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var notAdmin = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
+                fixture.OwnerId, "team@example.test", "Neue Organization", "neu", "192.0.2.1"),
+                cancellationToken));
+        var conflict = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
+                fixture.PlatformAdminId, "team@example.test", "Doppelt", "sonnenhoehe", "192.0.2.1"),
+                cancellationToken));
+        var slug = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
+                fixture.PlatformAdminId, "team@example.test", "Ungültig", "-ungültig", "192.0.2.1"),
+                cancellationToken));
+        var email = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
+                fixture.PlatformAdminId, "keine-email", "Ungültig", "gueltig", "192.0.2.1"),
+                cancellationToken));
+
+        Assert.Equal("platform_admin_required", notAdmin.ErrorCode);
+        Assert.Equal("organization_slug_conflict", conflict.ErrorCode);
+        Assert.Equal("slug_invalid", slug.ErrorCode);
+        Assert.Equal("email_invalid", email.ErrorCode);
+    }
+
+    [Fact]
+    public async Task TeamInvitationValidatesManagerRoleAndRoleScope()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var memberId = Guid.NewGuid();
+        fixture.State.Users.Add(new LifecycleUser(memberId, "member@example.test", "MEMBER@EXAMPLE.TEST", "Member"));
+        fixture.State.Memberships.Add(new MembershipRecord(fixture.OrganizationId, memberId, TenantRole.Member));
+
+        var escalation = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.IssueTeamInvitationAsync(new TeamInvitationRequest(memberId, fixture.OrganizationId,
+                "neu@example.test", TenantRole.Viewer, fixture.CampId, "192.0.2.1"), cancellationToken));
+        var missingCamp = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.IssueTeamInvitationAsync(new TeamInvitationRequest(fixture.OwnerId, fixture.OrganizationId,
+                "neu@example.test", TenantRole.Member, null, "192.0.2.1"), cancellationToken));
+        var unexpectedCamp = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.IssueTeamInvitationAsync(new TeamInvitationRequest(fixture.OwnerId, fixture.OrganizationId,
+                "admin@example.test", TenantRole.OrganizationAdmin, fixture.CampId, "192.0.2.1"), cancellationToken));
+
+        Assert.Equal("role_escalation", escalation.ErrorCode);
+        Assert.Equal("role_scope_invalid", missingCamp.ErrorCode);
+        Assert.Equal("role_scope_invalid", unexpectedCamp.ErrorCode);
+    }
+
+    [Fact]
+    public async Task InvitationManagementCoversListingRevocationMissingAndUsedRotation()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var invitation = await fixture.Service.IssueTeamInvitationAsync(new TeamInvitationRequest(
+            fixture.OwnerId, fixture.OrganizationId, "viewer@example.test", TenantRole.Viewer,
+            fixture.CampId, "192.0.2.1"), cancellationToken);
+        Assert.Single(await fixture.Service.ListInvitationsAsync(
+            fixture.OwnerId, fixture.OrganizationId, cancellationToken));
+        await fixture.Service.RevokeInvitationAsync(fixture.OwnerId, invitation.Id, cancellationToken);
+        Assert.True(Assert.Single(await fixture.Service.ListInvitationsAsync(
+            fixture.OwnerId, fixture.OrganizationId, cancellationToken)).IsRevoked);
+        var missing = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.RotateInvitationAsync(fixture.OwnerId, Guid.NewGuid(), cancellationToken));
+
+        var acceptedInvitation = await fixture.Service.IssueTeamInvitationAsync(new TeamInvitationRequest(
+            fixture.OwnerId, fixture.OrganizationId, "used@example.test", TenantRole.Viewer,
+            fixture.CampId, "192.0.2.2"), cancellationToken);
+        _ = await fixture.Service.AcceptInvitationAsync(
+            new AcceptInvitationRequest(acceptedInvitation.Token, "Used"), cancellationToken);
+        var used = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.RotateInvitationAsync(fixture.OwnerId, acceptedInvitation.Id, cancellationToken));
+
+        Assert.Equal("invitation_not_found", missing.ErrorCode);
+        Assert.Equal("invitation_used", used.ErrorCode);
+    }
+
+    [Fact]
+    public async Task InvitationAcceptanceRejectsMalformedTamperedAndConcurrentTokens()
+    {
+        var fixture = LifecycleFixture.Create();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var invitation = await fixture.CreateOrganizationInvitationAsync(cancellationToken);
+        var malformed = await fixture.Service.AcceptInvitationAsync(
+            new AcceptInvitationRequest("invalid", "Person"), cancellationToken);
+        var tampered = await fixture.Service.AcceptInvitationAsync(
+            new AcceptInvitationRequest(invitation.Token[..^1] + "x", "Person"), cancellationToken);
+        fixture.State.RejectInvitationAcceptance = true;
+        var concurrent = await fixture.Service.AcceptInvitationAsync(
+            new AcceptInvitationRequest(invitation.Token, "Person"), cancellationToken);
+
+        Assert.Equal(InvitationAcceptanceOutcome.Invalid, malformed.Outcome);
+        Assert.Equal(InvitationAcceptanceOutcome.Invalid, tampered.Outcome);
+        Assert.Equal(InvitationAcceptanceOutcome.Used, concurrent.Outcome);
+    }
+
+    [Fact]
+    public async Task AccountViewsSkipInactiveAndMissingOrganizationsAndAllowNonOwnerLeave()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var account = await fixture.Service.UpdateDisplayNameAsync(
+            fixture.OwnerId, "  Miriam Muster  ", cancellationToken);
+        Assert.Equal("Miriam Muster", account.DisplayName);
+        Assert.Equal(account, await fixture.Service.GetAccountAsync(fixture.OwnerId, cancellationToken));
+
+        var inactiveOrganizationId = Guid.NewGuid();
+        var inactive = new MembershipRecord(inactiveOrganizationId, fixture.OwnerId, TenantRole.Member);
+        inactive.Leave();
+        fixture.State.Memberships.Add(inactive);
+        fixture.State.Memberships.Add(new MembershipRecord(Guid.NewGuid(), fixture.OwnerId, TenantRole.Member));
+        Assert.Single(await fixture.Service.ListMembershipsAsync(fixture.OwnerId, cancellationToken));
+
+        var memberId = Guid.NewGuid();
+        fixture.State.Users.Add(new LifecycleUser(memberId, "member@example.test", "MEMBER@EXAMPLE.TEST", "Member"));
+        fixture.State.Memberships.Add(new MembershipRecord(fixture.OrganizationId, memberId, TenantRole.Member));
+        await fixture.Service.LeaveOrganizationAsync(memberId, fixture.OrganizationId, cancellationToken);
+        Assert.False(Assert.Single(fixture.State.Memberships, item => item.UserId == memberId).IsActive);
+    }
+
+    [Fact]
+    public async Task OrganizationDeletionRejectsFutureAuthenticationAndNonOwnerCancellation()
+    {
+        var fixture = LifecycleFixture.CreateWithOrganization();
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var future = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.ScheduleOrganizationDeletionAsync(new OrganizationDeletionRequest(
+                fixture.OwnerId, fixture.OrganizationId, "sonnenhoehe", fixture.Clock.GetUtcNow().AddMinutes(1)),
+                cancellationToken));
+        var memberId = Guid.NewGuid();
+        fixture.State.Users.Add(new LifecycleUser(memberId, "member@example.test", "MEMBER@EXAMPLE.TEST", "Member"));
+        fixture.State.Memberships.Add(new MembershipRecord(fixture.OrganizationId, memberId, TenantRole.Member));
+        var nonOwner = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CancelOrganizationDeletionAsync(memberId, fixture.OrganizationId, cancellationToken));
+        var missing = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.CancelOrganizationDeletionAsync(fixture.OwnerId, Guid.NewGuid(), cancellationToken));
+
+        Assert.Equal("fresh_reauthentication_required", future.ErrorCode);
+        Assert.Equal("owner_required", nonOwner.ErrorCode);
+        Assert.Equal("organization_not_found", missing.ErrorCode);
+    }
+
     private sealed record LifecycleFixture(
         Guid PlatformAdminId,
         Guid OwnerId,
@@ -341,6 +495,8 @@ public sealed class InvitationLifecycleTests
         public List<CampAssignmentRecord> Assignments { get; } = [];
 
         public List<RateEvent> RateEvents { get; } = [];
+
+        public bool RejectInvitationAcceptance { get; set; }
 
         public IEnumerable<string> StoredInvitationHashes => Invitations.Select(item => item.TokenHash);
 
@@ -434,6 +590,10 @@ public sealed class InvitationLifecycleTests
             CampAssignmentRecord? assignment,
             CancellationToken cancellationToken)
         {
+            if (RejectInvitationAcceptance)
+            {
+                return ValueTask.FromResult(false);
+            }
             var stored = Invitations.SingleOrDefault(item => item.Id == invitation.Id);
             if (stored is { UsedAt: not null } && !ReferenceEquals(stored, invitation))
             {

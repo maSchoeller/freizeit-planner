@@ -243,6 +243,130 @@ public sealed class TenantAuthorizationTests
         Assert.Equal("platform_admin_required", denied.ErrorCode);
     }
 
+    [Fact]
+    public async Task AuthorizationDenialsCoverUnknownInactiveAndUnassignedActors()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var unknown = AuthorizationFixture.Create(TenantRole.Member);
+        unknown.State.Users.Clear();
+        var unknownDecision = await unknown.Service.AuthorizeOrganizationAsync(
+            new OrganizationAccessRequest(unknown.ActorId, unknown.OrganizationId, OrganizationAction.Read),
+            cancellationToken);
+
+        var inactive = AuthorizationFixture.Create(TenantRole.Member);
+        inactive.State.Memberships[0].Remove(inactive.State.Memberships[0].Version);
+        var inactiveDecision = await inactive.Service.AuthorizeOrganizationAsync(
+            new OrganizationAccessRequest(inactive.ActorId, inactive.OrganizationId, OrganizationAction.Read),
+            cancellationToken);
+
+        var unassigned = AuthorizationFixture.Create(TenantRole.Viewer);
+        var campDecision = await unassigned.Service.AuthorizeCampAsync(
+            new CampAccessRequest(unassigned.ActorId, unassigned.OrganizationId, unassigned.CampId, CampAction.Read),
+            cancellationToken);
+        var directory = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            unassigned.Service.ListCampMembersAsync(
+                new CampMemberDirectoryQuery(unassigned.ActorId, unassigned.OrganizationId, unassigned.CampId),
+                cancellationToken));
+
+        Assert.Equal(TenantAccessDenial.ActorUnknown, unknownDecision.Denial);
+        Assert.Equal(TenantAccessDenial.MembershipRequired, inactiveDecision.Denial);
+        Assert.Equal(TenantAccessDenial.CampAssignmentRequired, campDecision.Denial);
+        Assert.Equal("camp_access_denied", directory.ErrorCode);
+    }
+
+    [Fact]
+    public async Task OwnerCanManageNonLastMembersAndCampAssignments()
+    {
+        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        _ = fixture.AddMember(TenantRole.Owner);
+        var memberId = fixture.AddMember(TenantRole.Member);
+
+        var changed = await fixture.Service.ChangeOrganizationRoleAsync(
+            new OrganizationRoleChange(fixture.ActorId, fixture.OrganizationId, memberId,
+                TenantRole.Viewer, 1), cancellationToken);
+        var assigned = await fixture.Service.AssignCampMemberAsync(
+            new CampMemberAssignment(fixture.ActorId, fixture.OrganizationId, fixture.CampId,
+                memberId, TenantRole.Member, null), cancellationToken);
+        var reassigned = await fixture.Service.AssignCampMemberAsync(
+            new CampMemberAssignment(fixture.ActorId, fixture.OrganizationId, fixture.CampId,
+                memberId, TenantRole.Viewer, assigned.Version), cancellationToken);
+        await fixture.Service.RemoveCampMemberAsync(
+            new CampMemberRemoval(fixture.ActorId, fixture.OrganizationId, fixture.CampId,
+                memberId, reassigned.Version), cancellationToken);
+        await fixture.Service.RemoveOrganizationMemberAsync(
+            new OrganizationMemberRemoval(fixture.ActorId, fixture.OrganizationId, memberId, changed.Version),
+            cancellationToken);
+
+        Assert.False(fixture.State.Memberships.Single(item => item.UserId == memberId).IsActive);
+        Assert.False(fixture.State.Assignments.Single(item => item.UserId == memberId).IsActive);
+    }
+
+    [Fact]
+    public async Task CampAssignmentRulesRejectScopeVersionEscalationAndMissingTargets()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var owner = AuthorizationFixture.Create(TenantRole.Owner);
+        var memberId = owner.AddMember(TenantRole.Member);
+        var invalidScope = await Assert.ThrowsAsync<IdentityRuleException>(() => owner.Service.AssignCampMemberAsync(
+            new CampMemberAssignment(owner.ActorId, owner.OrganizationId, owner.CampId,
+                memberId, TenantRole.Owner, null), cancellationToken));
+        var version = await Assert.ThrowsAsync<IdentityRuleException>(() => owner.Service.AssignCampMemberAsync(
+            new CampMemberAssignment(owner.ActorId, owner.OrganizationId, owner.CampId,
+                memberId, TenantRole.Member, 1), cancellationToken));
+        var missing = await Assert.ThrowsAsync<IdentityRuleException>(() => owner.Service.RemoveCampMemberAsync(
+            new CampMemberRemoval(owner.ActorId, owner.OrganizationId, owner.CampId,
+                memberId, 1), cancellationToken));
+
+        var lead = AuthorizationFixture.Create(TenantRole.Member, TenantRole.CampLead);
+        var otherLeadId = lead.AddMember(TenantRole.Member);
+        lead.State.Assignments.Add(new CampAssignmentRecord(
+            lead.OrganizationId, lead.CampId, otherLeadId, TenantRole.CampLead));
+        var escalation = await Assert.ThrowsAsync<IdentityRuleException>(() => lead.Service.AssignCampMemberAsync(
+            new CampMemberAssignment(lead.ActorId, lead.OrganizationId, lead.CampId,
+                otherLeadId, TenantRole.CampLead, 1), cancellationToken));
+        var removal = await Assert.ThrowsAsync<IdentityRuleException>(() => lead.Service.RemoveCampMemberAsync(
+            new CampMemberRemoval(lead.ActorId, lead.OrganizationId, lead.CampId,
+                otherLeadId, 1), cancellationToken));
+
+        Assert.Equal("role_scope_invalid", invalidScope.ErrorCode);
+        Assert.Equal("version_conflict", version.ErrorCode);
+        Assert.Equal("camp_assignment_not_found", missing.ErrorCode);
+        Assert.Equal("role_escalation", escalation.ErrorCode);
+        Assert.Equal("role_escalation", removal.ErrorCode);
+    }
+
+    [Fact]
+    public async Task PlatformStatusChangesRejectMissingAndErasingOrganizations()
+    {
+        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        fixture.State.Users[0] = new LifecycleUser(
+            fixture.ActorId, "platform@example.test", "PLATFORM@EXAMPLE.TEST", "Platform Admin", true);
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var missing = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.ChangeOrganizationStatusAsync(new OrganizationStatusChange(
+                fixture.ActorId, Guid.NewGuid(), OrganizationStatus.Active, 1), cancellationToken));
+        fixture.State.Organizations[0].ChangeStatus(OrganizationStatus.Erasing, 1);
+        var erasing = await Assert.ThrowsAsync<IdentityRuleException>(() =>
+            fixture.Service.ChangeOrganizationStatusAsync(new OrganizationStatusChange(
+                fixture.ActorId, fixture.OrganizationId, OrganizationStatus.Active, 2), cancellationToken));
+
+        Assert.Equal("organization_not_found", missing.ErrorCode);
+        Assert.Equal("organization_erasure_started", erasing.ErrorCode);
+    }
+
+    [Fact]
+    public async Task MemberListingOmitsMembershipWithoutUserRecord()
+    {
+        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        fixture.State.Memberships.Add(new MembershipRecord(fixture.OrganizationId, Guid.NewGuid(), TenantRole.Member));
+
+        var members = await fixture.Service.ListOrganizationMembersAsync(
+            fixture.ActorId, fixture.OrganizationId, TestContext.Current.CancellationToken);
+
+        Assert.Single(members);
+    }
+
     private sealed record AuthorizationFixture(
         Guid ActorId,
         Guid OrganizationId,

@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/Catering/Catering.Contracts/Catering.Contracts.csproj" />
     <ProjectReference Include="../../src/Catering/Catering.Implementation/Catering.Implementation.csproj" />
     <ProjectReference Include="../../src/Identity/Identity.Contracts/Identity.Contracts.csproj" />

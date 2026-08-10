@@ -43,6 +43,30 @@ export default defineConfig({
   build: {
     outDir: "../FreizeitCockpit.Web/wwwroot",
     emptyOutDir: false,
+    rolldownOptions: {
+      output: {
+        codeSplitting: {
+          groups: [
+            {
+              name: "react-vendor",
+              test: /node_modules[\\/](react|react-dom|react-router)/,
+              priority: 20,
+            },
+            {
+              name: "planning-vendor",
+              test: /node_modules[\\/](@fullcalendar|luxon)/,
+              priority: 15,
+            },
+            {
+              name: "vendor",
+              test: /node_modules/,
+              maxSize: 350 * 1024,
+              priority: 10,
+            },
+          ],
+        },
+      },
+    },
   },
   server: {
     port: 5173,

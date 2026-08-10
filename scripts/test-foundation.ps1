@@ -16,9 +16,16 @@ $requiredPaths = @(
     'src/FreizeitCockpit.BibleStub/FreizeitCockpit.BibleStub.csproj',
     'src/Web/package.json',
     'src/Help/package.json',
+    'playwright.config.ts',
+    'tests/Browser/core-journey.spec.ts',
+    'tests/Browser/global-setup.ts',
+    'tests/Architecture.Tests/Architecture.Tests.csproj',
+    'tests/Aspire.Tests/Aspire.Tests.csproj',
     'scripts/bootstrap.ps1',
     'scripts/dev.ps1',
     'scripts/test.ps1',
+    'scripts/test-coverage.ps1',
+    'scripts/test-browser.ps1',
     'scripts/verify.ps1',
     'scripts/smoke.ps1'
 )

@@ -1,4 +1,5 @@
 import FullCalendar from "@fullcalendar/react";
+import deLocale from "@fullcalendar/core/locales/de";
 import dayGridPlugin from "@fullcalendar/daygrid";
 import interactionPlugin from "@fullcalendar/interaction";
 import luxonPlugin from "@fullcalendar/luxon3";
@@ -1824,7 +1825,8 @@ function SchedulePage({
           initialView="timeGridWeek"
           initialDate={camp.startsOn}
           timeZone={camp.timeZoneId}
-          locale="de"
+          locale={deLocale}
+          buttonIcons={false}
           firstDay={1}
           allDayText="Ganztägig"
           height="auto"

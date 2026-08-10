@@ -252,7 +252,8 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
             removal.UserId,
             cancellationToken)
             ?? throw Rule("camp_assignment_not_found", "Die Camp-Zuweisung wurde nicht gefunden.");
-        if (actor.Role == TenantRole.CampLead && target.Role == TenantRole.CampLead)
+        if (actor.Role is not (TenantRole.Owner or TenantRole.OrganizationAdmin)
+            && target.Role == TenantRole.CampLead)
         {
             throw Rule("role_escalation", "Eine Camp-Leitung darf keine andere Camp-Leitung entfernen.");
         }

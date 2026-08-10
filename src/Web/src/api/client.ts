@@ -2,6 +2,6 @@ import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 
 export const api = createClient<paths>({
-  baseUrl: "",
+  baseUrl: globalThis.location?.origin ?? "http://localhost",
   fetch: (request) => globalThis.fetch(request),
 });

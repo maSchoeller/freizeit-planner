@@ -298,4 +298,23 @@ public sealed class MaterialPlanningTests
         Assert.Equal("incompatible_unit", incompatible.ErrorCode);
         Assert.Equal("incompatible_unit", wrongCustom.ErrorCode);
     }
+
+    [Fact]
+    public void QuantitiesCoverPieceAndCustomValidation()
+    {
+        var pieces = new LogisticsQuantity(3m, LogisticsUnit.Piece).ConvertTo(LogisticsUnit.Piece);
+        var custom = new LogisticsQuantity(2m, LogisticsUnit.Custom, "  Kabel\t Trommeln  ")
+            .ConvertTo(LogisticsUnit.Custom);
+
+        Assert.Equal(3m, pieces.Value);
+        Assert.Equal("Kabel Trommeln", custom.CustomUnitName);
+        Assert.Equal("invalid_quantity", Assert.Throws<LogisticsRuleException>(() =>
+            new LogisticsQuantity(0m, LogisticsUnit.Gram)).ErrorCode);
+        Assert.Equal("custom_unit_required", Assert.Throws<LogisticsRuleException>(() =>
+            new LogisticsQuantity(1m, LogisticsUnit.Custom, " ")).ErrorCode);
+        Assert.Equal("custom_unit_not_allowed", Assert.Throws<LogisticsRuleException>(() =>
+            new LogisticsQuantity(1m, LogisticsUnit.Piece, "Rolle")).ErrorCode);
+        Assert.Equal("incompatible_unit", Assert.Throws<LogisticsRuleException>(() =>
+            pieces.ConvertTo(LogisticsUnit.Custom, "Stück")).ErrorCode);
+    }
 }

@@ -1357,6 +1357,9 @@ button:disabled {
   color: var(--petrol-900);
 }
 @media (max-width: 960px) {
+  .split-view {
+    grid-template-columns: 1fr;
+  }
   .schedule-create-grid,
   .recipe-ingredient-row,
   .recipe-detail-grid,

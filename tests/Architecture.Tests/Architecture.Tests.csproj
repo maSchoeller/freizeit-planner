@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="TngTech.ArchUnitNET" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/Activity/Activity.Implementation/Activity.Implementation.csproj" />
+    <ProjectReference Include="../../src/Camps/Camps.Implementation/Camps.Implementation.csproj" />
+    <ProjectReference Include="../../src/Catering/Catering.Implementation/Catering.Implementation.csproj" />
+    <ProjectReference Include="../../src/Files/Files.Implementation/Files.Implementation.csproj" />
+    <ProjectReference Include="../../src/Identity/Identity.Implementation/Identity.Implementation.csproj" />
+    <ProjectReference Include="../../src/Knowledge/Knowledge.Implementation/Knowledge.Implementation.csproj" />
+    <ProjectReference Include="../../src/Logistics/Logistics.Implementation/Logistics.Implementation.csproj" />
+    <ProjectReference Include="../../src/Spiritual/Spiritual.Implementation/Spiritual.Implementation.csproj" />
+  </ItemGroup>
+</Project>

@@ -62,7 +62,7 @@ describe("Dashboard", () => {
     ).toHaveAttribute("href", "/hilfe/");
   });
 
-  it("starts passwordless login with an explicitly labelled email field", () => {
+  it("starts passwordless login with an explicitly labelled and focused email field", () => {
     render(
       <MemoryRouter initialEntries={["/anmelden"]}>
         <App />
@@ -72,12 +72,36 @@ describe("Dashboard", () => {
     expect(
       screen.getByRole("heading", { name: "Im Freizeit-Cockpit anmelden" }),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("textbox", { name: "E-Mail-Adresse" }),
-    ).toHaveAttribute("autocomplete", "email");
+    const email = screen.getByRole("textbox", { name: "E-Mail-Adresse" });
+    expect(email).toHaveAttribute("autocomplete", "email");
+    expect(email).toHaveFocus();
     expect(
       screen.getByRole("button", { name: "Anmeldecode anfordern" }),
     ).toBeInTheDocument();
+  });
+
+  it("keeps an invalid login address in the form with an associated error", async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    render(
+      <MemoryRouter initialEntries={["/anmelden"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    const email = screen.getByRole("textbox", { name: "E-Mail-Adresse" });
+    await user.type(email, "keine-adresse");
+    await user.click(
+      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
+    );
+
+    expect(email).toHaveAttribute("aria-invalid", "true");
+    expect(email).toHaveAccessibleDescription(
+      "Gib eine gültige E-Mail-Adresse ein.",
+    );
+    expect(email).toHaveFocus();
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("offers an understandable loading state while sessions are retrieved", () => {

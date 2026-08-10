@@ -28,10 +28,10 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | F02 attachments                       | verified | Magic-byte/MIME/extension checks, quotas, private authorized image/PDF delivery             | Meal and schedule files were unreachable from owners   | 28 Files, 50 React + full gate/mobile browsers       | Files/Camps/Catering contexts, help       | pending   | Complete A01 activity/trash         |
 | A01 activity/trash                    | verified | Metadata-only feed, soft delete/restore and deterministic 30-day purge                      | Restore caches stale; feed omitted actor/type in UI    | 13 Activity, 32 API, 58 React + full gate/browser    | Activity/domain contexts, trash help      | pending   | Complete A02 search/export/print    |
 | A02 search/export/print               | verified | Tenant-safe filtered search, CSV formula protection, German print views                     | Metadata filters and scoped print views absent in UI   | 62 React + PostgreSQL RLS + full gate/mobile browser | Activity context and search/export help   | pending   | Complete P01 PWA/offline            |
-| P01 PWA/offline                       | verified | Install/update; read-only four-area snapshot; purge on logout/org switch                    | Cold start lacked scoped complete offline projections  | 68 React + full gate/PWA/mobile browser green        | PWA architecture and offline help         | pending   | Complete O01 operations             |
-| O01 operations                        | verified | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Liveness ran readiness; no correlation/jobs DB role    | 35 API + PostgreSQL jobs/RLS + full gate green       | operations architecture and cleanup docs  | pending   | Complete Z01 Azure/CI               |
-| Z01 Azure/CI                          | pending  | azd/Bicep/containers/workflows locally validate; no cloud mutation                          | pending                                                | pending                                              | deployment docs                           | pending   | after F01/O01                       |
-| V01 full verification                 | pending  | Format/lint/build/tests, coverage, three browsers/viewports, axe, visual inspection, smoke  | pending                                                | pending                                              | all docs/screenshots                      | pending   | after all slices                    |
+| P01 PWA/offline                       | verified | Install/update; read-only four-area snapshot; purge on logout/org switch                    | Cold start lacked scoped complete offline projections  | 68 React + full gate/PWA/mobile browser green        | PWA architecture and offline help         | `c594fe5` | Complete O01 operations             |
+| O01 operations                        | verified | Migrator lock/order, cleanup, telemetry, health and correlation without sensitive logs      | Liveness ran readiness; no correlation/jobs DB role    | 35 API + PostgreSQL jobs/RLS + full gate green       | operations architecture and cleanup docs  | `3caa261` | Complete Z01 Azure/CI               |
+| Z01 Azure/CI                          | verified | azd/Bicep/containers/workflows locally validate; no cloud mutation                          | Web image required pwsh and copied broken host links   | Bicep/azd/actionlint + 3 UID-1654 images + full gate | deployment architecture, plan and runbook | pending   | Complete V01 verification           |
+| V01 full verification                 | verified | Format/lint/build/tests, coverage, three browsers/viewports, axe, visual inspection, smoke  | Backend coverage was 59.25% lines / 42.45% branches   | Full verify 626.3 s; Aspire/browser/axe/smoke green | all docs and current help screenshots     | pending   | Product verification complete       |
 
 ## Current evidence
 
@@ -407,3 +407,35 @@ This file is the resumable evidence ledger. Commands are run from the repository
   jobs role. The real PostgreSQL 17 cleanup test proves exact role attributes/privileges/policies and completes all
   retention plus privacy erasure. The full gate passed in 231.2 seconds with 35 API, 68 React, all module tests,
   warning-free builds, RLS/privacy, PWA and Help green; O01 is verified.
+- 2026-08-09: Z01 prepares the parameterized, low-cost Azure target with azd/Bicep, Container Apps Web plus
+  Migrator/Cleanup jobs, ACR Basic, PostgreSQL 17 B1ms/32 GiB/seven-day PITR, private LRS blob containers, Key Vault
+  RBAC, separate web/jobs managed identities, Application Insights/Log Analytics and baseline alerts. Production
+  Data Protection now persists a shared key ring in Blob Storage and wraps it with Key Vault through the explicit
+  web managed identity; missing production settings fail at startup, and the newly introduced transitive XML
+  cryptography package is pinned to patched 10.0.10. The PR/main workflow executes the same full gate. The separately
+  approved manual production workflow uses OIDC only, publishes/executes Migrator first, waits for `Succeeded`, and
+  only then releases Web and Cleanup with an evidence artifact. The first real Web image build failed because its
+  slim Node stage had no PowerShell; the next exposed Windows pnpm links overwriting valid Linux links. Direct
+  workspace builds after a clean in-image install fixed both failures. `pwsh ./scripts/validate-deployment.ps1`
+  passed finally in 166.2 seconds with Azure CLI 2.88.0, Bicep 0.46.1, azd 1.30.0, actionlint 1.7.12 and Web/Migrator/Cleanup
+  images all running as UID 1654. The final full application gate passed in 233.8 seconds with 39 API tests including seven
+  operations/production cases and 68 React tests. Vendor chunking removed the final Vite size warning. README,
+  MIT/third-party notices, module/data/deployment architecture, German help and the operations runbook cover first
+  bootstrap, migration, rollback, restore, deletion, owner recovery, rotation and incident handling. No Azure login,
+  cloud mutation, deployment, GitHub environment change, push or DNS change occurred; Z01 is verified.
+- 2026-08-10: V01 closes the complete local verification harness. The initial coverage gate exposed only 59.25%
+  backend lines and 42.45% branches; relational SQLite lifecycle tests, authenticated OpenAPI-driven endpoint
+  coverage, error-mapping matrices, authorization regressions and boundary tests raised the final result to 91.09%
+  lines and 75.02% branches (1,928/2,570). Frontend coverage is 87.14% lines and 75.10% branches. The real
+  Aspire.Hosting.Testing path verifies AppHost health/readiness and Mailpit, while ArchUnitNET verifies module
+  boundaries. `pwsh ./scripts/verify.ps1` passed in 626.3 seconds with zero build warnings/errors, generated-client
+  drift, format, ESLint, TypeScript strict, all unit/API/integration/architecture tests, PostgreSQL RLS and privacy
+  cleanup, PWA and VitePress builds green. Playwright completed 55 applicable cases with eight deliberate
+  engine-specific skips across Chromium, Firefox and WebKit at 390x844, 834x1112 and 1440x1000; central routes,
+  passwordless Mailpit login, keyboard access, axe, loading, server error, permission denial, genuine offline mode
+  and version conflict passed. Current `logistik-{browser}-{viewport}.png` artifacts were visually inspected; the
+  final mobile compact navigation, tablet single-column cards and desktop two-column workspace show no clipping,
+  overflow, overlap, browser artifacts or broken controls. Deterministic desktop screenshots for Anmeldung,
+  Freizeiten, Übersicht and Tagesplan were copied into the German help. The verify run invoked
+  `scripts/smoke.ps1` against the real Aspire stack successfully. No Azure login, deployment or push occurred; V01
+  is verified.

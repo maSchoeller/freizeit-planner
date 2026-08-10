@@ -11,6 +11,7 @@ export function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false);
   const [step, setStep] = useState<"email" | "code">("email");
   const [busy, setBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const codeHeading = useRef<HTMLHeadingElement>(null);
   const navigate = useNavigate();
@@ -21,7 +22,13 @@ export function LoginPage() {
 
   async function requestCode(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!event.currentTarget.checkValidity()) {
+      setEmailError("Gib eine gültige E-Mail-Adresse ein.");
+      event.currentTarget.querySelector<HTMLInputElement>(":invalid")?.focus();
+      return;
+    }
     setBusy(true);
+    setEmailError(null);
     setError(null);
     try {
       const { response } = await api.POST("/api/v1/auth/code", {
@@ -91,10 +98,23 @@ export function LoginPage() {
                   name="email"
                   type="email"
                   autoComplete="email"
+                  autoFocus
+                  aria-describedby={
+                    emailError ? "login-email-error" : undefined
+                  }
+                  aria-invalid={emailError ? "true" : undefined}
                   required
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (emailError) setEmailError(null);
+                  }}
                 />
+                {emailError ? (
+                  <span id="login-email-error" className="field-error">
+                    {emailError}
+                  </span>
+                ) : null}
               </div>
               <button className="primary-action" disabled={busy} type="submit">
                 {busy ? "Code wird angefordert …" : "Anmeldecode anfordern"}

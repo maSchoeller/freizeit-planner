@@ -13,10 +13,13 @@
     "lint": "pnpm --filter @freizeit-cockpit/web lint",
     "openapi:generate": "pnpm --filter @freizeit-cockpit/web exec openapi-typescript ../FreizeitCockpit.Web/openapi/FreizeitCockpit.Web.json -o src/api/schema.ts && pnpm --filter @freizeit-cockpit/web exec prettier --write src/api/schema.ts",
     "test": "pnpm --filter @freizeit-cockpit/web test",
+    "test:browser": "playwright test",
     "test:coverage": "pnpm --filter @freizeit-cockpit/web test:coverage",
     "typecheck": "pnpm --filter @freizeit-cockpit/web typecheck"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.12.1",
+    "@playwright/test": "1.62.1",
     "prettier": "3.9.6"
   }
 }
