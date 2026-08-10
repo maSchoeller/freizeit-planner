@@ -1,7 +1,7 @@
 # Identity & Tenancy context
 
 - Terms: Organization is the tenant; Membership grants an organization role; CampAssignment grants a camp role;
-  Session is a revocable server-side login; LoginChallenge stores only a code hash; Invitation is single-use.
+  Session is a revocable server-side JWT refresh family; Invitation is single-use.
 - Invariants: organizations are invitation-created, at least one active Owner remains, Platform Admin cannot read
   tenant content, suspended organizations cannot operate, long sessions last 30 days and standard sessions 12 hours.
 - Roles: PlatformAdmin is platform-only; Owner manages owners/admins/deletion; Admin manages lower roles; CampLead,
@@ -13,11 +13,22 @@
 - Lifecycle: Platform Admins create organizations only through 48-hour first-Owner invitations; team invitations
   last seven days. Invitation tokens and email-change codes are stored only as HMAC hashes. Account and organization
   deletion use a reversible 30-day schedule; the last active Owner invariant applies to leaving and account deletion.
-- Runtime persistence: ASP.NET Core Identity users, hashed challenges, invitations, memberships, assignments, rate
+- Password authentication: ASP.NET Core Identity hashes passwords. Ten failures lock the account for exactly 15
+  minutes. Access JWTs are asymmetric, expire after 15 minutes and remain only in browser memory. The strict,
+  HttpOnly refresh cookie rotates against an HMAC hash in the revocable server session. Reuse revokes that family.
+  A standard session lasts at most 12 hours; an opted-in session slides by 30 days.
+- Password maintenance: reset requests are non-disclosing. A random reset token is stored only as an HMAC hash,
+  expires after 60 minutes and is single-use. Reset and authenticated password change replace the security stamp
+  and revoke every session. Password reauthentication updates only the current active session and is valid for ten
+  minutes. A globally suspended account is rejected by login, refresh and stateful access-token validation.
+- First Login: `GET/POST /api/v1/auth/first-login` and `/erste-einrichtung` are available only while no user exists.
+  PostgreSQL uses a transaction advisory lock so exactly one initial confirmed SuperAdmin can be created. There is
+  no bootstrap password in configuration, logs, migrations, or source control.
+- Runtime persistence: ASP.NET Core Identity users, invitations, memberships, assignments, rate
   events and revocable sessions live in PostgreSQL through `IdentityDbContext`; the web host never migrates. The
   migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
 - Retention: `IIdentityMaintenance` is available only to the cleanup composition root. Each bounded run deletes
-  expired or consumed login/email challenges and invitations, expired or revoked sessions, and rate-limit events
+  expired or consumed email challenges and invitations, expired or revoked sessions, and rate-limit events
   older than one day. After 30 days it atomically claims due account and Organization erasures. Claimed Organizations
   enter `Erasing` and become inaccessible; cancellation and status changes are then rejected. Identity records are
   finalized only after every registered Fachmodule reports its own deletion/pseudonymization complete. The job never

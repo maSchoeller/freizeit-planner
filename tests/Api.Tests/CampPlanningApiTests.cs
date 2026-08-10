@@ -425,27 +425,16 @@ public sealed class CampPlanningApiTests
         }), sender);
     }
 
-    private static async Task LoginAsync(
+    private static Task LoginAsync(
         HttpClient client,
         CapturingSender sender,
         CancellationToken cancellationToken)
     {
-        var csrf = await GetAntiforgeryAsync(client, cancellationToken);
-        using var requestCode = CreateJsonRequest(
-            HttpMethod.Post,
-            "/api/v1/auth/code",
-            new { email = "miriam@example.test" },
-            csrf);
-        using var requested = await client.SendAsync(requestCode, cancellationToken);
-        requested.EnsureSuccessStatusCode();
-        csrf = await GetAntiforgeryAsync(client, cancellationToken);
-        using var verify = CreateJsonRequest(
-            HttpMethod.Post,
-            "/api/v1/auth/verify",
-            new { email = "miriam@example.test", code = Assert.Single(sender.Codes), rememberMe = false },
-            csrf);
-        using var verified = await client.SendAsync(verify, cancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+        cancellationToken.ThrowIfCancellationRequested();
+        client.DefaultRequestHeaders.Authorization = new(
+            "Test",
+            "10000000-0000-0000-0000-000000000001");
+        return Task.CompletedTask;
     }
 
     private static async Task<string> GetAntiforgeryAsync(

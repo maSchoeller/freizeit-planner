@@ -15,18 +15,19 @@ afterEach(() => {
 });
 
 describe("identity self-service pages", () => {
-  it("completes passwordless login with a sanitized code and persistent session", async () => {
+  it("completes password login with a persistent refresh session", async () => {
     const user = userEvent.setup();
-    let verificationBody = "";
+    let loginBody = "";
     vi.stubGlobal(
       "fetch",
       routeFetch(({ path, method, body }) => {
         if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
-        if (path === "/api/v1/auth/code" && method === "POST")
-          return empty(202);
-        if (path === "/api/v1/auth/verify" && method === "POST") {
-          verificationBody = body;
-          return empty(204);
+        if (path === "/api/v1/auth/login" && method === "POST") {
+          loginBody = body;
+          return json({
+            accessToken: "access.jwt",
+            expiresAt: "2026-08-10T12:15:00Z",
+          });
         }
         if (path === "/api/v1/account/memberships") return json([]);
         return empty(404);
@@ -38,37 +39,30 @@ describe("identity self-service pages", () => {
       screen.getByLabelText("E-Mail-Adresse"),
       "lea@example.test",
     );
-    await user.click(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
+    await user.type(
+      screen.getByLabelText("Passwort"),
+      "Eine sichere Passphrase",
     );
-    const code = await screen.findByLabelText("Sechsstelliger Anmeldecode");
-    expect(
-      screen.getByRole("heading", { name: "Anmeldecode eingeben" }),
-    ).toHaveFocus();
-    await user.type(code, "12a34567");
-    expect(code).toHaveValue("123456");
     await user.click(
       screen.getByRole("checkbox", { name: /Angemeldet bleiben/ }),
     );
     await user.click(screen.getByRole("button", { name: "Anmelden" }));
-    await waitFor(() =>
-      expect(verificationBody).toContain('"rememberMe":true'),
-    );
+    await waitFor(() => expect(loginBody).toContain('"rememberMe":true'));
+    expect(loginBody).toContain('"password":"Eine sichere Passphrase"');
+    expect(localStorage).toHaveLength(0);
   });
 
-  it("keeps the login context when requesting or verifying a code fails", async () => {
+  it("keeps login values and explains invalid credentials", async () => {
     const user = userEvent.setup();
-    let codeRequests = 0;
     vi.stubGlobal(
       "fetch",
       routeFetch(({ path }) => {
         if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
-        if (path === "/api/v1/auth/code") {
-          codeRequests += 1;
-          return codeRequests === 1 ? empty(503) : empty(202);
-        }
-        if (path === "/api/v1/auth/verify")
-          return json({ detail: "Der Code wurde bereits verwendet." }, 400);
+        if (path === "/api/v1/auth/login")
+          return json(
+            { detail: "E-Mail-Adresse oder Passwort ist nicht korrekt." },
+            401,
+          );
         return empty(404);
       }),
     );
@@ -76,30 +70,13 @@ describe("identity self-service pages", () => {
     renderRoute("/anmelden");
     const email = screen.getByLabelText("E-Mail-Adresse");
     await user.type(email, "lea@example.test");
-    await user.click(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
-    );
-    expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Die Anmeldung ist gerade nicht erreichbar",
-    );
-    await user.click(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
-    );
-    await user.type(
-      await screen.findByLabelText("Sechsstelliger Anmeldecode"),
-      "123456",
-    );
+    await user.type(screen.getByLabelText("Passwort"), "Falsches Passwort");
     await user.click(screen.getByRole("button", { name: "Anmelden" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Der Code wurde bereits verwendet.",
+      "E-Mail-Adresse oder Passwort ist nicht korrekt.",
     );
-    await user.click(
-      screen.getByRole("button", { name: "E-Mail-Adresse ändern" }),
-    );
-    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
-      "lea@example.test",
-    );
-    expect(screen.queryByRole("alert")).toBeNull();
+    expect(email).toHaveValue("lea@example.test");
+    expect(screen.getByLabelText("Passwort")).toHaveValue("Falsches Passwort");
   });
 
   it("rejects malformed antiforgery responses during login", async () => {
@@ -116,11 +93,13 @@ describe("identity self-service pages", () => {
       screen.getByLabelText("E-Mail-Adresse"),
       "lea@example.test",
     );
-    await user.click(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
+    await user.type(
+      screen.getByLabelText("Passwort"),
+      "Eine sichere Passphrase",
     );
+    await user.click(screen.getByRole("button", { name: "Anmelden" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Die Anmeldung ist gerade nicht erreichbar",
+      "Sicherheits-Token fehlt",
     );
   });
 

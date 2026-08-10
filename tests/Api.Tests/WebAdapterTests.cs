@@ -176,13 +176,17 @@ public sealed class WebAdapterTests
     }
 
     [Theory]
-    [InlineData(LoginOutcome.Expired, 400)]
-    [InlineData(LoginOutcome.AttemptsExceeded, 400)]
-    [InlineData(LoginOutcome.RateLimited, 429)]
-    [InlineData(LoginOutcome.InvalidCode, 400)]
-    public void LoginOutcomesHaveStableStatusCodes(LoginOutcome outcome, int expectedStatus)
+    [InlineData(PasswordAuthenticationOutcome.InvalidCredentials, 401)]
+    [InlineData(PasswordAuthenticationOutcome.LockedOut, 423)]
+    [InlineData(PasswordAuthenticationOutcome.RateLimited, 429)]
+    public void LoginOutcomesHaveStableStatusCodes(
+        PasswordAuthenticationOutcome outcome,
+        int expectedStatus)
     {
-        var result = InvokePrivate<IResult>(typeof(IdentityEndpoints), "LoginProblem", outcome);
+        var result = InvokePrivate<IResult>(
+            typeof(IdentityEndpoints),
+            "PasswordLoginProblem",
+            outcome);
 
         Assert.Equal(expectedStatus, Assert.IsAssignableFrom<IStatusCodeHttpResult>(result).StatusCode);
     }

@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import { SettingsLayout } from "./OrganizationMembersPage";
 import { activateOfflineOrganization } from "./offlineSnapshot";
+import { authenticatedFetch as fetch } from "./api/authentication";
 
 type Membership = components["schemas"]["AccountMembershipView"];
 type CampSummary = components["schemas"]["CampSummary"];

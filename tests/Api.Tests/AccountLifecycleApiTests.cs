@@ -67,25 +67,16 @@ public sealed class AccountLifecycleApiTests
         Assert.Equal("123456", lifecycle.Confirmation?.Code);
     }
 
-    private static async Task LoginAsync(
+    private static Task LoginAsync(
         HttpClient client,
         CapturingLoginCodeSender sender,
         CancellationToken cancellationToken)
     {
-        var antiforgery = await GetAntiforgeryAsync(client, cancellationToken);
-        using var requestCode = CreateJsonPost(
-            "/api/v1/auth/code",
-            new { email = "miriam@example.test" },
-            antiforgery);
-        using var requested = await client.SendAsync(requestCode, cancellationToken);
-        requested.EnsureSuccessStatusCode();
-        antiforgery = await GetAntiforgeryAsync(client, cancellationToken);
-        using var verify = CreateJsonPost(
-            "/api/v1/auth/verify",
-            new { email = "miriam@example.test", code = Assert.Single(sender.Codes), rememberMe = false },
-            antiforgery);
-        using var verified = await client.SendAsync(verify, cancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+        cancellationToken.ThrowIfCancellationRequested();
+        client.DefaultRequestHeaders.Authorization = new(
+            "Test",
+            "10000000-0000-0000-0000-000000000001");
+        return Task.CompletedTask;
     }
 
     private static async Task<string> GetAntiforgeryAsync(

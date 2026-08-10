@@ -19,7 +19,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.DisplayName,
                 item.IsPlatformAdmin,
                 item.DeletionScheduledAt,
-                item.ErasureStartedAt))
+                item.ErasureStartedAt,
+                item.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -36,7 +37,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.DisplayName,
                 item.IsPlatformAdmin,
                 item.DeletionScheduledAt,
-                item.ErasureStartedAt))
+                item.ErasureStartedAt,
+                item.Version))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -451,13 +453,16 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
         IsPlatformAdmin = user.IsPlatformAdmin,
         DeletionScheduledAt = user.DeletionScheduledAt,
         ErasureStartedAt = user.ErasureStartedAt,
-        SecurityStamp = Guid.NewGuid().ToString("N")
+        SecurityStamp = Guid.NewGuid().ToString("N"),
+        Version = user.Version
     };
 
-    private static void ApplyUser(ApplicationUser entity, LifecycleUser user)
+    private void ApplyUser(ApplicationUser entity, LifecycleUser user)
     {
         entity.DisplayName = user.DisplayName;
         entity.DeletionScheduledAt = user.DeletionScheduledAt;
+        dbContext.Entry(entity).Property(item => item.Version).OriginalValue = user.Version - 1;
+        entity.Version = user.Version;
     }
 
     private static OrganizationEntity ToOrganizationEntity(OrganizationRecord organization) => new()

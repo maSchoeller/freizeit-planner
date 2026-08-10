@@ -752,6 +752,29 @@ button:disabled {
   gap: 1.15rem;
   margin-top: 1.5rem;
 }
+
+.login-card .field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.login-card .field-hint {
+  margin-block: 0 0.25rem;
+  color: var(--color-text-muted);
+  font-size: 0.9rem;
+}
+
+.login-card .text-action {
+  justify-self: start;
+  min-height: 2.75rem;
+}
+
+@media (max-width: 36rem) {
+  .login-card .field-row {
+    grid-template-columns: 1fr;
+  }
+}
 .field {
   display: grid;
   gap: 0.4rem;

@@ -31,6 +31,7 @@ import {
   saveOfflineSnapshot,
 } from "./offlineSnapshot";
 import { getAntiforgeryToken } from "./api/security";
+import { authenticatedFetch as fetch } from "./api/authentication";
 
 type AccountMembership = components["schemas"]["AccountMembershipView"];
 type Account = components["schemas"]["AccountView"];

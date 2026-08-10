@@ -29,7 +29,6 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
-    storageState: ".artifacts/playwright/auth/owner.json",
   },
   projects: browsers.flatMap((browserName) =>
     viewports.map(({ name, use }) => ({

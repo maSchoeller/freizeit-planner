@@ -6,6 +6,7 @@ using Camps.Contracts;
 using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -148,6 +149,14 @@ public sealed class AtomicPlanningTransactionTests
 
             builder.ConfigureTestServices(services =>
             {
+                services.AddAuthentication(options =>
+                    {
+                        options.DefaultAuthenticateScheme = TestingAuthenticationHandler.SchemeName;
+                        options.DefaultChallengeScheme = TestingAuthenticationHandler.SchemeName;
+                    })
+                    .AddScheme<AuthenticationSchemeOptions, TestingAuthenticationHandler>(
+                        TestingAuthenticationHandler.SchemeName,
+                        _ => { });
                 services.RemoveAll<IPasswordlessState>();
                 services.RemoveAll<ILoginCodeSender>();
                 services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
@@ -163,27 +172,16 @@ public sealed class AtomicPlanningTransactionTests
             HandleCookies = true
         });
 
-    private static async Task LoginAsync(
+    private static Task LoginAsync(
         HttpClient client,
         CapturingSender sender,
         CancellationToken cancellationToken)
     {
-        var csrf = await GetAntiforgeryAsync(client, cancellationToken);
-        using var requestCode = CreateJsonRequest(
-            HttpMethod.Post,
-            "/api/v1/auth/code",
-            new { email = "miriam@example.test" },
-            csrf);
-        using var requested = await client.SendAsync(requestCode, cancellationToken);
-        requested.EnsureSuccessStatusCode();
-        csrf = await GetAntiforgeryAsync(client, cancellationToken);
-        using var verify = CreateJsonRequest(
-            HttpMethod.Post,
-            "/api/v1/auth/verify",
-            new { email = "miriam@example.test", code = Assert.Single(sender.Codes), rememberMe = false },
-            csrf);
-        using var verified = await client.SendAsync(verify, cancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+        cancellationToken.ThrowIfCancellationRequested();
+        client.DefaultRequestHeaders.Authorization = new(
+            "Test",
+            "10000000-0000-0000-0000-000000000001");
+        return Task.CompletedTask;
     }
 
     private static async Task<string> GetAntiforgeryAsync(

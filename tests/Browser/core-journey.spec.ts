@@ -1,9 +1,88 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page, type TestInfo } from "@playwright/test";
+import {
+  expect,
+  test as base,
+  type Page,
+  type TestInfo,
+} from "@playwright/test";
 import { mkdir, copyFile } from "node:fs/promises";
 import path from "node:path";
 
-test("passwordless entry point is responsive, keyboard operable and accessible", async ({
+const browserUserEmail = "miriam@example.test";
+const browserUserPassword = "Browser-Testpasswort 2026!";
+
+type WorkerAuthentication = {
+  accessToken: string;
+  storageState: {
+    cookies: Array<{
+      name: string;
+      value: string;
+      domain: string;
+      path: string;
+      expires: number;
+      httpOnly: boolean;
+      secure: boolean;
+      sameSite: "Strict" | "Lax" | "None";
+    }>;
+    origins: Array<{
+      origin: string;
+      localStorage: Array<{ name: string; value: string }>;
+    }>;
+  };
+};
+
+const test = base.extend<{}, { workerAuthentication: WorkerAuthentication }>({
+  workerAuthentication: [
+    async ({ playwright }, use, workerInfo) => {
+      const api = await playwright.request.newContext({
+        baseURL: String(
+          workerInfo.project.use.baseURL ?? "http://localhost:5041",
+        ),
+      });
+      try {
+        const antiforgeryResponse = await api.get("/api/v1/auth/antiforgery");
+        expect(antiforgeryResponse.ok()).toBe(true);
+        const antiforgery = (await antiforgeryResponse.json()) as {
+          token: string;
+        };
+        const loginResponse = await api.post("/api/v1/auth/login", {
+          headers: { "X-CSRF-TOKEN": antiforgery.token },
+          data: {
+            email: browserUserEmail,
+            password: browserUserPassword,
+            rememberMe: true,
+          },
+        });
+        expect(loginResponse.ok()).toBe(true);
+        const authentication = (await loginResponse.json()) as {
+          accessToken: string;
+        };
+        await use({
+          accessToken: authentication.accessToken,
+          storageState: await api.storageState(),
+        });
+      } finally {
+        await api.dispose();
+      }
+    },
+    { scope: "worker" },
+  ],
+});
+
+test.beforeEach(async ({ context, workerAuthentication }, testInfo) => {
+  await context.clearCookies();
+  if (
+    testInfo.title ===
+    "password login is responsive, keyboard operable and accessible"
+  )
+    return;
+
+  await context.setExtraHTTPHeaders({
+    Authorization: `Bearer ${workerAuthentication.accessToken}`,
+  });
+});
+
+test("password login is responsive, keyboard operable and accessible", async ({
   page,
 }, testInfo) => {
   await page.goto("/anmelden");
@@ -15,12 +94,15 @@ test("passwordless entry point is responsive, keyboard operable and accessible",
   await expect(page.getByLabel("E-Mail-Adresse")).toBeFocused();
 
   await page.keyboard.press("Tab");
+  await expect(page.getByLabel("Passwort", { exact: true })).toBeFocused();
+
+  await page.keyboard.press("Tab");
   await expect(
-    page.getByRole("button", { name: "Anmeldecode anfordern" }),
+    page.getByRole("button", { name: "Passwort anzeigen" }),
   ).toBeFocused();
 
   await page.getByLabel("E-Mail-Adresse").fill("keine-adresse");
-  await page.getByRole("button", { name: "Anmeldecode anfordern" }).click();
+  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
   await expect(
     page.getByText("Gib eine gültige E-Mail-Adresse ein."),
   ).toBeVisible();
@@ -33,15 +115,31 @@ test("passwordless entry point is responsive, keyboard operable and accessible",
   await capture(page, testInfo, "anmeldung");
 });
 
-test("owner signs in through Mailpit and reaches the camp overview", async ({
+test("member signs in with a persistent refresh session and reaches the camp overview", async ({
+  browser,
   page,
+  workerAuthentication,
 }, testInfo) => {
-  await page.goto("/o/sonnenhoehe/camps");
+  test.skip(
+    testInfo.project.name !== "chromium-desktop",
+    "Der persistente Secure-Cookie wird einmal im Chromium-Desktop-Neustart geprüft.",
+  );
 
-  await expect(page.getByRole("heading", { name: "Camps" })).toBeVisible();
-  await assertNoHorizontalOverflow(page);
-  await assertAxe(page);
-  await capture(page, testInfo, "freizeiten");
+  const restartedContext = await browser.newContext({
+    baseURL: String(testInfo.project.use.baseURL ?? "http://localhost:5041"),
+    storageState: workerAuthentication.storageState,
+    viewport: page.viewportSize() ?? { width: 1440, height: 1000 },
+  });
+  const restartedPage = await restartedContext.newPage();
+  await restartedPage.goto("/o/sonnenhoehe/camps");
+
+  await expect(
+    restartedPage.getByRole("heading", { name: "Camps" }),
+  ).toBeVisible();
+  await assertNoHorizontalOverflow(restartedPage);
+  await assertAxe(restartedPage);
+  await capture(restartedPage, testInfo, "freizeiten");
+  await restartedContext.close();
 });
 
 test("central camp pages render their responsive empty states without accessibility violations", async ({

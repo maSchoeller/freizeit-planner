@@ -4,9 +4,14 @@ import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
 import {
+  authenticatedFetch as fetch,
+  clearAuthentication,
+} from "./api/authentication";
+import {
   clearOfflineOrganization,
   clearOfflineSession,
 } from "./offlineSnapshot";
+import { PasswordField } from "./LoginPage";
 
 type Account = components["schemas"]["AccountView"];
 type Membership = components["schemas"]["AccountMembershipView"];
@@ -18,6 +23,10 @@ export function AccountPage() {
   const [newEmail, setNewEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [emailCodeRequested, setEmailCodeRequested] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [passwordConfirmation, setPasswordConfirmation] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [confirmDeletion, setConfirmDeletion] = useState(false);
@@ -188,6 +197,39 @@ export function AccountPage() {
         headers: { "X-CSRF-TOKEN": token },
       });
       if (!response.ok) throw new Error("Die Abmeldung ist fehlgeschlagen.");
+      clearAuthentication();
+      clearOfflineSession();
+      void navigate("/anmelden", { replace: true });
+    });
+  }
+
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (newPassword !== passwordConfirmation) {
+      setError("Die beiden neuen Passwörter stimmen nicht überein.");
+      return;
+    }
+    await mutate("password", async (token) => {
+      const response = await fetch("/api/v1/account/password", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: {
+          "Content-Type": "application/json",
+          "X-CSRF-TOKEN": token,
+          "If-Match": `"${account?.version ?? 0}"`,
+        },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      });
+      if (!response.ok) {
+        const problem: unknown = await response.json();
+        throw new Error(
+          readProblemDetail(
+            problem,
+            "Das Passwort konnte nicht geändert werden.",
+          ),
+        );
+      }
+      clearAuthentication();
       clearOfflineSession();
       void navigate("/anmelden", { replace: true });
     });
@@ -275,6 +317,62 @@ export function AccountPage() {
                   </Link>
                 </p>
               ) : null}
+            </section>
+            <section
+              className="settings-section"
+              aria-labelledby="password-heading"
+            >
+              <h2 id="password-heading">Passwort ändern</h2>
+              <p>
+                Nach der Änderung werden alle Sitzungen beendet. Melde dich
+                anschließend mit dem neuen Passwort an.
+              </p>
+              <form onSubmit={(event) => void changePassword(event)}>
+                <PasswordField
+                  id="current-password"
+                  label="Aktuelles Passwort"
+                  autoComplete="current-password"
+                  value={currentPassword}
+                  show={showPassword}
+                  onChange={setCurrentPassword}
+                  onToggle={() => setShowPassword((current) => !current)}
+                />
+                <p className="field-hint">
+                  Das neue Passwort muss 15 bis 128 Zeichen lang sein.
+                </p>
+                <PasswordField
+                  id="account-new-password"
+                  label="Neues Passwort"
+                  autoComplete="new-password"
+                  value={newPassword}
+                  show={showPassword}
+                  onChange={setNewPassword}
+                  onToggle={() => setShowPassword((current) => !current)}
+                />
+                <PasswordField
+                  id="account-new-password-confirmation"
+                  label="Neues Passwort bestätigen"
+                  autoComplete="new-password"
+                  value={passwordConfirmation}
+                  show={showPassword}
+                  onChange={setPasswordConfirmation}
+                  onToggle={() => setShowPassword((current) => !current)}
+                />
+                <button
+                  className="primary-action"
+                  disabled={busy !== null}
+                  type="submit"
+                >
+                  {busy === "password"
+                    ? "Passwort wird geändert …"
+                    : "Passwort ändern"}
+                </button>
+              </form>
+              <p>
+                <Link to="/passwort-vergessen">
+                  Aktuelles Passwort vergessen?
+                </Link>
+              </p>
             </section>
             <section
               className="settings-section"

@@ -66,6 +66,7 @@ internal static class LifecycleEndpoints
 
     private static async Task<IResult> GetAccountAsync(
         ClaimsPrincipal principal,
+        HttpContext context,
         IAccountLifecycle lifecycle,
         CancellationToken cancellationToken)
     {
@@ -73,8 +74,12 @@ internal static class LifecycleEndpoints
         {
             return Results.Unauthorized();
         }
-        return await ExecuteAsync(async () => Results.Ok(
-            await lifecycle.GetAccountAsync(actorId, cancellationToken)));
+        return await ExecuteAsync(async () =>
+        {
+            var account = await lifecycle.GetAccountAsync(actorId, cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, account.Version);
+            return Results.Ok(account);
+        });
     }
 
     private static async Task<IResult> ListMembershipsAsync(

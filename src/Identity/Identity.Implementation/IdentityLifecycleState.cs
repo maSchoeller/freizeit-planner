@@ -66,7 +66,8 @@ public sealed class LifecycleUser(
     string displayName,
     bool isPlatformAdmin = false,
     DateTimeOffset? deletionScheduledAt = null,
-    DateTimeOffset? erasureStartedAt = null)
+    DateTimeOffset? erasureStartedAt = null,
+    long version = 1)
 {
     public Guid Id { get; } = id;
 
@@ -82,11 +83,25 @@ public sealed class LifecycleUser(
 
     public DateTimeOffset? ErasureStartedAt { get; } = erasureStartedAt;
 
-    public void Rename(string displayName) => DisplayName = displayName;
+    public long Version { get; private set; } = version;
 
-    public void ScheduleDeletion(DateTimeOffset scheduledAt) => DeletionScheduledAt = scheduledAt;
+    public void Rename(string displayName)
+    {
+        DisplayName = displayName;
+        Version++;
+    }
 
-    public void CancelDeletion() => DeletionScheduledAt = null;
+    public void ScheduleDeletion(DateTimeOffset scheduledAt)
+    {
+        DeletionScheduledAt = scheduledAt;
+        Version++;
+    }
+
+    public void CancelDeletion()
+    {
+        DeletionScheduledAt = null;
+        Version++;
+    }
 }
 
 public sealed class OrganizationRecord(

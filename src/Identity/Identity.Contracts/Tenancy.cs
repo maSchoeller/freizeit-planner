@@ -174,7 +174,8 @@ public sealed record AccountView(
     string Email,
     string DisplayName,
     DateTimeOffset? DeletionScheduledAt,
-    bool IsPlatformAdmin);
+    bool IsPlatformAdmin,
+    long Version);
 
 public sealed record AccountMembershipView(
     Guid OrganizationId,

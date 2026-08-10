@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { clearOfflineSession } from "./offlineSnapshot";
+import { authenticatedFetch as fetch } from "./api/authentication";
 
 interface SessionView {
   id: string;

@@ -1,6 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { clearAuthentication } from "./api/authentication";
 
 class TestStorage implements Storage {
   private readonly values = new Map<string, string>();
@@ -35,4 +36,7 @@ Object.defineProperty(globalThis, "localStorage", {
   value: testStorage,
 });
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  clearAuthentication();
+});

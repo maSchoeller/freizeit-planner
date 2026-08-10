@@ -8,7 +8,17 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 {
     public required string DisplayName { get; set; }
 
+    public string FirstName { get; set; } = string.Empty;
+
+    public string LastName { get; set; } = string.Empty;
+
+    public bool IsSuperAdmin { get; set; }
+
     public bool IsPlatformAdmin { get; set; }
+
+    public Identity.Contracts.AccountStatus AccountStatus { get; set; }
+
+    public long Version { get; set; } = 1;
 
     public DateTimeOffset? DeletionScheduledAt { get; set; }
 
@@ -24,6 +34,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     internal DbSet<LoginRateEventEntity> LoginRateEvents => Set<LoginRateEventEntity>();
 
+    internal DbSet<PasswordResetTokenEntity> PasswordResetTokens => Set<PasswordResetTokenEntity>();
+
     internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
 
     internal DbSet<MembershipEntity> Memberships => Set<MembershipEntity>();
@@ -38,7 +50,15 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
     {
         base.OnModelCreating(builder);
         builder.HasDefaultSchema("identity");
-        builder.Entity<ApplicationUser>().ToTable("users");
+        builder.Entity<ApplicationUser>(entity =>
+        {
+            entity.ToTable("users");
+            entity.HasIndex(item => item.NormalizedEmail).IsUnique();
+            entity.Property(item => item.FirstName).HasMaxLength(80);
+            entity.Property(item => item.LastName).HasMaxLength(80);
+            entity.Property(item => item.DisplayName).HasMaxLength(161);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+        });
         builder.Entity<IdentityRole<Guid>>().ToTable("roles");
         builder.Entity<IdentityUserRole<Guid>>().ToTable("user_roles");
         builder.Entity<IdentityUserClaim<Guid>>().ToTable("user_claims");
@@ -60,6 +80,8 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.UserId, item.ExpiresAt });
             entity.Property(item => item.IpAddress).HasMaxLength(64);
+            entity.Property(item => item.RefreshTokenHash).HasMaxLength(64);
+            entity.Property(item => item.Version).IsConcurrencyToken();
         });
         builder.Entity<LoginRateEventEntity>(entity =>
         {
@@ -67,6 +89,19 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasKey(item => item.Id);
             entity.HasIndex(item => new { item.Partition, item.OccurredAt });
             entity.Property(item => item.Partition).HasMaxLength(400);
+        });
+        builder.Entity<PasswordResetTokenEntity>(entity =>
+        {
+            entity.ToTable("password_reset_tokens");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.TokenHash).HasMaxLength(64);
+            entity.HasIndex(item => new { item.UserId, item.ExpiresAt });
+            entity.HasIndex(item => item.TokenHash).IsUnique();
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
         builder.Entity<OrganizationEntity>(entity =>
         {
@@ -241,6 +276,14 @@ internal sealed class LoginSessionEntity
     public required string IpAddress { get; set; }
 
     public DateTimeOffset? RevokedAt { get; set; }
+
+    public required string RefreshTokenHash { get; set; }
+
+    public bool RememberMe { get; set; }
+
+    public DateTimeOffset ReauthenticatedAt { get; set; }
+
+    public long Version { get; set; } = 1;
 }
 
 internal sealed class LoginRateEventEntity
@@ -250,4 +293,19 @@ internal sealed class LoginRateEventEntity
     public required string Partition { get; set; }
 
     public DateTimeOffset OccurredAt { get; set; }
+}
+
+internal sealed class PasswordResetTokenEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid UserId { get; set; }
+
+    public required string TokenHash { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    public DateTimeOffset? UsedAt { get; set; }
 }

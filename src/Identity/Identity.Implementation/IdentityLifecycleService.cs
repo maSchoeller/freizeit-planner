@@ -229,7 +229,8 @@ public sealed class IdentityLifecycleService(
             user.Email,
             user.DisplayName,
             user.DeletionScheduledAt,
-            user.IsPlatformAdmin);
+            user.IsPlatformAdmin,
+            user.Version);
     }
 
     public async Task<AccountView> GetAccountAsync(Guid userId, CancellationToken cancellationToken)
@@ -240,7 +241,8 @@ public sealed class IdentityLifecycleService(
             user.Email,
             user.DisplayName,
             user.DeletionScheduledAt,
-            user.IsPlatformAdmin);
+            user.IsPlatformAdmin,
+            user.Version);
     }
 
     public async Task<IReadOnlyList<AccountMembershipView>> ListMembershipsAsync(

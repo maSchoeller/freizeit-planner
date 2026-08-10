@@ -17,12 +17,14 @@ using Logistics.Contracts;
 using Logistics.Implementation;
 using Files.Contracts;
 using Files.Implementation;
-using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Npgsql;
+using Microsoft.IdentityModel.Tokens;
 using Spiritual.Contracts;
 using Spiritual.Implementation;
 
@@ -60,45 +62,81 @@ builder.Services.AddAntiforgery(options =>
         : CookieSecurePolicy.SameAsRequest;
     options.HeaderName = "X-CSRF-TOKEN";
 });
-builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
-    .AddCookie(options =>
+var jwtSigningMaterial = JwtSigningMaterialFactory.Create(
+    builder.Configuration,
+    builder.Environment,
+    isOpenApiGeneration);
+builder.Services.AddSingleton(jwtSigningMaterial);
+builder.Services.AddSingleton<JwtAuthenticationTokenIssuer>();
+builder.Services.AddSingleton<IAuthenticationTokenIssuer>(services =>
+    services.GetRequiredService<JwtAuthenticationTokenIssuer>());
+builder.Services.AddSingleton<IRefreshTokenReader>(services =>
+    services.GetRequiredService<JwtAuthenticationTokenIssuer>());
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
     {
-        options.Cookie.Name = "freizeit_session";
-        options.Cookie.HttpOnly = true;
-        options.Cookie.SecurePolicy = builder.Environment.IsProduction()
-            ? CookieSecurePolicy.Always
-            : CookieSecurePolicy.SameAsRequest;
-        options.Cookie.SameSite = SameSiteMode.Strict;
-        options.ExpireTimeSpan = TimeSpan.FromHours(12);
-        options.SlidingExpiration = false;
-        options.Events.OnValidatePrincipal = async context =>
+        options.MapInboundClaims = false;
+        options.TokenValidationParameters = new TokenValidationParameters
         {
-            var sessionValue = context.Principal?.FindFirstValue("session_id");
-            var passwordlessLogin = context.HttpContext.RequestServices
-                .GetRequiredService<IPasswordlessLogin>();
-            if (!Guid.TryParse(sessionValue, out var sessionId)
-                || !await passwordlessLogin.IsSessionActiveAsync(
-                    sessionId,
-                    context.HttpContext.RequestAborted))
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Authentication:Jwt:Issuer"] ?? "freizeit-cockpit",
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Authentication:Jwt:Audience"] ?? "freizeit-cockpit-api",
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = jwtSigningMaterial.Key,
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            ValidTypes = ["at+jwt"],
+            NameClaimType = ClaimTypes.Name,
+            RoleClaimType = ClaimTypes.Role
+        };
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
             {
-                context.RejectPrincipal();
+                var principal = context.Principal;
+                var validator = context.HttpContext.RequestServices
+                    .GetRequiredService<IAuthenticationSessionValidator>();
+                if (principal is null
+                    || !Guid.TryParse(principal.FindFirstValue("sub"), out var userId)
+                    || !Guid.TryParse(principal.FindFirstValue("sid"), out var sessionId)
+                    || principal.FindFirstValue("sst") is not { } securityStamp
+                    || !await validator.IsSessionActiveAsync(
+                        new SessionValidationRequest(sessionId, userId, securityStamp),
+                        context.HttpContext.RequestAborted))
+                {
+                    context.Fail("The authentication session is no longer active.");
+                }
             }
-        };
-        options.Events.OnRedirectToLogin = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-            return Task.CompletedTask;
-        };
-        options.Events.OnRedirectToAccessDenied = context =>
-        {
-            context.Response.StatusCode = StatusCodes.Status403Forbidden;
-            return Task.CompletedTask;
         };
     });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton(TimeProvider.System);
+if (builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Services.AddAuthentication(options =>
+        {
+            options.DefaultAuthenticateScheme = TestingAuthenticationHandler.SchemeName;
+            options.DefaultChallengeScheme = TestingAuthenticationHandler.SchemeName;
+        })
+        .AddScheme<AuthenticationSchemeOptions, TestingAuthenticationHandler>(
+            TestingAuthenticationHandler.SchemeName,
+            _ => { });
+}
 if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
 {
+    builder.Services.AddScoped<IPasswordAuthentication>(_ =>
+        throw new InvalidOperationException("Tests that use password authentication must supply IPasswordAuthentication."));
+    builder.Services.AddScoped<IAuthenticationSessionValidator>(_ =>
+        throw new InvalidOperationException("Tests that validate authentication sessions must supply IAuthenticationSessionValidator."));
+    builder.Services.AddScoped<IAuthenticationSessionManagement>(_ =>
+        throw new InvalidOperationException("Tests that use authentication sessions must supply IAuthenticationSessionManagement."));
+    builder.Services.AddScoped<IInitialSuperAdminRegistration>(_ =>
+        throw new InvalidOperationException("Tests that use First Login must supply IInitialSuperAdminRegistration."));
+    builder.Services.AddScoped<IPasswordMaintenance>(_ =>
+        throw new InvalidOperationException("Tests that maintain passwords must supply IPasswordMaintenance."));
     builder.Services.AddSingleton<IPasswordlessState>(_ =>
         throw new InvalidOperationException("Tests that use authentication must supply IPasswordlessState."));
     builder.Services.AddSingleton<ILoginCodeSender>(_ =>
@@ -107,6 +145,8 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that send email-change codes must supply IEmailChangeCodeSender."));
     builder.Services.AddSingleton<IInvitationSender>(_ =>
         throw new InvalidOperationException("Tests that send invitations must supply IInvitationSender."));
+    builder.Services.AddSingleton<IPasswordResetSender>(_ =>
+        throw new InvalidOperationException("Tests that send password resets must supply IPasswordResetSender."));
     builder.Services.AddSingleton<IPasswordlessLogin>(services =>
         CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IInvitationLifecycle>(_ =>
@@ -178,9 +218,33 @@ else
         options
             .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
             .AddInterceptors(services.GetRequiredService<RuntimeRoleConnectionInterceptor>()));
-    builder.Services.AddIdentityCore<ApplicationUser>()
+    builder.Services.AddIdentityCore<ApplicationUser>(options =>
+        {
+            options.Password.RequiredLength = 15;
+            options.Password.RequiredUniqueChars = 1;
+            options.Password.RequireDigit = false;
+            options.Password.RequireLowercase = false;
+            options.Password.RequireNonAlphanumeric = false;
+            options.Password.RequireUppercase = false;
+            options.Lockout.AllowedForNewUsers = true;
+            options.Lockout.MaxFailedAccessAttempts = 10;
+            options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(15);
+        })
         .AddRoles<IdentityRole<Guid>>()
         .AddEntityFrameworkStores<IdentityDbContext>();
+    builder.Services.AddScoped<PasswordAuthenticationService>(services =>
+        CreatePasswordAuthentication(services, builder.Configuration, builder.Environment));
+    builder.Services.AddScoped<IPasswordAuthentication>(services =>
+        services.GetRequiredService<PasswordAuthenticationService>());
+    builder.Services.AddScoped<IAuthenticationSessionValidator>(services =>
+        services.GetRequiredService<PasswordAuthenticationService>());
+    builder.Services.AddScoped<IAuthenticationSessionManagement>(services =>
+        services.GetRequiredService<PasswordAuthenticationService>());
+    builder.Services.AddScoped<IInitialSuperAdminRegistration>(services =>
+        CreateInitialSuperAdminRegistration(services, builder.Configuration, builder.Environment));
+    builder.Services.AddSingleton<IPasswordResetSender, SmtpPasswordResetSender>();
+    builder.Services.AddScoped<IPasswordMaintenance>(services =>
+        CreatePasswordMaintenance(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IPasswordlessState, EfPasswordlessState>();
     builder.Services.AddScoped<EfIdentityLifecycleState>();
     builder.Services.AddScoped<IIdentityLifecycleState>(services =>
@@ -373,6 +437,68 @@ static PasswordlessLoginService CreatePasswordlessLogin(
     return new PasswordlessLoginService(
         services.GetRequiredService<IPasswordlessState>(),
         services.GetRequiredService<ILoginCodeSender>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static PasswordAuthenticationService CreatePasswordAuthentication(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:RateLimitPepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException("Authentication:RateLimitPepper must be configured in production.");
+    }
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-authentication-rate-pepper-do-not-use-in-production"));
+    return new PasswordAuthenticationService(
+        services.GetRequiredService<IdentityDbContext>(),
+        services.GetRequiredService<IPasswordHasher<ApplicationUser>>(),
+        services.GetRequiredService<IAuthenticationTokenIssuer>(),
+        services.GetRequiredService<IRefreshTokenReader>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static InitialSuperAdminRegistrationService CreateInitialSuperAdminRegistration(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:RateLimitPepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException("Authentication:RateLimitPepper must be configured in production.");
+    }
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-authentication-rate-pepper-do-not-use-in-production"));
+    return new InitialSuperAdminRegistrationService(
+        services.GetRequiredService<IdentityDbContext>(),
+        services.GetRequiredService<IPasswordHasher<ApplicationUser>>(),
+        services.GetRequiredService<IAuthenticationTokenIssuer>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static PasswordMaintenanceService CreatePasswordMaintenance(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:PasswordResetPepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException(
+            "Authentication:PasswordResetPepper must be configured in production.");
+    }
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-password-reset-pepper-do-not-use-in-production"));
+    return new PasswordMaintenanceService(
+        services.GetRequiredService<IdentityDbContext>(),
+        services.GetRequiredService<IPasswordHasher<ApplicationUser>>(),
+        services.GetRequiredService<IPasswordResetSender>(),
         services.GetRequiredService<TimeProvider>(),
         pepper);
 }

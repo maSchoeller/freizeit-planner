@@ -169,6 +169,8 @@ public sealed class PlanningReadEndpointApiTests
                 Replace<IInvitationLifecycle>(services);
                 Replace<IAccountLifecycle>(services);
                 Replace<IEmailChangeLifecycle>(services);
+                Replace<IAuthenticationSessionManagement>(services);
+                Replace<IPasswordMaintenance>(services);
                 Replace<ITenantAccessControl>(services);
                 Replace<ITenantAdministration>(services);
                 Replace<ICampMemberDirectory>(services);
@@ -292,18 +294,14 @@ public sealed class PlanningReadEndpointApiTests
     private static void Replace<T>(IServiceCollection services) where T : class
         => Replace(services, DispatchProxy.Create<T, ContractProxy>());
 
-    private static async Task LoginAsync(HttpClient client, CapturingSender sender,
+    private static Task LoginAsync(HttpClient client, CapturingSender sender,
         CancellationToken cancellationToken)
     {
-        var token = await GetAntiforgeryAsync(client, cancellationToken);
-        using var requestCode = Post("/api/v1/auth/code", new { email = "miriam@example.test" }, token);
-        using var requested = await client.SendAsync(requestCode, cancellationToken);
-        requested.EnsureSuccessStatusCode();
-        token = await GetAntiforgeryAsync(client, cancellationToken);
-        using var verify = Post("/api/v1/auth/verify",
-            new { email = "miriam@example.test", code = Assert.Single(sender.Codes), rememberMe = false }, token);
-        using var verified = await client.SendAsync(verify, cancellationToken);
-        Assert.Equal(HttpStatusCode.NoContent, verified.StatusCode);
+        cancellationToken.ThrowIfCancellationRequested();
+        client.DefaultRequestHeaders.Authorization = new(
+            "Test",
+            "10000000-0000-0000-0000-000000000001");
+        return Task.CompletedTask;
     }
 
     private static async Task<string> GetAntiforgeryAsync(HttpClient client, CancellationToken cancellationToken)

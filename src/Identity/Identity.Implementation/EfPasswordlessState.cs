@@ -81,7 +81,9 @@ public sealed class EfPasswordlessState(IdentityDbContext dbContext) : IPassword
                 CreatedAt = session.CreatedAt,
                 ExpiresAt = session.ExpiresAt,
                 IpAddress = session.IpAddress,
-                RevokedAt = session.RevokedAt
+                RevokedAt = session.RevokedAt,
+                RefreshTokenHash = string.Empty,
+                ReauthenticatedAt = session.CreatedAt
             });
         }
         else

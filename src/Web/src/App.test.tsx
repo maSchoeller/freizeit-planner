@@ -62,7 +62,7 @@ describe("Dashboard", () => {
     ).toHaveAttribute("href", "/hilfe/");
   });
 
-  it("starts passwordless login with an explicitly labelled and focused email field", () => {
+  it("starts password login with labelled password-manager fields", () => {
     render(
       <MemoryRouter initialEntries={["/anmelden"]}>
         <App />
@@ -75,8 +75,12 @@ describe("Dashboard", () => {
     const email = screen.getByRole("textbox", { name: "E-Mail-Adresse" });
     expect(email).toHaveAttribute("autocomplete", "email");
     expect(email).toHaveFocus();
+    expect(screen.getByLabelText("Passwort")).toHaveAttribute(
+      "autocomplete",
+      "current-password",
+    );
     expect(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
+      screen.getByRole("button", { name: "Anmelden" }),
     ).toBeInTheDocument();
   });
 
@@ -92,9 +96,7 @@ describe("Dashboard", () => {
 
     const email = screen.getByRole("textbox", { name: "E-Mail-Adresse" });
     await user.type(email, "keine-adresse");
-    await user.click(
-      screen.getByRole("button", { name: "Anmeldecode anfordern" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Anmelden" }));
 
     expect(email).toHaveAttribute("aria-invalid", "true");
     expect(email).toHaveAccessibleDescription(

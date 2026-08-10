@@ -37,6 +37,88 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/account/password": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PasswordChangeBody"];
+        };
+      };
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Locked */
+        423: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Precondition Required */
+        428: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/organizations/{organizationId}/camps/{campId}/trash": {
     parameters: {
       query?: never;
@@ -75,7 +157,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/auth/code": {
+  "/api/v1/auth/login": {
     parameters: {
       query?: never;
       header?: never;
@@ -93,7 +175,211 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["CodeRequest"];
+          "application/json": components["schemas"]["PasswordLoginBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccessTokenResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Locked */
+        423: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Too Many Requests */
+        429: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/auth/first-login": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["FirstLoginAvailability"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["FirstLoginBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccessTokenResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/auth/refresh": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccessTokenResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/auth/password-reset/request": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["PasswordResetRequestBody"];
         };
       };
       responses: {
@@ -102,9 +388,7 @@ export interface paths {
           headers: {
             [name: string]: unknown;
           };
-          content: {
-            "application/json": components["schemas"]["CodeRequestResponse"];
-          };
+          content?: never;
         };
         /** @description Bad Request */
         400: {
@@ -123,7 +407,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/auth/verify": {
+  "/api/v1/auth/password-reset/confirm": {
     parameters: {
       query?: never;
       header?: never;
@@ -141,7 +425,7 @@ export interface paths {
       };
       requestBody: {
         content: {
-          "application/json": components["schemas"]["CodeVerification"];
+          "application/json": components["schemas"]["PasswordResetConfirmBody"];
         };
       };
       responses: {
@@ -161,8 +445,56 @@ export interface paths {
             "application/problem+json": components["schemas"]["ProblemDetails"];
           };
         };
-        /** @description Too Many Requests */
-        429: {
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/auth/reauthenticate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ReauthenticationBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["ReauthenticationResponse"];
+          };
+        };
+        /** @description Unauthorized */
+        401: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Locked */
+        423: {
           headers: {
             [name: string]: unknown;
           };
@@ -4216,6 +4548,11 @@ export interface components {
       token: null | string;
       displayName: null | string;
     };
+    AccessTokenResponse: {
+      accessToken: string;
+      /** Format: date-time */
+      expiresAt: string;
+    };
     AccountMembershipView: {
       /** Format: uuid */
       organizationId: string;
@@ -4231,6 +4568,8 @@ export interface components {
       /** Format: date-time */
       deletionScheduledAt: null | string;
       isPlatformAdmin: boolean;
+      /** Format: int64 */
+      version: number | string;
     };
     ActivityKind: number;
     /** @default 0 */
@@ -4352,17 +4691,6 @@ export interface components {
     CheckedBody: {
       isChecked: boolean;
     };
-    CodeRequest: {
-      email: null | string;
-    };
-    CodeRequestResponse: {
-      message: string;
-    };
-    CodeVerification: {
-      email: null | string;
-      code: null | string;
-      rememberMe: boolean;
-    };
     ConfirmEmailChangeBody: {
       email: null | string;
       code: null | string;
@@ -4426,6 +4754,15 @@ export interface components {
     EmailChangeResult: {
       outcome: components["schemas"]["EmailChangeOutcome"];
       email: null | string;
+    };
+    FirstLoginAvailability: {
+      available: boolean;
+    };
+    FirstLoginBody: {
+      email: null | string;
+      password: null | string;
+      firstName: null | string;
+      lastName: null | string;
     };
     /** Format: binary */
     IFormFile: string;
@@ -4602,6 +4939,22 @@ export interface components {
       /** Format: int64 */
       version: number | string;
     };
+    PasswordChangeBody: {
+      currentPassword: null | string;
+      newPassword: null | string;
+    };
+    PasswordLoginBody: {
+      email: null | string;
+      password: null | string;
+      rememberMe: boolean;
+    };
+    PasswordResetConfirmBody: {
+      token: null | string;
+      newPassword: null | string;
+    };
+    PasswordResetRequestBody: {
+      email: null | string;
+    };
     PlatformOrganizationView: {
       /** Format: uuid */
       organizationId: string;
@@ -4629,6 +4982,13 @@ export interface components {
       compatibleUnits?: null | components["schemas"]["MeasurementUnit"][];
     };
     QuantityDimension: number;
+    ReauthenticationBody: {
+      password: null | string;
+    };
+    ReauthenticationResponse: {
+      /** Format: date-time */
+      validUntil: string;
+    };
     RecipeContent: {
       name: string;
       description: string;

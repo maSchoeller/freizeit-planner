@@ -9,6 +9,8 @@ import { CampWorkspace } from "./CampWorkspace";
 import { CampsPage, CampSettingsPage } from "./CampsPage";
 import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { OnlineOnly } from "./OnlineOnly";
+import { FirstLoginPage } from "./FirstLoginPage";
+import { PasswordResetPage } from "./PasswordResetPage";
 
 export function App() {
   return (
@@ -20,6 +22,30 @@ export function App() {
           element={
             <OnlineOnly>
               <LoginPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/erste-einrichtung"
+          element={
+            <OnlineOnly>
+              <FirstLoginPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/passwort-vergessen"
+          element={
+            <OnlineOnly>
+              <PasswordResetPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/passwort-zuruecksetzen"
+          element={
+            <OnlineOnly>
+              <PasswordResetPage />
             </OnlineOnly>
           }
         />
@@ -57,6 +83,14 @@ export function App() {
         />
         <Route
           path="/plattform/organisationen"
+          element={
+            <OnlineOnly>
+              <PlatformOrganizationsPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/superadmin/organisationen"
           element={
             <OnlineOnly>
               <PlatformOrganizationsPage />
