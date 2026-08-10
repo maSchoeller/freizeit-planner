@@ -137,6 +137,8 @@ export function PasswordField(props: {
   show: boolean;
   onChange: (value: string) => void;
   onToggle: () => void;
+  minLength?: number;
+  maxLength?: number;
 }) {
   return (
     <div className="field">
@@ -147,6 +149,8 @@ export function PasswordField(props: {
         type={props.show ? "text" : "password"}
         autoComplete={props.autoComplete}
         required
+        minLength={props.minLength}
+        maxLength={props.maxLength}
         value={props.value}
         onChange={(event) => props.onChange(event.target.value)}
       />

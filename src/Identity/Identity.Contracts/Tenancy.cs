@@ -219,7 +219,8 @@ public enum InvitationAcceptanceOutcome
     Invalid,
     Expired,
     Revoked,
-    Used
+    Used,
+    Reserved
 }
 
 public enum EmailChangeOutcome

@@ -1,12 +1,19 @@
 # Organisationen, Camps und Rollen
 
 Eine **Organisation** ist der Veranstalter und kann mehrere **Camps** planen. Zugriff entsteht ausschließlich durch
-eine persönliche Einladung. Öffne den vollständigen Link aus der E-Mail, gib deinen Anzeigenamen ein und melde dich
-anschließend mit der eingeladenen Adresse an.
+einen weitergebbaren Einladungslink. Der Link zeigt vor der Annahme, welche Rolle, Organisation und gegebenenfalls
+welches Camp du erhältst.
 
-- Einladungen für den ersten Organisations-Owner gelten 48 Stunden.
-- Einladungen in ein bestehendes Team gelten sieben Tage.
-- Ein Link ist nur einmal nutzbar. Admins können offene Einladungen widerrufen oder neu ausstellen.
+- Superadmin-Links gelten eine Stunde, Orgadmin-Links 48 Stunden und Camp-Links sieben Tage.
+- Ein Link ist nur einmal nutzbar. Admins können offene Links widerrufen oder sicher neu ausstellen.
+- Wenn du bereits ein Konto hast, meldest du dich zuerst an und fügst die Rolle diesem Konto hinzu.
+- Ohne Konto gibst du E-Mail-Adresse, Vorname, Nachname und ein neues Passwort an. Erst der Bestätigungslink aus der
+  E-Mail schließt Registrierung und Einladung gemeinsam ab. Währenddessen ist der Link höchstens eine Stunde für
+  dich reserviert.
+
+Ein Link ist ein Zugangsschlüssel. Teile ihn nur mit der vorgesehenen Person und widerrufe ihn, falls er in falsche
+Hände geraten sein könnte. Zustände wie **abgelaufen**, **verwendet**, **widerrufen** oder **reserviert** werden auf
+der Einladungsseite verständlich erklärt.
 
 Owner und Organisations-Admins sehen alle Camps der Organisation. Camp-Leitungen, Mitglieder und Personen mit
 Lesezugriff werden einzelnen Camps zugeordnet. Eine Camp-Einladung verringert niemals eine bereits höhere

@@ -36,6 +36,28 @@ public sealed class IdentityMaintenanceService(
             .OrderBy(item => item.ExpiresAt)
             .Take(batchSize)
             .ToArrayAsync(cancellationToken);
+        var transferableInvitations = await dbContext.TransferableInvitations
+            .Where(item => item.ExpiresAt <= now || item.RevokedAt != null || item.UsedAt != null)
+            .OrderBy(item => item.ExpiresAt)
+            .Take(batchSize)
+            .ToArrayAsync(cancellationToken);
+        var expiredRegistrationUserIds = await dbContext.InvitationRegistrations
+            .Where(item => item.ExpiresAt <= now && item.UsedAt == null)
+            .Select(item => item.UserId)
+            .Distinct()
+            .Take(batchSize)
+            .ToArrayAsync(cancellationToken);
+        var abandonedUsers = expiredRegistrationUserIds.Length == 0
+            ? Array.Empty<ApplicationUser>()
+            : await dbContext.Users
+                .Where(item => expiredRegistrationUserIds.Contains(item.Id)
+                    && !item.EmailConfirmed
+                    && !dbContext.InvitationRegistrations.Any(registration =>
+                        registration.UserId == item.Id
+                        && registration.UsedAt == null
+                        && registration.ExpiresAt > now))
+                .Take(batchSize)
+                .ToArrayAsync(cancellationToken);
         var sessions = await dbContext.LoginSessions
             .Where(item => item.ExpiresAt <= now || item.RevokedAt != null)
             .OrderBy(item => item.ExpiresAt)
@@ -50,6 +72,8 @@ public sealed class IdentityMaintenanceService(
         dbContext.RemoveRange(loginChallenges);
         dbContext.RemoveRange(emailChallenges);
         dbContext.RemoveRange(invitations);
+        dbContext.RemoveRange(transferableInvitations);
+        dbContext.RemoveRange(abandonedUsers);
         dbContext.RemoveRange(sessions);
         dbContext.RemoveRange(rateEvents);
         await dbContext.SaveChangesAsync(cancellationToken);
@@ -57,7 +81,7 @@ public sealed class IdentityMaintenanceService(
         return new IdentityCleanupResult(
             loginChallenges.Length,
             emailChallenges.Length,
-            invitations.Length,
+            invitations.Length + transferableInvitations.Length,
             sessions.Length,
             rateEvents.Length);
     }
@@ -130,6 +154,8 @@ public sealed class IdentityMaintenanceService(
             dbContext.Memberships.Where(item => item.OrganizationId == organizationId));
         dbContext.Invitations.RemoveRange(
             dbContext.Invitations.Where(item => item.OrganizationId == organizationId));
+        dbContext.TransferableInvitations.RemoveRange(
+            dbContext.TransferableInvitations.Where(item => item.OrganizationId == organizationId));
         dbContext.Organizations.Remove(organization);
         await dbContext.SaveChangesAsync(cancellationToken);
     }

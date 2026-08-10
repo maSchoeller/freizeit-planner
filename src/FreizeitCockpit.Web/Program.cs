@@ -151,6 +151,12 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IInvitationLifecycle>(_ =>
         throw new InvalidOperationException("Tests that use invitation endpoints must supply IInvitationLifecycle."));
+    builder.Services.AddScoped<ITransferableInvitationLinks>(_ =>
+        throw new InvalidOperationException("Tests that use transferable invitations must supply ITransferableInvitationLinks."));
+    builder.Services.AddScoped<IInvitationRegistration>(_ =>
+        throw new InvalidOperationException("Tests that use invitation registration must supply IInvitationRegistration."));
+    builder.Services.AddSingleton<IInvitationConfirmationSender>(_ =>
+        throw new InvalidOperationException("Tests that send invitation confirmations must supply IInvitationConfirmationSender."));
     builder.Services.AddScoped<IAccountLifecycle>(_ =>
         throw new InvalidOperationException("Tests that use account endpoints must supply IAccountLifecycle."));
     builder.Services.AddScoped<IEmailChangeLifecycle>(_ =>
@@ -261,6 +267,11 @@ else
         CreateIdentityLifecycle(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IInvitationLifecycle>(services =>
         services.GetRequiredService<IdentityLifecycleService>());
+    builder.Services.AddScoped<ITransferableInvitationLinks>(services =>
+        CreateTransferableInvitationLinks(services, builder.Configuration, builder.Environment));
+    builder.Services.AddSingleton<IInvitationConfirmationSender, SmtpInvitationConfirmationSender>();
+    builder.Services.AddScoped<IInvitationRegistration>(services =>
+        CreateInvitationRegistration(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IAccountLifecycle>(services =>
         services.GetRequiredService<IdentityLifecycleService>());
     builder.Services.AddScoped<IEmailChangeLifecycle>(services =>
@@ -520,6 +531,52 @@ static IdentityLifecycleService CreateIdentityLifecycle(
         services.GetRequiredService<IIdentityLifecycleState>(),
         services.GetRequiredService<TimeProvider>(),
         pepper);
+}
+
+static TransferableInvitationLinkService CreateTransferableInvitationLinks(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var configuredPepper = configuration["Authentication:InvitationTokenPepper"];
+    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
+    {
+        throw new InvalidOperationException("Authentication:InvitationTokenPepper must be configured in production.");
+    }
+
+    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        configuredPepper ?? "development-only-invitation-token-pepper-do-not-use-in-production"));
+    return new TransferableInvitationLinkService(
+        services.GetRequiredService<IdentityDbContext>(),
+        services.GetRequiredService<TimeProvider>(),
+        pepper);
+}
+
+static InvitationRegistrationService CreateInvitationRegistration(
+    IServiceProvider services,
+    IConfiguration configuration,
+    IWebHostEnvironment environment)
+{
+    var invitationSecret = configuration["Authentication:InvitationTokenPepper"];
+    var sessionSecret = configuration["Authentication:RateLimitPepper"];
+    if (environment.IsProduction()
+        && (string.IsNullOrWhiteSpace(invitationSecret) || string.IsNullOrWhiteSpace(sessionSecret)))
+    {
+        throw new InvalidOperationException(
+            "Authentication:InvitationTokenPepper and Authentication:RateLimitPepper must be configured in production.");
+    }
+    var invitationPepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        invitationSecret ?? "development-only-invitation-token-pepper-do-not-use-in-production"));
+    var sessionPepper = SHA256.HashData(Encoding.UTF8.GetBytes(
+        sessionSecret ?? "development-only-authentication-rate-pepper-do-not-use-in-production"));
+    return new InvitationRegistrationService(
+        services.GetRequiredService<IdentityDbContext>(),
+        services.GetRequiredService<IPasswordHasher<ApplicationUser>>(),
+        services.GetRequiredService<IInvitationConfirmationSender>(),
+        services.GetRequiredService<IAuthenticationTokenIssuer>(),
+        services.GetRequiredService<TimeProvider>(),
+        invitationPepper,
+        sessionPepper);
 }
 
 static EmailChangeService CreateEmailChangeLifecycle(

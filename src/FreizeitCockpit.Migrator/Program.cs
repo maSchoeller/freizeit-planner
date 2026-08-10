@@ -59,7 +59,6 @@ try
 
     await IdentitySeeder.SeedAsync(
         identityDb,
-        builder.Configuration["Bootstrap:PlatformAdminEmail"],
         builder.Environment.IsDevelopment());
 }
 finally

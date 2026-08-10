@@ -29,6 +29,37 @@ internal static class LifecycleEndpoints
             .Produces<InvitationAcceptance>()
             .ProducesProblem(StatusCodes.Status400BadRequest)
             .AllowAnonymous();
+        invitations.MapGet("/{token}/preview", PreviewTransferableInvitationAsync)
+            .Produces<InvitationPreview>()
+            .Produces(StatusCodes.Status404NotFound)
+            .AllowAnonymous();
+        invitations.MapPost("/links", CreateTransferableInvitationAsync)
+            .Produces<IssuedInvitationLink>(StatusCodes.Status201Created)
+            .ProducesProblem(StatusCodes.Status403Forbidden)
+            .RequireAuthorization();
+        invitations.MapPost("/links/{invitationId:guid}/rotate", RotateTransferableInvitationAsync)
+            .Produces<IssuedInvitationLink>()
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .RequireAuthorization();
+        invitations.MapDelete("/links/{invitationId:guid}", RevokeTransferableInvitationAsync)
+            .Produces(StatusCodes.Status204NoContent)
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired)
+            .RequireAuthorization();
+        invitations.MapPost("/{token}/register", BeginInvitationRegistrationAsync)
+            .Produces(StatusCodes.Status202Accepted)
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .ProducesProblem(StatusCodes.Status409Conflict)
+            .AllowAnonymous();
+        invitations.MapPost("/confirm", ConfirmInvitationRegistrationAsync)
+            .Produces<AccessTokenResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .AllowAnonymous();
+        invitations.MapPost("/{token}/accept", AcceptTransferableInvitationAsync)
+            .Produces<InvitationAcceptanceResult>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .RequireAuthorization();
 
         var account = endpoints.MapGroup("/api/v1/account").RequireAuthorization();
         account.MapGet("/", GetAccountAsync).Produces<AccountView>();
@@ -125,6 +156,173 @@ internal static class LifecycleEndpoints
             await sender.SendAsync(issued, cancellationToken);
             return Results.Created($"/api/v1/invitations/{issued.Id}", InvitationView.From(issued));
         });
+    }
+
+    private static async Task<IResult> PreviewTransferableInvitationAsync(
+        string token,
+        ITransferableInvitationLinks invitations,
+        CancellationToken cancellationToken)
+    {
+        var preview = await invitations.PreviewAsync(token, cancellationToken);
+        return preview is null ? Results.NotFound() : Results.Ok(preview);
+    }
+
+    private static async Task<IResult> CreateTransferableInvitationAsync(
+        InvitationGrant body,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ITransferableInvitationLinks invitations,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        if (!TryGetActor(context.User, out var actorId))
+        {
+            return Results.Unauthorized();
+        }
+
+        return await ExecuteAsync(async () =>
+        {
+            var issued = await invitations.CreateAsync(
+                new CreateInvitationLinkRequest(actorId, body, ReadIpAddress(context)),
+                cancellationToken);
+            return Results.Created($"/api/v1/invitations/{issued.Id}", issued);
+        });
+    }
+
+    private static async Task<IResult> BeginInvitationRegistrationAsync(
+        string token,
+        InvitationRegistrationBody body,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        IInvitationRegistration registration,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        var outcome = await registration.BeginAsync(
+            new InvitationRegistrationRequest(
+                token,
+                body.Email ?? string.Empty,
+                body.Password ?? string.Empty,
+                body.PasswordConfirmation ?? string.Empty,
+                body.FirstName ?? string.Empty,
+                body.LastName ?? string.Empty,
+                ReadIpAddress(context)),
+            cancellationToken);
+        return outcome == InvitationRegistrationOutcome.ConfirmationRequired
+            ? Results.Accepted()
+            : InvitationRegistrationProblem(outcome);
+    }
+
+    private static async Task<IResult> RotateTransferableInvitationAsync(
+        Guid invitationId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ITransferableInvitationLinks invitations,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        if (!TryGetActor(context.User, out var actorId))
+        {
+            return Results.Unauthorized();
+        }
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var expectedVersion))
+        {
+            return PlanningEndpointSupport.PreconditionRequired();
+        }
+        return await ExecuteAsync(async () =>
+        {
+            var issued = await invitations.RotateAsync(
+                actorId,
+                invitationId,
+                expectedVersion,
+                cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, issued.Version);
+            return Results.Ok(issued);
+        });
+    }
+
+    private static async Task<IResult> RevokeTransferableInvitationAsync(
+        Guid invitationId,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        ITransferableInvitationLinks invitations,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        if (!TryGetActor(context.User, out var actorId))
+        {
+            return Results.Unauthorized();
+        }
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var expectedVersion))
+        {
+            return PlanningEndpointSupport.PreconditionRequired();
+        }
+        return await ExecuteAsync(async () =>
+        {
+            await invitations.RevokeAsync(
+                actorId,
+                invitationId,
+                expectedVersion,
+                cancellationToken);
+            return Results.NoContent();
+        });
+    }
+
+    private static async Task<IResult> ConfirmInvitationRegistrationAsync(
+        InvitationConfirmationBody body,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        IInvitationRegistration registration,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        var result = await registration.ConfirmAsync(
+            new InvitationEmailConfirmation(body.Token ?? string.Empty, ReadIpAddress(context)),
+            cancellationToken);
+        if (result.Authentication is not { } authentication)
+        {
+            return InvitationConfirmationProblem(result.Outcome);
+        }
+        IdentityEndpoints.SetRefreshCookie(context, authentication);
+        return Results.Ok(authentication.Access);
+    }
+
+    private static async Task<IResult> AcceptTransferableInvitationAsync(
+        string token,
+        HttpContext context,
+        IAntiforgery antiforgery,
+        IInvitationRegistration registration,
+        CancellationToken cancellationToken)
+    {
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure)
+        {
+            return failure;
+        }
+        if (!TryGetActor(context.User, out var actorId))
+        {
+            return Results.Unauthorized();
+        }
+        var result = await registration.AcceptExistingAsync(
+            new ExistingInvitationAcceptance(token, actorId),
+            cancellationToken);
+        return result.Outcome == InvitationAcceptanceOutcome.Accepted
+            ? Results.Ok(result)
+            : InvitationProblem(result.Outcome);
     }
 
     private static async Task<IResult> CreateTeamInvitationAsync(
@@ -408,6 +606,7 @@ internal static class LifecycleEndpoints
                 "invitation_not_found" or "organization_not_found" or "user_not_found" =>
                     StatusCodes.Status404NotFound,
                 "last_owner" or "organization_slug_conflict" or "email_conflict" => StatusCodes.Status409Conflict,
+                "version_conflict" => StatusCodes.Status412PreconditionFailed,
                 _ => StatusCodes.Status400BadRequest
             };
             return Results.Problem(
@@ -473,11 +672,56 @@ internal static class LifecycleEndpoints
             extensions: new Dictionary<string, object?> { ["errorCode"] = code });
     }
 
+    private static IResult InvitationRegistrationProblem(InvitationRegistrationOutcome outcome)
+    {
+        var (status, code, detail) = outcome switch
+        {
+            InvitationRegistrationOutcome.Reserved =>
+                (StatusCodes.Status409Conflict, "invitation_reserved", "Der Link wird gerade für eine Registrierung verwendet."),
+            InvitationRegistrationOutcome.ExistingAccount =>
+                (StatusCodes.Status409Conflict, "account_exists", "Für diese E-Mail-Adresse besteht bereits ein Konto. Melde dich zuerst an."),
+            InvitationRegistrationOutcome.InvalidInput =>
+                (StatusCodes.Status400BadRequest, "registration_invalid", "Prüfe Namen, E-Mail-Adresse und Passwort."),
+            _ =>
+                (StatusCodes.Status400BadRequest, "invitation_invalid", "Die Einladung ist ungültig oder abgelaufen.")
+        };
+        return Results.Problem(
+            statusCode: status,
+            title: "Registrierung nicht möglich",
+            detail: detail,
+            extensions: new Dictionary<string, object?> { ["errorCode"] = code });
+    }
+
+    private static IResult InvitationConfirmationProblem(InvitationConfirmationOutcome outcome)
+    {
+        var (code, detail) = outcome switch
+        {
+            InvitationConfirmationOutcome.Expired => ("confirmation_expired", "Der Bestätigungslink ist abgelaufen."),
+            InvitationConfirmationOutcome.Used => ("confirmation_used", "Der Bestätigungslink wurde bereits verwendet."),
+            InvitationConfirmationOutcome.Revoked => ("invitation_revoked", "Die Einladung wurde widerrufen."),
+            _ => ("confirmation_invalid", "Der Bestätigungslink ist ungültig.")
+        };
+        return Results.Problem(
+            statusCode: StatusCodes.Status400BadRequest,
+            title: "E-Mail-Adresse nicht bestätigt",
+            detail: detail,
+            extensions: new Dictionary<string, object?> { ["errorCode"] = code });
+    }
+
     private sealed record OrganizationInvitationBody(string? Email, string? OrganizationName, string? OrganizationSlug);
 
     private sealed record TeamInvitationBody(string? Email, TenantRole Role, Guid? CampId);
 
     private sealed record AcceptInvitationBody(string? Token, string? DisplayName);
+
+    private sealed record InvitationRegistrationBody(
+        string? Email,
+        string? Password,
+        string? PasswordConfirmation,
+        string? FirstName,
+        string? LastName);
+
+    private sealed record InvitationConfirmationBody(string? Token);
 
     private sealed record UpdateProfileBody(string? DisplayName);
 

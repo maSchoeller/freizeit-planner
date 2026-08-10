@@ -167,6 +167,8 @@ public sealed class PlanningReadEndpointApiTests
                 Replace<IEmailChangeCodeSender>(services);
                 Replace<IInvitationSender>(services);
                 Replace<IInvitationLifecycle>(services);
+                Replace<ITransferableInvitationLinks>(services);
+                Replace<IInvitationRegistration>(services);
                 Replace<IAccountLifecycle>(services);
                 Replace<IEmailChangeLifecycle>(services);
                 Replace<IAuthenticationSessionManagement>(services);

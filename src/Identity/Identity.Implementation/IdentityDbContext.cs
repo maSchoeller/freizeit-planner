@@ -44,6 +44,10 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
 
     internal DbSet<InvitationEntity> Invitations => Set<InvitationEntity>();
 
+    internal DbSet<TransferableInvitationEntity> TransferableInvitations => Set<TransferableInvitationEntity>();
+
+    internal DbSet<InvitationRegistrationEntity> InvitationRegistrations => Set<InvitationRegistrationEntity>();
+
     internal DbSet<EmailChangeChallengeEntity> EmailChangeChallenges => Set<EmailChangeChallengeEntity>();
 
     protected override void OnModelCreating(ModelBuilder builder)
@@ -143,6 +147,37 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
             entity.HasIndex(item => item.ExpiresAt);
             entity.Property(item => item.Version).IsConcurrencyToken();
         });
+        builder.Entity<TransferableInvitationEntity>(entity =>
+        {
+            entity.ToTable("transferable_invitations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.OrganizationId).HasColumnName("organization_id");
+            entity.Property(item => item.CampId).HasColumnName("camp_id");
+            entity.Property(item => item.TokenHash).HasMaxLength(64);
+            entity.Property(item => item.NewOrganizationName).HasMaxLength(160);
+            entity.Property(item => item.NewOrganizationSlug).HasMaxLength(80);
+            entity.HasIndex(item => item.TokenHash).IsUnique();
+            entity.HasIndex(item => item.ExpiresAt);
+            entity.Property(item => item.Version).IsConcurrencyToken();
+        });
+        builder.Entity<InvitationRegistrationEntity>(entity =>
+        {
+            entity.ToTable("invitation_registrations");
+            entity.HasKey(item => item.Id);
+            entity.Property(item => item.InvitationId).HasColumnName("invitation_id");
+            entity.Property(item => item.UserId).HasColumnName("user_id");
+            entity.Property(item => item.TokenHash).HasMaxLength(64);
+            entity.HasIndex(item => item.TokenHash).IsUnique();
+            entity.HasIndex(item => new { item.InvitationId, item.UserId, item.ExpiresAt });
+            entity.HasOne<ApplicationUser>()
+                .WithMany()
+                .HasForeignKey(item => item.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne<TransferableInvitationEntity>()
+                .WithMany()
+                .HasForeignKey(item => item.InvitationId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
         builder.Entity<EmailChangeChallengeEntity>(entity =>
         {
             entity.ToTable("email_change_challenges");
@@ -227,6 +262,62 @@ internal sealed class InvitationEntity
     public Guid? RotatedFromId { get; set; }
 
     public long Version { get; set; } = 1;
+}
+
+internal sealed class TransferableInvitationEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid CreatedByUserId { get; set; }
+
+    public required string TokenHash { get; set; }
+
+    public bool IsSuperAdmin { get; set; }
+
+    public Guid? OrganizationId { get; set; }
+
+    public Identity.Contracts.OrganizationRole? OrganizationRole { get; set; }
+
+    public Guid? CampId { get; set; }
+
+    public Identity.Contracts.CampRole? CampRole { get; set; }
+
+    public string? NewOrganizationName { get; set; }
+
+    public string? NewOrganizationSlug { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    public DateTimeOffset? ReservedUntil { get; set; }
+
+    public Guid? ReservedByUserId { get; set; }
+
+    public DateTimeOffset? UsedAt { get; set; }
+
+    public DateTimeOffset? RevokedAt { get; set; }
+
+    public Guid? RotatedFromId { get; set; }
+
+    public long Version { get; set; } = 1;
+}
+
+internal sealed class InvitationRegistrationEntity
+{
+    public Guid Id { get; set; }
+
+    public Guid InvitationId { get; set; }
+
+    public Guid UserId { get; set; }
+
+    public required string TokenHash { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; }
+
+    public DateTimeOffset ExpiresAt { get; set; }
+
+    public DateTimeOffset? UsedAt { get; set; }
 }
 
 internal sealed class LoginChallengeEntity

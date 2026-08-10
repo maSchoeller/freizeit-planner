@@ -290,39 +290,263 @@ describe("identity self-service pages", () => {
     expect(localStorage.getItem("freizeit-cockpit:offline:v1")).toBeNull();
   });
 
-  it("accepts an invitation and explains an API rejection", async () => {
+  it("previews a transferable invitation and registers a new global account", async () => {
     const user = userEvent.setup();
-    let accepted = true;
+    let registrationBody = "";
     vi.stubGlobal(
       "fetch",
-      routeFetch(({ path }) => {
+      routeFetch(({ path, method, body }) => {
+        if (path === "/api/v1/invitations/einmal-token/preview")
+          return json({
+            grant: {
+              isSuperAdmin: false,
+              organizationId,
+              organizationRole: 0,
+              campId: null,
+              campRole: null,
+            },
+            organizationName: "CVJM Sonnenhöhe",
+            campName: null,
+            expiresAt: "2026-08-13T12:00:00Z",
+            status: 0,
+          });
         if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
-        if (path === "/api/v1/invitations/accept")
-          return accepted
-            ? empty(204)
-            : json({ detail: "Die Einladung wurde widerrufen." }, 400);
+        if (path === "/api/v1/auth/refresh") return empty(401);
+        if (
+          path === "/api/v1/invitations/einmal-token/register" &&
+          method === "POST"
+        ) {
+          registrationBody = body;
+          return empty(202);
+        }
         return empty(404);
       }),
     );
 
-    const view = renderRoute("/einladung?token=einmal-token");
-    await user.type(screen.getByLabelText("Anzeigename"), "Neue Person");
-    await user.click(
-      screen.getByRole("button", { name: "Einladung annehmen" }),
+    renderRoute("/einladung?token=einmal-token");
+    await screen.findByText(/Orgadmin für CVJM Sonnenhöhe/);
+    await user.type(screen.getByLabelText("Vorname"), "Neue");
+    await user.type(screen.getByLabelText("Nachname"), "Person");
+    await user.type(
+      screen.getByLabelText("E-Mail-Adresse"),
+      "neu@example.test",
     );
+    await user.type(
+      screen.getByLabelText("Passwort", { exact: true }),
+      "Eine sichere Registrierungs-Passphrase",
+    );
+    await user.type(
+      screen.getByLabelText("Passwort bestätigen"),
+      "Eine sichere Registrierungs-Passphrase",
+    );
+    await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
     await expect(
-      screen.findByRole("heading", { name: "Willkommen im Team" }),
+      screen.findByRole("heading", { name: "E-Mail-Adresse bestätigen" }),
     ).resolves.toBeInTheDocument();
+    expect(registrationBody).toContain('"firstName":"Neue"');
+    expect(registrationBody).toContain('"passwordConfirmation"');
+    expect(localStorage).toHaveLength(0);
+  });
 
-    accepted = false;
-    view.unmount();
-    renderRoute("/einladung?token=widerrufen");
-    await user.type(screen.getByLabelText("Anzeigename"), "Neue Person");
-    await user.click(
-      screen.getByRole("button", { name: "Einladung annehmen" }),
+  it("confirms invitation registration and keeps tokens out of browser storage", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path, method }) => {
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (path === "/api/v1/invitations/confirm" && method === "POST")
+          return json({
+            accessToken: "invitation.access.jwt",
+            expiresAt: "2026-08-11T12:15:00Z",
+          });
+        return empty(404);
+      }),
     );
+
+    renderRoute("/einladung-bestaetigen?token=bestaetigung");
+
+    await expect(
+      screen.findByRole("heading", { name: "E-Mail-Adresse bestätigt" }),
+    ).resolves.toBeInTheDocument();
+    expect(localStorage).toHaveLength(0);
+    expect(sessionStorage).toHaveLength(0);
+  });
+
+  it("shows a clear state for revoked transferable invitations", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path }) =>
+        path === "/api/v1/invitations/widerrufen/preview"
+          ? json({
+              grant: {
+                isSuperAdmin: true,
+                organizationId: null,
+                organizationRole: null,
+                campId: null,
+                campRole: null,
+              },
+              organizationName: null,
+              campName: null,
+              expiresAt: "2026-08-11T12:00:00Z",
+              status: 3,
+            })
+          : empty(404),
+      ),
+    );
+
+    renderRoute("/einladung?token=widerrufen");
     await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
-      "Die Einladung wurde widerrufen.",
+      "widerrufen",
+    );
+  });
+
+  it.each([
+    [1, 0, "Campleitung", "reserviert"],
+    [2, 1, "Mitarbeit", "bereits verwendet"],
+    [4, 2, "Leserechte", "abgelaufen"],
+  ])(
+    "shows invitation status %s and camp role %s",
+    async (status, campRole, roleText, statusText) => {
+      vi.stubGlobal(
+        "fetch",
+        routeFetch(({ path }) =>
+          path === "/api/v1/invitations/status/preview"
+            ? json({
+                grant: {
+                  isSuperAdmin: false,
+                  organizationId,
+                  organizationRole: null,
+                  campId: "30000000-0000-0000-0000-000000000001",
+                  campRole,
+                },
+                organizationName: "CVJM Sonnenhöhe",
+                campName: "Sommerfreizeit",
+                expiresAt: "2026-08-13T12:00:00Z",
+                status,
+              })
+            : empty(404),
+        ),
+      );
+
+      renderRoute("/einladung?token=status");
+
+      await expect(
+        screen.findByText(new RegExp(roleText)),
+      ).resolves.toBeInTheDocument();
+      await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+        statusText,
+      );
+    },
+  );
+
+  it("lets a signed-in user attach a grant to the existing global account", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path, method }) => {
+        if (path === "/api/v1/invitations/bestehend/preview")
+          return json({
+            grant: {
+              isSuperAdmin: false,
+              organizationId,
+              organizationRole: 0,
+              campId: null,
+              campRole: null,
+            },
+            organizationName: "CVJM Sonnenhöhe",
+            campName: null,
+            expiresAt: "2026-08-13T12:00:00Z",
+            status: 0,
+          });
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (path === "/api/v1/auth/refresh" && method === "POST")
+          return json({ accessToken: "restored.jwt" });
+        if (
+          path === "/api/v1/invitations/bestehend/accept" &&
+          method === "POST"
+        )
+          return json({ outcome: 0, grant: { isSuperAdmin: false } });
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/einladung?token=bestehend");
+    await user.click(
+      await screen.findByRole("button", { name: "Einladung annehmen" }),
+    );
+
+    await expect(
+      screen.findByRole("heading", { name: "Einladung angenommen" }),
+    ).resolves.toBeInTheDocument();
+    expect(screen.queryByLabelText("E-Mail-Adresse")).not.toBeInTheDocument();
+  });
+
+  it("keeps registration input when passwords differ", async () => {
+    const user = userEvent.setup();
+    let registered = false;
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path, method }) => {
+        if (path === "/api/v1/invitations/abweichend/preview")
+          return availableSuperAdminPreview();
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (path === "/api/v1/auth/refresh") return empty(401);
+        if (path.endsWith("/register") && method === "POST") {
+          registered = true;
+          return empty(202);
+        }
+        return empty(404);
+      }),
+    );
+    renderRoute("/einladung?token=abweichend");
+    await user.type(await screen.findByLabelText("Vorname"), "Neue");
+    await user.type(screen.getByLabelText("Nachname"), "Person");
+    await user.type(
+      screen.getByLabelText("E-Mail-Adresse"),
+      "neu@example.test",
+    );
+    await user.type(
+      screen.getByLabelText("Passwort", { exact: true }),
+      "Eine sichere Registrierungs-Passphrase",
+    );
+    await user.type(
+      screen.getByLabelText("Passwort bestätigen"),
+      "Eine andere sichere Registrierungs-Passphrase",
+    );
+
+    await user.click(screen.getByRole("button", { name: "Konto erstellen" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "stimmen nicht überein",
+    );
+    expect(registered).toBe(false);
+    expect(screen.getByLabelText("E-Mail-Adresse")).toHaveValue(
+      "neu@example.test",
+    );
+  });
+
+  it("explains failed email confirmation and incomplete invitation links", async () => {
+    const view = renderRoute("/einladung");
+    await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+      "unvollständig",
+    );
+    view.unmount();
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path }) => {
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (path === "/api/v1/invitations/confirm")
+          return json(
+            { detail: "Der Bestätigungslink wurde bereits verwendet." },
+            400,
+          );
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/einladung-bestaetigen?token=verwendet");
+
+    await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
+      "bereits verwendet",
     );
   });
 
@@ -466,4 +690,20 @@ function json(body: unknown, status = 200) {
 
 function empty(status: number) {
   return new Response(null, { status });
+}
+
+function availableSuperAdminPreview() {
+  return json({
+    grant: {
+      isSuperAdmin: true,
+      organizationId: null,
+      organizationRole: null,
+      campId: null,
+      campRole: null,
+    },
+    organizationName: null,
+    campName: null,
+    expiresAt: "2026-08-13T12:00:00Z",
+    status: 0,
+  });
 }

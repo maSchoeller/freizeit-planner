@@ -259,7 +259,7 @@ internal static class IdentityEndpoints
                 extensions: new Dictionary<string, object?> { ["errorCode"] = "first_login_invalid" });
     }
 
-    private static void SetRefreshCookie(HttpContext context, IssuedAuthentication issued) =>
+    internal static void SetRefreshCookie(HttpContext context, IssuedAuthentication issued) =>
         context.Response.Cookies.Append(
             "freizeit_refresh",
             issued.RefreshToken,

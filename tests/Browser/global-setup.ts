@@ -2,6 +2,8 @@ import { chromium, expect, type FullConfig } from "@playwright/test";
 
 const email = "miriam@example.test";
 const password = "Browser-Testpasswort 2026!";
+const superAdminEmail = "platform-admin@example.test";
+const superAdminPassword = "Browser-Superadminpasswort 2026!";
 
 export default async function globalSetup(config: FullConfig) {
   const baseURL = String(
@@ -28,21 +30,8 @@ export default async function globalSetup(config: FullConfig) {
         );
       }
     });
-    await page.goto("/passwort-vergessen");
-    await page.getByLabel("E-Mail-Adresse").fill(email);
-    await page.getByRole("button", { name: "Reset-Link anfordern" }).click();
-    await expect(
-      page.getByText(/Falls ein Konto zu dieser E-Mail-Adresse existiert/),
-    ).toBeVisible();
-
-    const resetToken = await pollForPasswordResetToken(mailpitUrl);
-    await page.goto(`/passwort-zuruecksetzen?token=${resetToken}`);
-    await page.getByLabel("Neues Passwort", { exact: true }).fill(password);
-    await page
-      .getByLabel("Neues Passwort bestätigen", { exact: true })
-      .fill(password);
-    await page.getByRole("button", { name: "Passwort speichern" }).click();
-    await expect(page.getByText("Dein Passwort wurde geändert.")).toBeVisible();
+    await resetPassword(page, mailpitUrl, email, password);
+    await resetPassword(page, mailpitUrl, superAdminEmail, superAdminPassword);
 
     await page.goto("/anmelden");
     await page.getByLabel("E-Mail-Adresse").fill(email);
@@ -90,7 +79,32 @@ export default async function globalSetup(config: FullConfig) {
   }
 }
 
-async function pollForPasswordResetToken(mailpitUrl: string): Promise<string> {
+async function resetPassword(
+  page: import("@playwright/test").Page,
+  mailpitUrl: string,
+  targetEmail: string,
+  newPassword: string,
+) {
+  await page.goto("/passwort-vergessen");
+  await page.getByLabel("E-Mail-Adresse").fill(targetEmail);
+  await page.getByRole("button", { name: "Reset-Link anfordern" }).click();
+  await expect(
+    page.getByText(/Falls ein Konto zu dieser E-Mail-Adresse existiert/),
+  ).toBeVisible();
+  const resetToken = await pollForPasswordResetToken(mailpitUrl, targetEmail);
+  await page.goto(`/passwort-zuruecksetzen?token=${resetToken}`);
+  await page.getByLabel("Neues Passwort", { exact: true }).fill(newPassword);
+  await page
+    .getByLabel("Neues Passwort bestätigen", { exact: true })
+    .fill(newPassword);
+  await page.getByRole("button", { name: "Passwort speichern" }).click();
+  await expect(page.getByText("Dein Passwort wurde geändert.")).toBeVisible();
+}
+
+async function pollForPasswordResetToken(
+  mailpitUrl: string,
+  targetEmail: string,
+): Promise<string> {
   const deadline = Date.now() + 20_000;
   while (Date.now() < deadline) {
     const response = await fetch(`${mailpitUrl}/api/v1/messages`);
@@ -99,7 +113,7 @@ async function pollForPasswordResetToken(mailpitUrl: string): Promise<string> {
       if (isMailpitList(payload)) {
         const message = payload.messages.find(
           (item) =>
-            item.To.some((recipient) => recipient.Address === email) &&
+            item.To.some((recipient) => recipient.Address === targetEmail) &&
             item.Subject.includes("Setze dein Passwort"),
         );
         const match = message?.Snippet.match(
@@ -110,7 +124,9 @@ async function pollForPasswordResetToken(mailpitUrl: string): Promise<string> {
     }
     await new Promise((resolve) => setTimeout(resolve, 250));
   }
-  throw new Error(`Mailpit hat keinen Passwort-Reset für ${email} geliefert.`);
+  throw new Error(
+    `Mailpit hat keinen Passwort-Reset für ${targetEmail} geliefert.`,
+  );
 }
 
 function isMailpitList(value: unknown): value is {

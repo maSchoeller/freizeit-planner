@@ -3,6 +3,7 @@ using System;
 using Identity.Implementation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Identity.Implementation.Migrations
 {
     [DbContext(typeof(IdentityDbContext))]
-    partial class IdentityDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260810220746_AddInvitationRegistrations")]
+    partial class AddInvitationRegistrations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -697,12 +700,6 @@ namespace Identity.Implementation.Migrations
 
             modelBuilder.Entity("Identity.Implementation.InvitationRegistrationEntity", b =>
                 {
-                    b.HasOne("Identity.Implementation.TransferableInvitationEntity", null)
-                        .WithMany()
-                        .HasForeignKey("InvitationId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Identity.Implementation.ApplicationUser", null)
                         .WithMany()
                         .HasForeignKey("UserId")

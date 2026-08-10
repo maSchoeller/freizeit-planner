@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./LoginPage";
 import { SessionsPage } from "./SessionsPage";
-import { InvitationPage } from "./InvitationPage";
+import { InvitationConfirmationPage, InvitationPage } from "./InvitationPage";
 import { AccountPage } from "./AccountPage";
 import { OrganizationMembersPage } from "./OrganizationMembersPage";
 import { PlatformOrganizationsPage } from "./PlatformOrganizationsPage";
@@ -54,6 +54,14 @@ export function App() {
           element={
             <OnlineOnly>
               <InvitationPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/einladung-bestaetigen"
+          element={
+            <OnlineOnly>
+              <InvitationConfirmationPage />
             </OnlineOnly>
           }
         />

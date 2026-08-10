@@ -954,6 +954,357 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  "/api/v1/invitations/{token}/preview": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationPreview"];
+          };
+        };
+        /** @description Not Found */
+        404: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/links": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["InvitationGrant"];
+        };
+      };
+      responses: {
+        /** @description Created */
+        201: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IssuedInvitationLink"];
+          };
+        };
+        /** @description Forbidden */
+        403: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/links/{invitationId}/rotate": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          invitationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["IssuedInvitationLink"];
+          };
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Precondition Required */
+        428: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/links/{invitationId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          invitationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Precondition Required */
+        428: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/{token}/register": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["InvitationRegistrationBody"];
+        };
+      };
+      responses: {
+        /** @description Accepted */
+        202: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Conflict */
+        409: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/confirm": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["InvitationConfirmationBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AccessTokenResponse"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/invitations/{token}/accept": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          token: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["InvitationAcceptanceResult"];
+          };
+        };
+        /** @description Bad Request */
+        400: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   "/api/v1/account": {
     parameters: {
       query?: never;
@@ -4626,6 +4977,7 @@ export interface components {
       displayName: string;
     };
     CampPeriod: number;
+    CampRole: number;
     CampStatus: number;
     CampSummary: {
       /** Format: uuid */
@@ -4788,6 +5140,40 @@ export interface components {
       requiresLogin: boolean;
     };
     InvitationAcceptanceOutcome: number;
+    InvitationAcceptanceResult: {
+      outcome: components["schemas"]["InvitationAcceptanceOutcome"];
+      grant: null | components["schemas"]["InvitationGrant"];
+    };
+    InvitationConfirmationBody: {
+      token: null | string;
+    };
+    InvitationGrant: {
+      isSuperAdmin: boolean;
+      /** Format: uuid */
+      organizationId: null | string;
+      organizationRole: null | components["schemas"]["OrganizationRole"];
+      /** Format: uuid */
+      campId: null | string;
+      campRole: null | components["schemas"]["CampRole"];
+      newOrganization?:
+        null | components["schemas"]["OrganizationInvitationDraft"];
+    };
+    InvitationLinkStatus: number;
+    InvitationPreview: {
+      grant: components["schemas"]["InvitationGrant"];
+      organizationName: null | string;
+      campName: null | string;
+      /** Format: date-time */
+      expiresAt: string;
+      status: components["schemas"]["InvitationLinkStatus"];
+    };
+    InvitationRegistrationBody: {
+      email: null | string;
+      password: null | string;
+      passwordConfirmation: null | string;
+      firstName: null | string;
+      lastName: null | string;
+    };
     InvitationSummary: {
       /** Format: uuid */
       id: string;
@@ -4811,6 +5197,16 @@ export interface components {
       campId: null | string;
       /** Format: date-time */
       expiresAt: string;
+    };
+    IssuedInvitationLink: {
+      /** Format: uuid */
+      id: string;
+      token: string;
+      grant: components["schemas"]["InvitationGrant"];
+      /** Format: date-time */
+      expiresAt: string;
+      /** Format: int64 */
+      version: number | string;
     };
     LinkedDevotionBody: {
       topic: string;
@@ -4921,6 +5317,10 @@ export interface components {
       organizationName: null | string;
       organizationSlug: null | string;
     };
+    OrganizationInvitationDraft: {
+      name: string;
+      slug: string;
+    };
     OrganizationMemberView: {
       /** Format: uuid */
       userId: string;
@@ -4931,6 +5331,7 @@ export interface components {
       email?: null | string;
       displayName?: null | string;
     };
+    OrganizationRole: number;
     OrganizationStatus: number;
     OrganizationStatusView: {
       /** Format: uuid */

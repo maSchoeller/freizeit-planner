@@ -7,29 +7,9 @@ public static class IdentitySeeder
 {
     public static async Task SeedAsync(
         IdentityDbContext dbContext,
-        string? bootstrapPlatformAdminEmail,
         bool includeDevelopmentData,
         CancellationToken cancellationToken = default)
     {
-        if (!string.IsNullOrWhiteSpace(bootstrapPlatformAdminEmail))
-        {
-            var email = bootstrapPlatformAdminEmail.Trim();
-            var normalizedEmail = email.ToUpperInvariant();
-            var platformAdmin = await dbContext.Users.SingleOrDefaultAsync(
-                item => item.NormalizedEmail == normalizedEmail,
-                cancellationToken);
-            if (platformAdmin is null)
-            {
-                platformAdmin = CreateUser(Guid.NewGuid(), email, "Platform Admin", true);
-                dbContext.Users.Add(platformAdmin);
-            }
-            else
-            {
-                platformAdmin.IsPlatformAdmin = true;
-            }
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
         if (!includeDevelopmentData)
         {
             return;
@@ -165,6 +145,7 @@ public static class IdentitySeeder
             EmailConfirmed = true,
             DisplayName = displayName,
             IsPlatformAdmin = isPlatformAdmin,
+            IsSuperAdmin = isPlatformAdmin,
             SecurityStamp = id.ToString("N")
         };
 }

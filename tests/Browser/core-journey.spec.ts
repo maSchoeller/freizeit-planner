@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import {
   expect,
   test as base,
+  type APIRequestContext,
   type Page,
   type TestInfo,
 } from "@playwright/test";
@@ -10,6 +11,8 @@ import path from "node:path";
 
 const browserUserEmail = "miriam@example.test";
 const browserUserPassword = "Browser-Testpasswort 2026!";
+const superAdminEmail = "platform-admin@example.test";
+const superAdminPassword = "Browser-Superadminpasswort 2026!";
 
 type WorkerAuthentication = {
   accessToken: string;
@@ -140,6 +143,84 @@ test("member signs in with a persistent refresh session and reaches the camp ove
   await assertAxe(restartedPage);
   await capture(restartedPage, testInfo, "freizeiten");
   await restartedContext.close();
+});
+
+test("@smoke superadmin invitation registers and confirms a new global account", async ({
+  page,
+  playwright,
+  workerAuthentication,
+}, testInfo) => {
+  const baseURL = String(
+    testInfo.project.use.baseURL ?? "http://localhost:5041",
+  );
+  const mailpitUrl = process.env.MAILPIT_URL;
+  if (!mailpitUrl) throw new Error("MAILPIT_URL fehlt.");
+  await page.context().setExtraHTTPHeaders({});
+  const api = await playwright.request.newContext({ baseURL });
+  try {
+    const loginCsrf = await getAntiforgery(api);
+    const login = await api.post("/api/v1/auth/login", {
+      headers: { "X-CSRF-TOKEN": loginCsrf },
+      data: {
+        email: superAdminEmail,
+        password: superAdminPassword,
+        rememberMe: false,
+      },
+    });
+    expect(login.ok()).toBe(true);
+    const authentication = (await login.json()) as { accessToken: string };
+    const invitationCsrf = await getAntiforgery(
+      api,
+      authentication.accessToken,
+    );
+    const invitationResponse = await api.post("/api/v1/invitations/links", {
+      headers: {
+        Authorization: `Bearer ${authentication.accessToken}`,
+        "X-CSRF-TOKEN": invitationCsrf,
+      },
+      data: {
+        isSuperAdmin: true,
+        organizationId: null,
+        organizationRole: null,
+        campId: null,
+        campRole: null,
+        newOrganization: null,
+      },
+    });
+    expect(invitationResponse.ok()).toBe(true);
+    const invitation = (await invitationResponse.json()) as { token: string };
+    const newEmail = `einladung-${testInfo.project.name}@example.test`;
+
+    await page.goto(`/einladung?token=${invitation.token}`);
+    await expect(page.getByText(/Superadmin für das gesamte/)).toBeVisible();
+    await page.getByLabel("Vorname").fill("Neue");
+    await page.getByLabel("Nachname").fill("Person");
+    await page.getByLabel("E-Mail-Adresse").fill(newEmail);
+    await page
+      .getByLabel("Passwort", { exact: true })
+      .fill("Neue sichere Browser-Passphrase");
+    await page
+      .getByLabel("Passwort bestätigen")
+      .fill("Neue sichere Browser-Passphrase");
+    await page.getByRole("button", { name: "Konto erstellen" }).click();
+    await expect(
+      page.getByRole("heading", { name: "E-Mail-Adresse bestätigen" }),
+    ).toBeVisible();
+
+    const confirmationToken = await pollForInvitationConfirmation(
+      mailpitUrl,
+      newEmail,
+    );
+    await page.goto(`/einladung-bestaetigen?token=${confirmationToken}`);
+    await expect(
+      page.getByRole("heading", { name: "E-Mail-Adresse bestätigt" }),
+    ).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await assertAxe(page);
+    expect(workerAuthentication.accessToken).not.toBe(confirmationToken);
+  } finally {
+    await api.dispose();
+  }
 });
 
 test("central camp pages render their responsive empty states without accessibility violations", async ({
@@ -319,6 +400,63 @@ test("a stale camp edit remains visible after a genuine version conflict", async
   await assertAxe(page);
   await capture(page, testInfo, "versionskonflikt");
 });
+
+async function getAntiforgery(
+  api: APIRequestContext,
+  accessToken?: string,
+): Promise<string> {
+  const response = await api.get("/api/v1/auth/antiforgery", {
+    headers: accessToken
+      ? { Authorization: `Bearer ${accessToken}` }
+      : undefined,
+  });
+  expect(response.ok()).toBe(true);
+  const body = (await response.json()) as { token: string };
+  return body.token;
+}
+
+async function pollForInvitationConfirmation(
+  mailpitUrl: string,
+  email: string,
+): Promise<string> {
+  const deadline = Date.now() + 20_000;
+  while (Date.now() < deadline) {
+    const response = await fetch(`${mailpitUrl}/api/v1/messages`);
+    if (response.ok) {
+      const payload: unknown = await response.json();
+      if (isMailpitList(payload)) {
+        const message = payload.messages.find(
+          (item) =>
+            item.To.some((recipient) => recipient.Address === email) &&
+            item.Subject.includes("Bestätige deine Registrierung"),
+        );
+        const match = message?.Snippet.match(
+          /einladung-bestaetigen\?token=([A-F0-9]{64})/,
+        );
+        if (match) return match[1];
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+  throw new Error(
+    `Mailpit hat keine Einladungsbestätigung für ${email} geliefert.`,
+  );
+}
+
+function isMailpitList(value: unknown): value is {
+  messages: Array<{
+    To: Array<{ Address: string }>;
+    Subject: string;
+    Snippet: string;
+  }>;
+} {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "messages" in value &&
+    Array.isArray(value.messages)
+  );
+}
 
 async function assertAxe(page: Page) {
   const results = await new AxeBuilder({ page })

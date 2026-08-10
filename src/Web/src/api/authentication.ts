@@ -9,6 +9,12 @@ export function clearAuthentication() {
   accessToken = null;
 }
 
+export async function restoreAuthentication(): Promise<boolean> {
+  const token = await refreshAccessToken();
+  if (!token) clearAuthentication();
+  return token !== null;
+}
+
 export async function authenticatedFetch(
   input: RequestInfo | URL,
   init?: RequestInit,

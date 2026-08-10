@@ -23,7 +23,13 @@
   minutes. A globally suspended account is rejected by login, refresh and stateful access-token validation.
 - First Login: `GET/POST /api/v1/auth/first-login` and `/erste-einrichtung` are available only while no user exists.
   PostgreSQL uses a transaction advisory lock so exactly one initial confirmed SuperAdmin can be created. There is
-  no bootstrap password in configuration, logs, migrations, or source control.
+  no bootstrap identity or password in configuration, logs, migrations, or source control. The migrator deliberately
+  leaves a non-Development database empty so First Login remains available.
+- Transferable invitations: links contain no email address and are stored only as HMAC hashes. SuperAdmin links last
+  one hour, Orgadmin links 48 hours, and Camp-role links seven days. A new registration reserves its link for one
+  hour and is completed only after the one-time email confirmation; existing confirmed users attach the grant to
+  their single global account. Rotation/revocation uses versions. The React client shows grant and terminal state
+  before collecting first name, last name, email and password.
 - Runtime persistence: ASP.NET Core Identity users, invitations, memberships, assignments, rate
   events and revocable sessions live in PostgreSQL through `IdentityDbContext`; the web host never migrates. The
   migrator uses an advisory lock and owns the only Development seed. Deterministic fakes live only in test projects.
