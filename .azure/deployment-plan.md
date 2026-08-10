@@ -1,6 +1,6 @@
 # Freizeit-Cockpit deployment plan
 
-Status: Planning
+Status: Ready for Cloud Validation
 
 ## Scope and deployment boundary
 
@@ -70,7 +70,7 @@ integration, private endpoints, staging environments, and per-PR environments.
 
 ## Local validation
 
-The full local gate will:
+The full local gate:
 
 1. build Bicep to ARM JSON without deployment;
 2. validate `azure.yaml`, parameters, Dockerfiles, and workflow syntax statically;
@@ -79,8 +79,14 @@ The full local gate will:
 5. start the Aspire topology with PostgreSQL 17, Azurite, Mailpit, Bible stub, migrator, and web host;
 6. verify health/readiness and inspect rendered UI screenshots.
 
-Cloud-backed `az deployment ... validate`, role-assignment checks, OIDC creation, and PostgreSQL Entra
-administrator validation are documented in the operations runbook but must not run in this session.
+On 2026-08-09, the final `pwsh ./scripts/validate-deployment.ps1` completed in 166.2 seconds with Azure CLI 2.88.0,
+Bicep 0.46.1, azd 1.30.0, actionlint 1.7.12, Docker 29.6.1, and all three images configured for non-root UID 1654. `az bicep lint`, `az bicep build`, azd parsing, both workflow files, locked restores, frontend/help builds,
+container publication and image metadata checks passed locally. The Web container build first exposed and then
+verified the Linux pnpm-link ordering fix. No Azure authentication was used.
+
+Cloud-backed subscription quota/provider checks, `az deployment ... validate`/`what-if`, role-assignment checks,
+OIDC creation, and PostgreSQL Entra administrator validation are documented in the operations runbook and remain
+manual first-bootstrap checks. They must not run in this repository implementation session.
 
 ## Operational safety
 
@@ -89,6 +95,6 @@ blocks the new web revision. Restore, rollback, owner recovery, deletion, secret
 incident procedures are maintained in the operations runbook. Production seeds no sample data; the
 platform administrator is bootstrapped idempotently from external configuration only.
 
-Before hand-off to the Azure validation workflow, change this status to `Ready for Validation` only
-after local application, container, Bicep, and documentation gates pass. Do not run `azd up`,
-`azd provision`, `azd deploy`, or any Azure mutation as part of preparation.
+The hand-off is ready for the documented manual cloud validation and first bootstrap only after the repository's
+complete application Verify and Aspire smoke gates are also green. Do not run `azd up`, `azd provision`, `azd
+deploy`, or any Azure mutation as part of repository preparation.

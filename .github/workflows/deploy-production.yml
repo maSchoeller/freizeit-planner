@@ -1,0 +1,138 @@
+name: Produktion veröffentlichen
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Zum Veröffentlichen DEPLOY eingeben
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'DEPLOY'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_CLIENT_ID: ${{ vars.AZURE_CLIENT_ID }}
+      AZURE_TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+      AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      AZURE_ENV_NAME: ${{ vars.AZURE_ENV_NAME }}
+      AZURE_LOCATION: ${{ vars.AZURE_LOCATION }}
+    steps:
+      - name: Repository auschecken
+        uses: actions/checkout@v4
+
+      - name: Azure Developer CLI einrichten
+        uses: Azure/setup-azd@v2
+
+      - name: Azure per OIDC anmelden
+        uses: azure/login@v2
+        with:
+          client-id: ${{ env.AZURE_CLIENT_ID }}
+          tenant-id: ${{ env.AZURE_TENANT_ID }}
+          subscription-id: ${{ env.AZURE_SUBSCRIPTION_ID }}
+
+      - name: azd per OIDC anmelden
+        shell: bash
+        run: |
+          azd auth login \
+            --client-id "$AZURE_CLIENT_ID" \
+            --federated-credential-provider github \
+            --tenant-id "$AZURE_TENANT_ID"
+
+      - name: Vorbereitete Produktionsumgebung laden
+        shell: bash
+        run: |
+          azd env new "$AZURE_ENV_NAME" --no-prompt
+          azd env set AZURE_SUBSCRIPTION_ID "$AZURE_SUBSCRIPTION_ID"
+          azd env set AZURE_LOCATION "$AZURE_LOCATION"
+          azd env refresh --no-prompt
+
+      - name: Migrator-Image veröffentlichen
+        shell: bash
+        run: azd deploy migrator --no-prompt
+
+      - name: Migration ausführen und Erfolg abwarten
+        shell: bash
+        run: |
+          resource_group="$(azd env get-value AZURE_RESOURCE_GROUP)"
+          job_id="$(azd env get-value AZURE_MIGRATOR_JOB_ID)"
+          job_name="${job_id##*/}"
+          execution_name="$(az containerapp job start \
+            --name "$job_name" \
+            --resource-group "$resource_group" \
+            --query name \
+            --output tsv)"
+
+          for attempt in $(seq 1 100); do
+            status="$(az containerapp job execution show \
+              --name "$job_name" \
+              --resource-group "$resource_group" \
+              --job-execution-name "$execution_name" \
+              --query properties.status \
+              --output tsv)"
+            echo "Migration $execution_name: $status"
+            case "$status" in
+              Succeeded) exit 0 ;;
+              Failed|Stopped) exit 1 ;;
+            esac
+            sleep 10
+          done
+
+          echo "Migration hat das Zeitlimit überschritten." >&2
+          exit 1
+
+      - name: Webrevision veröffentlichen
+        shell: bash
+        run: azd deploy web --no-prompt
+
+      - name: Cleanup-Job veröffentlichen
+        shell: bash
+        run: azd deploy cleanup --no-prompt
+
+      - name: Deployment-Nachweis erstellen
+        shell: bash
+        run: |
+          mkdir -p deployment-evidence
+          resource_group="$(azd env get-value AZURE_RESOURCE_GROUP)"
+          web_name="$(azd env get-value AZURE_WEB_APP_NAME)"
+          {
+            echo "commit=$GITHUB_SHA"
+            echo "environment=$AZURE_ENV_NAME"
+            echo "deployed_at=$(date --utc --iso-8601=seconds)"
+            az containerapp show \
+              --name "$web_name" \
+              --resource-group "$resource_group" \
+              --query '{revision:properties.latestRevisionName,image:properties.template.containers[0].image}' \
+              --output yaml
+          } > deployment-evidence/production.txt
+
+      - name: Deployment-Nachweis speichern
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-${{ github.sha }}
+          path: deployment-evidence/production.txt
+          retention-days: 30
+
+      - name: Azure-Sitzungen beenden
+        if: always()
+        shell: bash
+        run: |
+          azd auth logout || true
+          az logout || true

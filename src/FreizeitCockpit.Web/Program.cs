@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Security.Claims;
 using System.Text;
+using Azure.Identity;
 using Activity.Contracts;
 using Activity.Implementation;
 using Camps.Contracts;
@@ -17,6 +18,7 @@ using Logistics.Implementation;
 using Files.Contracts;
 using Files.Implementation;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -33,6 +35,21 @@ var configuredConnectionString = builder.Configuration.GetConnectionString("frei
 builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi("v1");
 builder.Services.AddHealthChecks();
+if (builder.Environment.IsProduction() && !isOpenApiGeneration)
+{
+    var managedIdentityClientId = RequiredConfiguration("AZURE_CLIENT_ID");
+    var blobServiceUri = new Uri(RequiredConfiguration("Storage:BlobServiceUri"));
+    var blobContainer = RequiredConfiguration("DataProtection:BlobContainer");
+    var keyIdentifier = new Uri(RequiredConfiguration("DataProtection:KeyIdentifier"));
+    var keyRingUri = new Uri(blobServiceUri, $"{Uri.EscapeDataString(blobContainer)}/keys.xml");
+    var credential = new ManagedIdentityCredential(
+        ManagedIdentityId.FromUserAssignedClientId(managedIdentityClientId));
+
+    builder.Services.AddDataProtection()
+        .SetApplicationName("Freizeit-Cockpit")
+        .PersistKeysToAzureBlobStorage(keyRingUri, credential)
+        .ProtectKeysWithAzureKeyVault(keyIdentifier, credential);
+}
 builder.Services.AddAntiforgery(options =>
 {
     options.Cookie.Name = "freizeit_csrf";
@@ -399,5 +416,13 @@ static EmailChangeService CreateEmailChangeLifecycle(
 }
 
 app.Run();
+
+string RequiredConfiguration(string key)
+{
+    var value = builder.Configuration[key];
+    return !string.IsNullOrWhiteSpace(value)
+        ? value
+        : throw new InvalidOperationException($"{key} must be configured in production.");
+}
 
 public partial class Program;

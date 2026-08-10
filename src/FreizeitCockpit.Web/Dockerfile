@@ -3,11 +3,12 @@ WORKDIR /workspace
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY src/Web/package.json src/Web/package.json
 COPY src/Help/package.json src/Help/package.json
-RUN npm exec --yes pnpm@11.20.0 -- install --frozen-lockfile
 COPY src/Web src/Web
 COPY src/Help src/Help
-COPY scripts/clean-web-output.ps1 scripts/clean-web-output.ps1
-RUN npm exec --yes pnpm@11.20.0 -- build
+RUN rm -rf node_modules src/Web/node_modules src/Help/node_modules \
+    && npm exec --yes pnpm@11.20.0 -- install --frozen-lockfile --prod=false
+RUN npm exec --yes pnpm@11.20.0 -- --filter @freizeit-cockpit/web build \
+    && npm exec --yes pnpm@11.20.0 -- --filter @freizeit-cockpit/help build
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0.100-noble AS build
 WORKDIR /workspace

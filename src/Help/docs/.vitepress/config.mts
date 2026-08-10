@@ -25,6 +25,10 @@ export default defineConfig({
             text: "Offline-Nutzung und Updates",
             link: "/offline-nutzung",
           },
+          {
+            text: "Datenschutz, Lizenzen und Grenzen",
+            link: "/datenschutz-lizenzen-grenzen",
+          },
         ],
       },
       {

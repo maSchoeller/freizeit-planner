@@ -1,5 +1,7 @@
 # Tages- und Wochenplan
 
+![Wochenkalender mit deutsch beschrifteter Navigation und barrierearmer Agenda](/screenshots/tagesplan-desktop.png)
+
 Der Tagesplan ist die gemeinsame Quelle für Datum, Uhrzeit und Ort. Mahlzeiten und Andachten übernehmen diese
 Angaben über ihre Verknüpfung und speichern sie nicht ein zweites Mal.
 

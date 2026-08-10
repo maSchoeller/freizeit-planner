@@ -10,6 +10,36 @@ namespace Api.Tests;
 
 public sealed class OperationsApiTests
 {
+    [Theory]
+    [InlineData("AZURE_CLIENT_ID")]
+    [InlineData("Storage:BlobServiceUri")]
+    [InlineData("DataProtection:BlobContainer")]
+    [InlineData("DataProtection:KeyIdentifier")]
+    public void ProductionRequiresExternalDataProtectionConfiguration(string missingKey)
+    {
+        var settings = new Dictionary<string, string>
+        {
+            ["AZURE_CLIENT_ID"] = "00000000-0000-0000-0000-000000000001",
+            ["Storage:BlobServiceUri"] = "https://storage.example.test/",
+            ["DataProtection:BlobContainer"] = "data-protection",
+            ["DataProtection:KeyIdentifier"] = "https://vault.example.test/keys/data-protection"
+        };
+        _ = settings.Remove(missingKey);
+
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Production");
+            foreach (var setting in settings)
+            {
+                builder.UseSetting(setting.Key, setting.Value);
+            }
+        });
+
+        var exception = Assert.ThrowsAny<Exception>(() => factory.CreateClient());
+
+        Assert.Contains($"{missingKey} must be configured in production.", exception.ToString());
+    }
+
     [Fact]
     public async Task LivenessStaysHealthyWhenReadinessDependencyFails()
     {

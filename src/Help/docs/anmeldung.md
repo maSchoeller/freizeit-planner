@@ -4,6 +4,8 @@ Für das Freizeit-Cockpit brauchst du kein Passwort. Gib auf der Anmeldeseite de
 **Anmeldecode anfordern**. Die Antwort ist aus Sicherheitsgründen immer gleich – auch dann, wenn die Adresse nicht
 registriert ist.
 
+![Anmeldeseite mit verständlicher Prüfung einer ungültigen E-Mail-Adresse](/screenshots/anmeldung-desktop.png)
+
 Wenn du eingeladen oder bereits Mitglied bist, erhältst du per E-Mail einen sechsstelligen Code. Er ist zehn
 Minuten gültig, kann genau einmal verwendet werden und wird nach fünf falschen Eingaben ungültig. Fordere danach
 einen neuen Code an. Zu viele Anforderungen oder Prüfversuche werden vorübergehend begrenzt.

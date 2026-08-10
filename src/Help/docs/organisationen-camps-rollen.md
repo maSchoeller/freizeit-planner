@@ -29,6 +29,8 @@ der exakten Eingabe des Organisations-Slugs zur Löschung vormerken; auch hier g
 vergangene Camps getrennt. Owner und Organisations-Admins können **Camp anlegen** wählen und Name, eindeutigen Slug,
 Beschreibung, Zeitraum, IANA-Zeitzone und Standardportionen festlegen.
 
+![Camp-Liste mit leerem Zustand und der Aktion „Camp anlegen“](/screenshots/freizeiten-desktop.png)
+
 Über **Einstellungen** lassen sich diese Angaben mit Versionsschutz ändern. **Camp archivieren** macht das gesamte
 Camp schreibgeschützt; Lesen, Drucken und Exportieren bleiben möglich. Berechtigte Personen können es in denselben
 Einstellungen mit **Camp reaktivieren** wieder für Änderungen öffnen. Wird zwischenzeitlich eine neuere Version
@@ -41,6 +43,8 @@ zeigt auf jeder Fachseite den Hinweis **Archiviert · nur lesen** und deaktivier
 Die **Übersicht** zeigt den heutigen oder nächsten befüllten Tagesplan in der Camp-Zeitzone. Außerdem fasst sie deine
 aktiven Zeitplan-Verantwortungen, noch offenes beziehungsweise geplantes Material, ungeprüfte Einkaufspositionen und
 die jüngsten Aktivitäten zusammen. Bei bereits beendeten Camps wird der letzte befüllte Tag angezeigt.
+
+![Camp-Übersicht mit Tagesplan, Verantwortungen, Beschaffung und Aktivitäten](/screenshots/uebersicht-desktop.png)
 
 ## Mitglieder verwalten
 
