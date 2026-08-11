@@ -613,7 +613,12 @@ test("@smoke a combined Orgadmin and Superadmin sees both named administration a
     });
   });
 
+  const accountResponsePromise = page.waitForResponse((response) =>
+    response.url().endsWith("/api/v1/account"),
+  );
   await page.goto("/o/sonnenhoehe/camps/browser-testcamp");
+  await accountResponsePromise;
+  await expect(page.getByLabel(/Kontomenü.*öffnen/)).toBeVisible();
   await page.getByLabel(/Kontomenü.*öffnen/).click();
   const profileMenu = page.locator(".profile-menu-panel");
   await expect(
