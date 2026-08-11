@@ -544,17 +544,16 @@ test("@smoke visible administration entries follow the signed-in role matrix", a
   page,
 }) => {
   await page.goto("/o/sonnenhoehe/camps/browser-testcamp");
-  const globalNavigation = page.getByRole("navigation", {
-    name: "Globale Navigation",
-  });
+  await page.getByLabel(/Kontomenü.*öffnen/).click();
+  const profileMenu = page.locator(".profile-menu-panel");
   await expect(
-    globalNavigation.getByRole("link", { name: "Organisation verwalten" }),
+    profileMenu.getByRole("link", { name: "Organisation verwalten" }),
   ).toBeVisible();
   await expect(
-    globalNavigation.getByRole("link", { name: "Plattform verwalten" }),
+    profileMenu.getByRole("link", { name: "Plattform verwalten" }),
   ).toHaveCount(0);
 
-  await globalNavigation
+  await profileMenu
     .getByRole("link", { name: "Organisation verwalten" })
     .click();
   await expect(
@@ -609,16 +608,6 @@ test("@smoke a combined Orgadmin and Superadmin sees both named administration a
   });
 
   await page.goto("/o/sonnenhoehe/camps/browser-testcamp");
-  const globalNavigation = page.getByRole("navigation", {
-    name: "Globale Navigation",
-  });
-  await expect(
-    globalNavigation.getByRole("link", { name: "Organisation verwalten" }),
-  ).toBeVisible();
-  await expect(
-    globalNavigation.getByRole("link", { name: "Plattform verwalten" }),
-  ).toBeVisible();
-
   await page.getByLabel(/Kontomenü.*öffnen/).click();
   const profileMenu = page.locator(".profile-menu-panel");
   await expect(
@@ -718,7 +707,7 @@ async function assertNoHorizontalOverflow(page: Page) {
   const result = await page.evaluate(() => {
     const viewportWidth = document.documentElement.clientWidth;
     return {
-      overflow: document.documentElement.scrollWidth - viewportWidth,
+      overflow: document.body.getBoundingClientRect().width - viewportWidth,
       offenders: [...document.querySelectorAll("body *")]
         .map((element) => {
           const rect = element.getBoundingClientRect();

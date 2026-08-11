@@ -990,6 +990,7 @@ button:disabled {
   border-radius: 0.8rem;
   background: var(--white);
   overflow-x: auto;
+  max-width: 100%;
 }
 .section-navigation a {
   flex: 0 0 auto;
@@ -1684,6 +1685,7 @@ button:disabled {
 }
 .admin-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: end;
   justify-content: space-between;
   gap: 1rem;
@@ -1695,12 +1697,15 @@ button:disabled {
   gap: 0.65rem;
 }
 .admin-toolbar form {
+  flex: 1 1 16rem;
   flex-direction: column;
   align-items: stretch;
+  min-width: 0;
 }
 .admin-toolbar input {
   min-height: 3rem;
-  min-width: min(24rem, 62vw);
+  width: min(24rem, 100%);
+  min-width: 0;
   padding-inline: 0.75rem;
   border: 1px solid #88aaa6;
   border-radius: 0.55rem;
