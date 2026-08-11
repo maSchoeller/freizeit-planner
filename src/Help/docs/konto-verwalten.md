@@ -15,8 +15,8 @@ und wird nach fünf falschen Eingaben gesperrt.
 
 ## Mitgliedschaft verlassen
 
-Du kannst eine Organisation jederzeit verlassen. Eine Organisation darf danach auch vorübergehend ohne Orgadmin
-bestehen; ein Superadmin kann später wieder Orgadmin-Rechte vergeben.
+Du kannst eine Organisation jederzeit verlassen. Eine Organisation darf danach auch vorübergehend ohne
+Organisationsadmin bestehen; ein Superadmin kann später wieder Organisationsadmin-Rechte vergeben.
 
 ## Konto löschen
 

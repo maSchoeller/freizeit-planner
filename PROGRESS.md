@@ -518,3 +518,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
   SuperAdmin-demotion actions require an impact confirmation. The acceptance test first failed because navigation,
   focused details and the invitation dialog were absent. Targeted administration, identity and application tests,
   TypeScript strict and the German help/context are green.
+- 2026-08-11: UX04 replaces the flat Camp menu with four desktop groups and a five-target mobile bottom navigation.
+  Catering, Logistics, Search and Trash have direct section anchors; phone-sized schedule pages start with the
+  accessible agenda. The acceptance coverage asserts every desktop group, direct Search/Trash links and the four
+  always-visible mobile work paths. All 54 Camp workspace tests and the complete 112-test React suite are green.

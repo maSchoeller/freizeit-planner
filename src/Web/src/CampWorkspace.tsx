@@ -16,11 +16,14 @@ import {
   Church,
   ClipboardList,
   FileText,
+  Menu,
   NotebookPen,
   Search,
   Settings,
   ShoppingCart,
+  Trash2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { createContext, useContext, useEffect, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { Link, NavLink, Route, Routes, useParams } from "react-router-dom";
@@ -57,16 +60,62 @@ function useCampRuntime() {
   return runtime;
 }
 
-const navigation = [
+type NavigationItem = {
+  to: string;
+  label: string;
+  icon: LucideIcon;
+  end?: boolean;
+  anchor?: boolean;
+};
+
+type NavigationGroup = {
+  label: string;
+  items: NavigationItem[];
+};
+
+const navigationGroups: NavigationGroup[] = [
+  {
+    label: "Planung",
+    items: [
+      { to: "", label: "Übersicht", icon: ClipboardList, end: true },
+      { to: "tagesplan", label: "Tagesplan", icon: CalendarDays },
+    ],
+  },
+  {
+    label: "Versorgung",
+    items: [
+      { to: "essen", label: "Verpflegung", icon: ChefHat },
+      { to: "logistik", label: "Material & Einkauf", icon: ShoppingCart },
+    ],
+  },
+  {
+    label: "Inhalte",
+    items: [
+      { to: "andachten", label: "Andachten", icon: Church },
+      { to: "notizen", label: "Notizbuch", icon: NotebookPen },
+      { to: "dateien", label: "Dateien", icon: FileText },
+    ],
+  },
+  {
+    label: "Werkzeuge",
+    items: [
+      { to: "suche", label: "Suche", icon: Search },
+      {
+        to: "suche#papierkorb",
+        label: "Papierkorb",
+        icon: Trash2,
+        anchor: true,
+      },
+      { to: "einstellungen", label: "Einstellungen", icon: Settings },
+    ],
+  },
+];
+
+const mobilePrimaryNavigation: NavigationItem[] = [
   { to: "", label: "Übersicht", icon: ClipboardList, end: true },
   { to: "tagesplan", label: "Tagesplan", icon: CalendarDays },
-  { to: "essen", label: "Essen & Rezepte", icon: ChefHat },
-  { to: "logistik", label: "Material & Einkauf", icon: ShoppingCart },
-  { to: "andachten", label: "Andachten", icon: Church },
-  { to: "notizen", label: "Notizbuch", icon: NotebookPen },
-  { to: "dateien", label: "Dateien", icon: FileText },
-  { to: "suche", label: "Suche & Papierkorb", icon: Search },
-  { to: "einstellungen", label: "Camp-Einstellungen", icon: Settings },
+  { to: "essen", label: "Verpflegung", icon: ChefHat },
+  { to: "logistik#einkaufslisten", label: "Einkauf", icon: ShoppingCart },
 ];
 
 type ScheduleEntry = {
@@ -1010,11 +1059,16 @@ function CampWorkspaceShell() {
   const accountDisplayName = offline
     ? undefined
     : account.data?.displayName?.trim();
-  const visibleNavigation = offline
-    ? navigation.filter(({ to }) =>
-        ["tagesplan", "essen", "logistik"].includes(to),
-      )
-    : navigation;
+  const visibleNavigationGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: offline
+        ? group.items.filter(({ to }) =>
+            ["tagesplan", "essen", "logistik"].includes(to),
+          )
+        : group.items,
+    }))
+    .filter((group) => group.items.length > 0);
 
   return (
     <div className="app-shell">
@@ -1044,25 +1098,88 @@ function CampWorkspaceShell() {
         }
       />
       <div className="workspace">
-        <aside className="sidebar" aria-label="Camp-Navigation">
+        <aside className="sidebar" aria-label="Freizeit-Navigation">
           <p className="eyebrow">{runtime.organizationName}</p>
           <p className="camp-name">{camp.name}</p>
-          <nav aria-label="Camp-Navigation">
-            <ul>
-              {visibleNavigation.map(({ to, label, icon: Icon, end }) => (
-                <li key={label}>
-                  <NavLink to={to ? `${campBase}/${to}` : campBase} end={end}>
-                    <Icon aria-hidden="true" size={20} />
-                    <span>{label}</span>
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
+          <nav aria-label="Freizeit-Navigation">
+            {visibleNavigationGroups.map((group) => (
+              <section className="navigation-group" key={group.label}>
+                <h2>{group.label}</h2>
+                <ul>
+                  {group.items.map((item) => {
+                    const destination = item.to
+                      ? `${campBase}/${item.to}`
+                      : campBase;
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.label}>
+                        {"anchor" in item && item.anchor ? (
+                          <Link to={destination}>
+                            <Icon aria-hidden="true" size={20} />
+                            <span>{item.label}</span>
+                          </Link>
+                        ) : (
+                          <NavLink
+                            to={destination}
+                            end={"end" in item ? item.end : undefined}
+                          >
+                            <Icon aria-hidden="true" size={20} />
+                            <span>{item.label}</span>
+                          </NavLink>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
           </nav>
           <a className="help-link" href="/hilfe/">
             Hilfe & Anleitung
           </a>
         </aside>
+        <nav
+          className="mobile-navigation"
+          aria-label="Mobile Freizeit-Navigation"
+        >
+          {mobilePrimaryNavigation.map(({ to, label, icon: Icon, end }) => (
+            <NavLink
+              key={label}
+              to={to ? `${campBase}/${to}` : campBase}
+              end={end}
+            >
+              <Icon aria-hidden="true" size={20} />
+              <span>{label}</span>
+            </NavLink>
+          ))}
+          <details>
+            <summary>
+              <Menu aria-hidden="true" size={20} />
+              <span>Mehr</span>
+            </summary>
+            <div className="mobile-more-panel">
+              {!offline
+                ? navigationGroups
+                    .flatMap((group) => group.items)
+                    .filter(
+                      ({ to }) =>
+                        !["", "tagesplan", "essen", "logistik"].includes(to),
+                    )
+                    .map(({ to, label }) => (
+                      <Link key={label} to={`${campBase}/${to}`}>
+                        {label}
+                      </Link>
+                    ))
+                : null}
+              {!offline && runtime.organizationRole === 1 ? (
+                <Link to={`/o/${runtime.organizationSlug}/verwaltung/team`}>
+                  Organisation verwalten
+                </Link>
+              ) : null}
+              {!offline ? <Link to="/konto/profil">Mein Konto</Link> : null}
+            </div>
+          </details>
+        </nav>
         <main id="main" tabIndex={-1}>
           {camp.status === 1 ? (
             <p className="notice" role="status">
@@ -4590,12 +4707,16 @@ function MealsPage({
   }, [query.data]);
   return (
     <>
-      <PageHeading eyebrow="Küche" title="Essen & Rezepte">
+      <PageHeading eyebrow="Versorgung" title="Verpflegung">
         <p>
           Mengen werden dezimal und nur innerhalb kompatibler Einheiten
           skaliert. Allergenhinweise sind keine medizinische Garantie.
         </p>
       </PageHeading>
+      <nav className="section-navigation" aria-label="Verpflegung">
+        <a href="#essensplan">Essensplan</a>
+        <a href="#rezepte">Rezepte</a>
+      </nav>
       <div className="toolbar print-actions">
         <PrintButton scope="meals">Mahlzeiten drucken</PrintButton>
       </div>
@@ -5080,7 +5201,7 @@ function MealsPage({
         </form>
       ) : null}
       {!offline ? (
-        <section aria-labelledby="recipe-library-heading">
+        <section id="rezepte" aria-labelledby="recipe-library-heading">
           <div className="section-heading">
             <h2 id="recipe-library-heading">Rezeptbibliothek</h2>
           </div>
@@ -5120,7 +5241,11 @@ function MealsPage({
           </div>
         </section>
       ) : null}
-      <section aria-labelledby="meal-list-heading" data-print-section="meals">
+      <section
+        id="essensplan"
+        aria-labelledby="meal-list-heading"
+        data-print-section="meals"
+      >
         <div className="section-heading">
           <h2 id="meal-list-heading">Geplante Mahlzeiten</h2>
         </div>
@@ -6095,6 +6220,10 @@ function LogisticsPage({
           nachvollziehbaren Listen.
         </p>
       </PageHeading>
+      <nav className="section-navigation" aria-label="Material und Einkauf">
+        <a href="#material">Material</a>
+        <a href="#einkaufslisten">Einkaufsliste</a>
+      </nav>
       <div className="toolbar print-actions">
         <PrintButton scope="material">Material drucken</PrintButton>
         <PrintButton scope="shopping">Einkauf drucken</PrintButton>
@@ -6105,7 +6234,11 @@ function LogisticsPage({
         </p>
       ) : null}
       <div className="split-view" data-print-container="logistics">
-        <section className="settings-section" data-print-section="material">
+        <section
+          id="material"
+          className="settings-section"
+          data-print-section="material"
+        >
           <div className="section-heading">
             <h2>Materialbedarf</h2>
             {!readOnly ? (
@@ -6169,7 +6302,11 @@ function LogisticsPage({
             <p className="empty-state">Noch kein Materialbedarf geplant.</p>
           ) : null}
         </section>
-        <section className="settings-section" data-print-section="shopping">
+        <section
+          id="einkaufslisten"
+          className="settings-section"
+          data-print-section="shopping"
+        >
           <div className="section-heading">
             <h2>Einkaufslisten</h2>
             <span className="status">
@@ -8596,15 +8733,16 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
   const exportBase = `/api/v1/organizations/${organizationId}/camps/${campId}/exports`;
   return (
     <>
-      <PageHeading
-        eyebrow="Finden und wiederherstellen"
-        title="Suche & Papierkorb"
-      >
+      <PageHeading eyebrow="Finden und wiederherstellen" title="Suche">
         <p>
           Die Suche bleibt auf dieses Camp begrenzt. Gelöschte Inhalte werden
           nach 30 Tagen endgültig entfernt.
         </p>
       </PageHeading>
+      <nav className="section-navigation" aria-label="Suche und Papierkorb">
+        <a href="#suchergebnisse">Suche</a>
+        <a href="#papierkorb">Papierkorb</a>
+      </nav>
       {restoreNotice ? (
         <p className="form-feedback" role="status">
           {restoreNotice}
@@ -8657,7 +8795,7 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
           </label>
         ) : null}
       </div>
-      <section className="settings-section">
+      <section id="suchergebnisse" className="settings-section">
         <h2>Suchergebnisse</h2>
         <QueryState loading={search.isLoading} error={search.error} />
         {search.data?.length ? (
@@ -8683,7 +8821,7 @@ function SearchTrashPage({ offline }: { offline: boolean }) {
           )
         )}
       </section>
-      <section className="settings-section">
+      <section id="papierkorb" className="settings-section">
         <h2>Papierkorb</h2>
         <QueryState
           loading={trash.isLoading}

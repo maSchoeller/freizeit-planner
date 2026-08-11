@@ -85,7 +85,7 @@ export default async function globalSetup(config: FullConfig) {
     if (
       (await page.getByRole("link", { name: "Browser-Testcamp" }).count()) === 0
     ) {
-      const createCamp = page.getByRole("button", { name: "Camp anlegen" });
+      const createCamp = page.getByRole("button", { name: "Freizeit anlegen" });
       try {
         await createCamp.waitFor({ state: "visible", timeout: 10_000 });
       } catch {

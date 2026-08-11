@@ -29,6 +29,10 @@
   failed response. The agenda form covers timed and all-day ranges without requiring pointer gestures. Create and
   edit forms select one or more responsibility candidates from Identity's minimized camp-readable directory;
   responsibilities affect presentation only and are revalidated by Camps on every write.
+- Workspace navigation: desktop groups Planning, Catering/Logistics, Content and Tools. At narrow widths the fixed
+  bottom navigation keeps overview, schedule, catering and shopping reachable while a More menu owns secondary
+  areas, account and Organization administration. Catering, Logistics, Search and Trash expose direct section
+  anchors; the calendar is hidden at phone width so the accessible agenda is the primary schedule presentation.
 - Every agenda row also opens its Files-owned private attachment area without crossing module internals. Authorized
   readers obtain a fresh actor-bound grant before opening a file; Camp writers upload with antiforgery and move files
   to the shared 30-day trash with the attachment `If-Match`. Archived Camps expose these files read-only.

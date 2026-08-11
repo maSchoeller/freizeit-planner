@@ -112,6 +112,61 @@ describe("camp workspace", () => {
     calendarMock.props = undefined;
   });
 
+  it("groups desktop navigation and keeps frequent mobile paths visible", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((request: RequestInfo | URL) => {
+        const path = requestPath(request);
+        if (path === "/api/v1/account")
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                displayName: "Alex Beispiel",
+                isSuperAdmin: false,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        return Promise.resolve(
+          new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          }),
+        );
+      }),
+    );
+
+    renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/tagesplan");
+
+    const desktop = await screen.findByRole("navigation", {
+      name: "Freizeit-Navigation",
+    });
+    for (const group of ["Planung", "Versorgung", "Inhalte", "Werkzeuge"])
+      expect(
+        within(desktop).getByRole("heading", { name: group }),
+      ).toBeInTheDocument();
+    expect(
+      within(desktop).getByRole("link", { name: "Suche" }),
+    ).toBeInTheDocument();
+    expect(
+      within(desktop).getByRole("link", { name: "Papierkorb" }),
+    ).toBeInTheDocument();
+
+    const mobile = screen.getByRole("navigation", {
+      name: "Mobile Freizeit-Navigation",
+    });
+    for (const destination of [
+      "Übersicht",
+      "Tagesplan",
+      "Verpflegung",
+      "Einkauf",
+    ])
+      expect(
+        within(mobile).getByRole("link", { name: destination }),
+      ).toBeInTheDocument();
+    expect(within(mobile).getByText("Mehr")).toBeInTheDocument();
+  });
+
   it("resolves a speaking camp route and keeps an archived camp read-only", async () => {
     const organizationId = "21000000-0000-0000-0000-000000000001";
     const campId = "31000000-0000-0000-0000-000000000001";
@@ -4309,7 +4364,12 @@ describe("camp workspace", () => {
     expect(
       screen.getByRole("heading", { name: "Material & Einkaufslisten" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Andachten" })).toHaveAttribute(
+    const desktopNavigation = screen.getByRole("navigation", {
+      name: "Freizeit-Navigation",
+    });
+    expect(
+      within(desktopNavigation).getByRole("link", { name: "Andachten" }),
+    ).toHaveAttribute(
       "href",
       "/o/sonnenhoehe/camps/sommerfreizeit-2026/andachten",
     );

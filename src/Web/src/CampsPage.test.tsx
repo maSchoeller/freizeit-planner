@@ -113,7 +113,7 @@ describe("camp lifecycle", () => {
       screen.getByRole("link", { name: /Sommerfreizeit 2026/ }),
     ).toHaveAttribute("href", "/o/sonnenhoehe/camps/sommerfreizeit-2026");
 
-    await user.click(screen.getByRole("button", { name: "Camp anlegen" }));
+    await user.click(screen.getByRole("button", { name: "Freizeit anlegen" }));
     await user.type(
       screen.getByRole("textbox", { name: "Name" }),
       "Herbstfreizeit 2027",
@@ -231,7 +231,7 @@ describe("camp lifecycle", () => {
     renderRoute("/o/sonnenhoehe/camps/sommerfreizeit-2026/einstellungen");
 
     expect(
-      await screen.findByRole("heading", { name: "Camp-Einstellungen" }),
+      await screen.findByRole("heading", { name: "Freizeit-Einstellungen" }),
     ).toBeInTheDocument();
     const nameField = screen.getByRole("textbox", { name: "Name" });
     await user.clear(nameField);
@@ -240,11 +240,15 @@ describe("camp lifecycle", () => {
       screen.getByRole("button", { name: "Änderungen speichern" }),
     );
     expect(
-      await screen.findByText("Camp-Einstellungen wurden gespeichert."),
+      await screen.findByText("Freizeit-Einstellungen wurden gespeichert."),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Camp archivieren" }));
+    await user.click(
+      screen.getByRole("button", { name: "Freizeit archivieren" }),
+    );
     expect(await screen.findByText(/schreibgeschützt/)).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Camp reaktivieren" }));
+    await user.click(
+      screen.getByRole("button", { name: "Freizeit reaktivieren" }),
+    );
 
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledTimes(8);

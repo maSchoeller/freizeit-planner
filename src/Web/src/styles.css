@@ -198,6 +198,16 @@ summary:focus-visible {
   display: grid;
   gap: 0.25rem;
 }
+.navigation-group + .navigation-group {
+  margin-top: 1.25rem;
+}
+.navigation-group h2 {
+  margin: 0 0 0.35rem 0.8rem;
+  color: #b8ded9;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
 .sidebar nav a {
   display: flex;
   align-items: center;
@@ -217,6 +227,9 @@ summary:focus-visible {
   margin-top: auto;
   color: #d8f6f2;
   padding: 0.8rem;
+}
+.mobile-navigation {
+  display: none;
 }
 main {
   width: min(75rem, 100%);
@@ -656,9 +669,12 @@ button:disabled {
     display: block !important;
   }
 }
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .topbar {
     padding-inline: 1rem;
+  }
+  .global-navigation {
+    display: none;
   }
   .workspace {
     display: block;
@@ -666,48 +682,80 @@ button:disabled {
     max-width: 100%;
   }
   .sidebar {
-    padding: 0.7rem 0.5rem;
-    position: sticky;
-    top: 0;
-    z-index: 10;
-    min-width: 0;
-    max-width: 100%;
-    overflow: hidden;
-  }
-  .sidebar > .eyebrow,
-  .camp-name,
-  .help-link {
     display: none;
   }
-  .sidebar ul {
-    display: flex;
-    width: 100%;
-    min-width: 0;
-    max-width: 100%;
-    overflow-x: auto;
-    gap: 0.25rem;
-    scrollbar-width: thin;
+  .mobile-navigation {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 60;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    min-height: 4.25rem;
+    padding: 0.35rem max(0.35rem, env(safe-area-inset-right))
+      max(0.35rem, env(safe-area-inset-bottom))
+      max(0.35rem, env(safe-area-inset-left));
+    border-top: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.98);
+    box-shadow: 0 -0.5rem 1.5rem rgb(18 75 72 / 10%);
   }
-  .sidebar nav {
-    width: 100%;
+  .mobile-navigation > a,
+  .mobile-navigation summary {
+    display: grid;
+    place-items: center;
+    align-content: center;
+    gap: 0.15rem;
     min-width: 0;
-    max-width: 100%;
+    min-height: 3.5rem;
+    padding: 0.25rem;
+    border-radius: var(--radius-sm);
+    color: var(--petrol-900);
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-align: center;
+    text-decoration: none;
   }
-  .sidebar nav a {
-    min-width: 2.75rem;
+  .mobile-navigation > a[aria-current="page"] {
+    color: var(--petrol-700);
+    background: var(--petrol-100);
+  }
+  .mobile-navigation details,
+  .mobile-navigation summary {
+    height: 100%;
+  }
+  .mobile-navigation summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  .mobile-navigation summary::-webkit-details-marker {
+    display: none;
+  }
+  .mobile-more-panel {
+    position: fixed;
+    right: 0.75rem;
+    bottom: 4.75rem;
+    display: grid;
+    width: min(21rem, calc(100vw - 1.5rem));
+    max-height: calc(100vh - 7rem);
+    padding: 0.6rem;
+    overflow: auto;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    background: var(--surface);
+    box-shadow: var(--shadow-dialog);
+  }
+  .mobile-more-panel a {
     min-height: 2.75rem;
-    justify-content: center;
-    padding: 0.65rem;
+    padding: 0.65rem 0.75rem;
+    border-radius: var(--radius-sm);
+    color: var(--petrol-900);
+    text-decoration: none;
   }
-  .sidebar nav a span {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
+  .mobile-more-panel a:hover,
+  .mobile-more-panel a:focus-visible {
+    background: var(--petrol-100);
   }
   main {
-    padding: 2rem 1rem 5rem;
+    padding: 2rem 1rem 7rem;
   }
   .page-heading {
     display: grid;
@@ -758,6 +806,14 @@ button:disabled {
   .activity-card li {
     display: grid;
     gap: 0.25rem;
+  }
+}
+@media (max-width: 600px) {
+  .calendar-card {
+    display: none;
+  }
+  .pwa-prompt {
+    bottom: 5rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

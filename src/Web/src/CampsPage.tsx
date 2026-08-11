@@ -70,7 +70,7 @@ export function CampsPage() {
           { credentials: "same-origin", signal: controller.signal },
         );
         if (!response.ok)
-          throw new Error("Die Camps konnten nicht geladen werden.");
+          throw new Error("Die Freizeiten konnten nicht geladen werden.");
         setMembership(currentMembership);
         setCamps((await response.json()) as CampSummary[]);
       } catch (reason) {
@@ -78,7 +78,7 @@ export function CampsPage() {
           setError(
             reason instanceof Error
               ? reason.message
-              : "Die Camps konnten nicht geladen werden.",
+              : "Die Freizeiten konnten nicht geladen werden.",
           );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -157,7 +157,7 @@ export function CampsPage() {
         Plane laufende und kommende Freizeiten oder öffne vergangene Freizeiten
         zum Lesen und Exportieren.
       </p>
-      {loading ? <p role="status">Camps werden geladen …</p> : null}
+      {loading ? <p role="status">Freizeiten werden geladen …</p> : null}
       {error ? (
         <p role="alert" className="error-message">
           {error}
@@ -174,7 +174,7 @@ export function CampsPage() {
             type="button"
             onClick={() => setShowCreate((current) => !current)}
           >
-            Camp anlegen
+            Freizeit anlegen
           </button>
         </div>
       ) : null}
@@ -280,7 +280,7 @@ export function CampSettingsPage() {
         );
         if (!response.ok)
           throw new Error(
-            "Die Camp-Einstellungen konnten nicht geladen werden.",
+            "Die Freizeit-Einstellungen konnten nicht geladen werden.",
           );
         setMembership(currentMembership);
         setCamp((await response.json()) as CampView);
@@ -289,7 +289,7 @@ export function CampSettingsPage() {
           setError(
             reason instanceof Error
               ? reason.message
-              : "Die Camp-Einstellungen konnten nicht geladen werden.",
+              : "Die Freizeit-Einstellungen konnten nicht geladen werden.",
           );
       } finally {
         if (!controller.signal.aborted) setLoading(false);
@@ -336,7 +336,7 @@ export function CampSettingsPage() {
       await queryClient.invalidateQueries({
         queryKey: ["camp-workspace", organizationSlug],
       });
-      setNotice("Camp-Einstellungen wurden gespeichert.");
+      setNotice("Freizeit-Einstellungen wurden gespeichert.");
       if (updated.slug !== campSlug)
         void navigate(
           `/o/${organizationSlug}/camps/${updated.slug}/einstellungen`,
@@ -400,9 +400,9 @@ export function CampSettingsPage() {
   return (
     <SettingsLayout backTo={`/o/${organizationSlug}/camps/${campSlug}`}>
       <p className="eyebrow">Camp verwalten</p>
-      <h1>Camp-Einstellungen</h1>
+      <h1>Freizeit-Einstellungen</h1>
       {loading ? (
-        <p role="status">Camp-Einstellungen werden geladen …</p>
+        <p role="status">Freizeit-Einstellungen werden geladen …</p>
       ) : null}
       {error ? (
         <p role="alert" className="error-message">
@@ -452,7 +452,9 @@ export function CampSettingsPage() {
               type="button"
               onClick={() => void changeStatus(camp.status === 1 ? 0 : 1)}
             >
-              {camp.status === 1 ? "Camp reaktivieren" : "Camp archivieren"}
+              {camp.status === 1
+                ? "Freizeit reaktivieren"
+                : "Freizeit archivieren"}
             </button>
           </section>
           <Link to={`/o/${organizationSlug}/camps`}>Alle Camps anzeigen</Link>

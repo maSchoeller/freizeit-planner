@@ -1,6 +1,6 @@
 # Suche, Aktivität, Druck und CSV
 
-Die campweite Suche findest du unter **Suche & Papierkorb**. Gib mindestens zwei Zeichen ein. Die Suche bleibt
+Die freizeitweite **Suche** und der **Papierkorb** sind getrennt direkt adressierbar. Gib mindestens zwei Zeichen ein. Die Suche bleibt
 immer auf das geöffnete Camp begrenzt und berücksichtigt Titel sowie geeignete Textfelder aus Tagesplan,
 Mahlzeiten, Material, Einkaufslisten und Einkaufspositionen, Andachten, Notizen und Dateien. Mit **Inhaltstyp**
 kannst du das Ergebnis weiter eingrenzen. Sobald du einen Typ gewählt hast, bietet **Merkmal** dazu passende exakte
@@ -17,7 +17,7 @@ Unterhalb der Suche kannst du Tagesplan, Mahlzeiten, Material und alle Einkaufsl
 Dateien verwenden deutsche Spaltenüberschriften und UTF-8. Inhalte, die Tabellenprogramme als Formel ausführen
 könnten, werden beim Export automatisch entschärft.
 
-Die zweckmäßigen Druckansichten liegen direkt beim **Tagesplan**, bei **Essen & Rezepte** sowie bei **Material &
+Die zweckmäßigen Druckansichten liegen direkt beim **Tagesplan**, bei **Verpflegung** sowie bei **Material &
 Einkauf**. Dort kannst du Zeitplan, Mahlzeiten, Material oder Einkauf getrennt drucken. Der Browserdruck behält nur
 den jeweiligen lesbaren Planungsbereich und die Camp-Überschrift; Navigation, Formulare und Bedienelemente werden
 ausgeblendet. Es werden keine serverseitigen PDF-, Word- oder Excel-Dateien erzeugt. Archivierte Camps bleiben les-

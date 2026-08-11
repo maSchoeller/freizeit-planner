@@ -251,8 +251,9 @@ test("@smoke Superadmin creates an Organization setup link after UI login", asyn
 
   await page.goto("/superadmin/organisationen");
   await expect(
-    page.getByRole("heading", { name: "Organizations" }),
+    page.getByRole("heading", { name: "Organisationen verwalten" }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Organisation einrichten" }).click();
   await page.getByLabel("Name", { exact: true }).fill("Browser Organization");
   await page
     .getByLabel("Kurzname für die URL", { exact: true })
@@ -263,7 +264,9 @@ test("@smoke Superadmin creates an Organization setup link after UI login", asyn
       response.request().method() === "POST" &&
       response.status() === 201,
   );
-  await page.getByRole("button", { name: "Einrichtungslink kopieren" }).click();
+  await page
+    .getByRole("button", { name: "Einrichtungslink erstellen & kopieren" })
+    .click();
 
   expect((await linkResponse).status()).toBe(201);
   await expect(page.getByText(/Einrichtungslink wurde kopiert:/)).toBeVisible();
@@ -298,7 +301,7 @@ test("central camp pages render their responsive empty states without accessibil
       heading: "Tages- und Wochenplan",
       screenshot: "tagesplan",
     },
-    { path: "/essen", heading: "Essen & Rezepte", screenshot: "essen" },
+    { path: "/essen", heading: "Verpflegung", screenshot: "essen" },
     {
       path: "/logistik",
       heading: "Material & Einkaufslisten",
@@ -309,7 +312,7 @@ test("central camp pages render their responsive empty states without accessibil
     { path: "/dateien", heading: "Dateien", screenshot: "dateien" },
     {
       path: "/suche",
-      heading: "Suche & Papierkorb",
+      heading: "Suche",
       screenshot: "suche",
     },
   ] as const;
@@ -320,7 +323,7 @@ test("central camp pages render their responsive empty states without accessibil
       page.getByRole("heading", { name: item.heading, level: 1 }),
     ).toBeVisible();
     await expect(
-      page.getByRole("navigation", { name: "Camp-Navigation" }),
+      page.getByRole("navigation", { name: "Freizeit-Navigation" }),
     ).toBeVisible();
     await assertNoHorizontalOverflow(page);
     await assertAxe(page);
@@ -341,9 +344,9 @@ test("camp list exposes a designed loading and server-error state", async ({
   });
 
   await page.goto("/o/sonnenhoehe/camps");
-  await expect(page.getByText("Camps werden geladen …")).toBeVisible();
+  await expect(page.getByText("Freizeiten werden geladen …")).toBeVisible();
   await expect(page.getByRole("alert")).toContainText(
-    "Die Camps konnten nicht geladen werden.",
+    "Die Freizeiten konnten nicht geladen werden.",
   );
   await assertAxe(page);
   await capture(page, testInfo, "fehlerzustand");
@@ -354,7 +357,7 @@ test("organization member receives a designed permission error at the Superadmin
 }, testInfo) => {
   await page.goto("/superadmin/organisationen");
   await expect(
-    page.getByRole("heading", { name: "Organizations" }),
+    page.getByRole("heading", { name: "Organisationen verwalten" }),
   ).toBeVisible();
   await expect(page.getByRole("alert")).toBeVisible();
   await assertAxe(page);
@@ -438,7 +441,7 @@ test("a stale camp edit remains visible after a genuine version conflict", async
   const settingsUrl = "/o/sonnenhoehe/camps/browser-testcamp/einstellungen";
   await page.goto(settingsUrl);
   await expect(
-    page.getByRole("heading", { name: "Camp-Einstellungen" }),
+    page.getByRole("heading", { name: "Freizeit-Einstellungen" }),
   ).toBeVisible();
 
   const concurrentPage = await context.newPage();
@@ -450,7 +453,7 @@ test("a stale camp edit remains visible after a genuine version conflict", async
     .getByRole("button", { name: "Änderungen speichern" })
     .click();
   await expect(concurrentPage.getByRole("status")).toContainText(
-    "Camp-Einstellungen wurden gespeichert.",
+    "Freizeit-Einstellungen wurden gespeichert.",
   );
   await concurrentPage.close();
 
