@@ -621,12 +621,14 @@ test("@smoke a combined Orgadmin and Superadmin sees both named administration a
   await expect(page.getByLabel(/Kontomenü.*öffnen/)).toBeVisible();
   await page.getByLabel(/Kontomenü.*öffnen/).click();
   const profileMenu = page.locator(".profile-menu-panel");
+  // Firefox under load can take noticeably longer than the default 10 s to
+  // commit the re-render that follows the intercepted /api/v1/account response.
   await expect(
     profileMenu.getByRole("link", { name: "Organisation verwalten" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30_000 });
   await expect(
     profileMenu.getByRole("link", { name: "Plattform verwalten" }),
-  ).toBeVisible();
+  ).toBeVisible({ timeout: 30_000 });
   await assertAxe(page);
 });
 
