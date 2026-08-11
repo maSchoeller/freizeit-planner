@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   authenticatedFetch,
   clearAuthentication,
+  restoreAuthentication,
   setAccessToken,
 } from "./authentication";
 
@@ -13,6 +14,15 @@ afterEach(() => {
 });
 
 describe("authenticatedFetch", () => {
+  it("keeps an existing in-memory session without rotating its refresh cookie", async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    setAccessToken("access.current");
+
+    await expect(restoreAuthentication()).resolves.toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it("forwards an unauthenticated request without changing its options", async () => {
     const expected = new Response(null, { status: 204 });
     const fetchMock = vi.fn().mockResolvedValue(expected);

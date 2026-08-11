@@ -7,3 +7,4 @@ src/FreizeitCockpit.Web/wwwroot/
 src/FreizeitCockpit.Web/openapi/
 src/Help/docs/.vitepress/.temp/
 prompt.md
+**/.claude/settings.local.json

@@ -81,7 +81,9 @@ export default async function globalSetup(config: FullConfig) {
     }
 
     await page.goto("/o/sonnenhoehe/camps");
-    await expect(page.getByRole("heading", { name: "Freizeiten" })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Freizeiten" }),
+    ).toBeVisible();
     if (
       (await page.getByRole("link", { name: "Browser-Testcamp" }).count()) === 0
     ) {

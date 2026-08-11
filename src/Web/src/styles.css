@@ -592,7 +592,7 @@ button:disabled {
 }
 .pwa-prompt {
   position: fixed;
-  z-index: 50;
+  z-index: 70;
   right: 1rem;
   bottom: 1rem;
   width: min(28rem, calc(100vw - 2rem));
@@ -697,6 +697,11 @@ button:disabled {
     border-top: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.98);
     box-shadow: 0 -0.5rem 1.5rem rgb(18 75 72 / 10%);
+  }
+  .pwa-prompt {
+    position: static;
+    width: auto;
+    margin: 1rem;
   }
   .mobile-navigation > a,
   .mobile-navigation summary {
@@ -811,9 +816,6 @@ button:disabled {
 @media (max-width: 600px) {
   .calendar-card {
     display: none;
-  }
-  .pwa-prompt {
-    bottom: 5rem;
   }
 }
 @media (prefers-reduced-motion: reduce) {

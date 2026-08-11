@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
@@ -18,6 +18,8 @@ export function PlatformOrganizationsPage() {
   const [organizationName, setOrganizationName] = useState("");
   const [organizationSlug, setOrganizationSlug] = useState("");
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [linkTarget, setLinkTarget] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<Organization | null>(null);
   const navigate = useNavigate();
@@ -127,9 +129,16 @@ export function PlatformOrganizationsPage() {
             "Der Einrichtungslink konnte nicht erstellt werden.",
           ),
         );
-      const link = `${globalThis.location.origin}/einladung?token=${encodeURIComponent(result.data.token)}`;
-      await globalThis.navigator.clipboard.writeText(link);
+      const target = `/einladung?token=${encodeURIComponent(result.data.token)}`;
+      const link = `${globalThis.location.origin}${target}`;
       setCopiedLink(link);
+      setLinkTarget(target);
+      try {
+        await globalThis.navigator.clipboard.writeText(link);
+        setLinkCopied(true);
+      } catch {
+        setLinkCopied(false);
+      }
       setOrganizationName("");
       setOrganizationSlug("");
       setShowCreate(false);
@@ -176,7 +185,10 @@ export function PlatformOrganizationsPage() {
             onSubmit={(event) => void createOrganizationInvitation(event)}
           >
             <h2 id="create-organization-heading">Organisation einrichten</h2>
-            <p>Der Link ist einmalig sichtbar und wird direkt kopiert.</p>
+            <p>
+              Der Link ist einmalig sichtbar. Wir kopieren ihn nach der
+              Erstellung, sofern dein Browser dies erlaubt.
+            </p>
             <label>
               Name
               <input
@@ -217,10 +229,14 @@ export function PlatformOrganizationsPage() {
           </form>
         </ModalDialog>
       ) : null}
-      {copiedLink ? (
+      {copiedLink && linkTarget ? (
         <p className="success-message" role="status">
-          Einrichtungslink wurde kopiert:{" "}
-          <span className="copy-value">{copiedLink}</span>
+          {linkCopied
+            ? "Einrichtungslink wurde kopiert: "
+            : "Einrichtungslink ist bereit. Kopiere ihn manuell: "}
+          <Link className="copy-value" to={linkTarget}>
+            {copiedLink}
+          </Link>
         </p>
       ) : null}
       {loading ? <p role="status">Organisationen werden geladen …</p> : null}

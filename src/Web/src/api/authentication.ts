@@ -10,6 +10,7 @@ export function clearAuthentication() {
 }
 
 export async function restoreAuthentication(): Promise<boolean> {
+  if (accessToken) return true;
   const token = await refreshAccessToken();
   if (!token) clearAuthentication();
   return token !== null;

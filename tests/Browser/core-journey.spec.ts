@@ -7,6 +7,7 @@ import {
   type TestInfo,
 } from "@playwright/test";
 import { mkdir, copyFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import path from "node:path";
 
 const browserUserEmail = "miriam@example.test";
@@ -171,7 +172,8 @@ test("@smoke superadmin invitation registers and confirms a new global account",
     });
     expect(invitationResponse.ok()).toBe(true);
     const invitation = (await invitationResponse.json()) as { token: string };
-    const newEmail = `einladung-${testInfo.project.name}@example.test`;
+    const invitationRunId = randomUUID().slice(0, 8);
+    const newEmail = `einladung-${testInfo.project.name}-${invitationRunId}@example.test`;
 
     await page.goto(`/einladung?token=${invitation.token}`);
     await expect(page.getByText(/Superadmin für das gesamte/)).toBeVisible();
@@ -240,16 +242,26 @@ test("@smoke Superadmin creates an Organization setup link after UI login", asyn
   page,
   context,
 }, testInfo) => {
+  const setupRunId = randomUUID().slice(0, 8);
   await context.setExtraHTTPHeaders({});
   await page.goto("/anmelden");
   await page.getByLabel("E-Mail-Adresse").fill(browserSuperAdminEmail);
   await page
     .getByLabel("Passwort", { exact: true })
     .fill(browserSuperAdminPassword);
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/auth/login") &&
+      response.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  expect((await loginResponsePromise).ok()).toBe(true);
   await expect(page).not.toHaveURL(/\/anmelden$/);
-
-  await page.goto("/superadmin/organisationen");
+  await page.getByLabel(/Kontomenü.*öffnen/).click();
+  await page
+    .locator(".profile-menu-panel")
+    .getByRole("link", { name: "Plattform verwalten" })
+    .click();
   await expect(
     page.getByRole("heading", { name: "Organisationen verwalten" }),
   ).toBeVisible();
@@ -257,7 +269,7 @@ test("@smoke Superadmin creates an Organization setup link after UI login", asyn
   await page.getByLabel("Name", { exact: true }).fill("Browser Organization");
   await page
     .getByLabel("Kurzname für die URL", { exact: true })
-    .fill(`browser-organization-${testInfo.project.name}`);
+    .fill(`browser-organization-${testInfo.project.name}-${setupRunId}`);
   const linkResponse = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/invitations/links") &&
@@ -269,10 +281,12 @@ test("@smoke Superadmin creates an Organization setup link after UI login", asyn
     .click();
 
   expect((await linkResponse).status()).toBe(201);
-  await expect(page.getByText(/Einrichtungslink wurde kopiert:/)).toBeVisible();
+  await expect(
+    page.getByText(/Einrichtungslink (wurde kopiert|ist bereit)/),
+  ).toBeVisible();
   const invitationUrl = await page.locator(".copy-value").textContent();
   expect(invitationUrl).toBeTruthy();
-  await page.goto(invitationUrl!);
+  await page.locator(".copy-value").click();
   await page.getByRole("button", { name: "Einladung annehmen" }).click();
   await expect(
     page.getByRole("heading", { name: "Einladung angenommen" }),
