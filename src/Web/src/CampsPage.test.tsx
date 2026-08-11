@@ -106,7 +106,7 @@ describe("camp lifecycle", () => {
     renderRoute("/o/sonnenhoehe/camps");
 
     expect(
-      await screen.findByRole("heading", { name: "Camps" }),
+      await screen.findByRole("heading", { name: "Freizeiten" }),
     ).toBeInTheDocument();
     expect(screen.getByText("Laufend")).toBeInTheDocument();
     expect(

@@ -15,12 +15,14 @@ import {
   OrganizationUsersPage,
   SuperAdminUsersPage,
 } from "./UserAdministrationPage";
+import { LandingPage } from "./LandingPage";
 
 export function App() {
   return (
     <>
       <PwaUpdatePrompt />
       <Routes>
+        <Route path="/" element={<LandingPage />} />
         <Route
           path="/anmelden"
           element={
@@ -137,12 +139,7 @@ export function App() {
           path="/o/:organizationSlug/camps/:campSlug/*"
           element={<CampWorkspace />}
         />
-        <Route
-          path="*"
-          element={
-            <Navigate replace to="/o/sonnenhoehe/camps/sommerfreizeit-2026" />
-          }
-        />
+        <Route path="*" element={<Navigate replace to="/" />} />
       </Routes>
     </>
   );

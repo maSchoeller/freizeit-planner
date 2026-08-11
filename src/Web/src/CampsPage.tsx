@@ -141,10 +141,10 @@ export function CampsPage() {
       <p className="eyebrow">
         {membership?.organizationName ?? "Organisation"}
       </p>
-      <h1>Camps</h1>
+      <h1>Freizeiten</h1>
       <p>
-        Plane laufende und kommende Freizeiten oder öffne vergangene Camps zum
-        Lesen und Exportieren.
+        Plane laufende und kommende Freizeiten oder öffne vergangene Freizeiten
+        zum Lesen und Exportieren.
       </p>
       {loading ? <p role="status">Camps werden geladen …</p> : null}
       {error ? (

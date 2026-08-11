@@ -32,6 +32,7 @@ import {
 } from "./offlineSnapshot";
 import { getAntiforgeryToken } from "./api/security";
 import { authenticatedFetch as fetch } from "./api/authentication";
+import { AppHeader } from "./AppShell";
 
 type AccountMembership = components["schemas"]["AccountMembershipView"];
 type Account = components["schemas"]["AccountView"];
@@ -324,15 +325,6 @@ function scheduleTimingLabel(entry: ScheduleEntry, timeZone: string) {
       }).format(new Date(entry.timing.endsAtUtc))
     : "";
   return `${start}–${end} Uhr`;
-}
-
-function accountInitials(displayName: string) {
-  const parts = displayName.trim().split(/\s+/).filter(Boolean);
-  return (
-    parts.length > 1
-      ? `${parts[0][0]}${parts.at(-1)?.[0] ?? ""}`
-      : parts[0]?.slice(0, 2) || "K"
-  ).toLocaleUpperCase("de-DE");
 }
 
 function campLocalDate(timeZone: string) {
@@ -1029,18 +1021,16 @@ function CampWorkspaceShell() {
       <a className="skip-link" href="#main">
         Zum Inhalt springen
       </a>
-      <header className="topbar">
-        <Link
-          className="brand"
-          to={campBase}
-          aria-label="Freizeit-Cockpit Startseite"
-        >
-          <span className="brand-mark" aria-hidden="true">
-            F
-          </span>
-          <span>Freizeit-Cockpit</span>
-        </Link>
-        <div className="topbar-actions">
+      <AppHeader
+        homeTo={campBase}
+        displayName={accountDisplayName}
+        organizationName={offline ? undefined : runtime.organizationName}
+        organizationSlug={offline ? undefined : runtime.organizationSlug}
+        canManageOrganization={!offline && runtime.organizationRole === 1}
+        isSuperAdmin={!offline && (account.data?.isSuperAdmin ?? false)}
+        searchTo={offline ? undefined : `${campBase}/suche`}
+        profileAvailable={!offline}
+        status={
           <span
             className={offline ? "connection offline" : "connection"}
             role="status"
@@ -1051,28 +1041,8 @@ function CampWorkspaceShell() {
                 ? "Archiviert · nur lesen"
                 : "Online"}
           </span>
-          {offline ? (
-            <span
-              className="profile-button"
-              aria-label="Kontomenü ist offline nicht verfügbar"
-            >
-              …
-            </span>
-          ) : (
-            <Link
-              className="profile-button"
-              aria-label={
-                accountDisplayName
-                  ? `Kontomenü von ${accountDisplayName} öffnen`
-                  : "Kontomenü öffnen"
-              }
-              to="/konto"
-            >
-              {accountDisplayName ? accountInitials(accountDisplayName) : "…"}
-            </Link>
-          )}
-        </div>
-      </header>
+        }
+      />
       <div className="workspace">
         <aside className="sidebar" aria-label="Camp-Navigation">
           <p className="eyebrow">{runtime.organizationName}</p>

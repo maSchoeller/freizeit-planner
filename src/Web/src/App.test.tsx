@@ -12,6 +12,67 @@ afterEach(() => {
 });
 
 describe("Dashboard", () => {
+  it("routes the application root to the first accessible organization without a seeded Camp slug", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const path = new URL(url, "https://localhost").pathname;
+        if (path === "/api/v1/account")
+          return new Response(
+            JSON.stringify({
+              id: "10000000-0000-0000-0000-000000000001",
+              email: "lea@example.test",
+              displayName: "Lea Beispiel",
+              firstName: "Lea",
+              lastName: "Beispiel",
+              deletionScheduledAt: null,
+              isSuperAdmin: false,
+              version: 1,
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        if (path === "/api/v1/account/memberships")
+          return new Response(
+            JSON.stringify([
+              {
+                organizationId: "20000000-0000-0000-0000-000000000001",
+                organizationName: "Evangelisches Jugendwerk",
+                organizationSlug: "ejw",
+                role: 1,
+              },
+            ]),
+            { status: 200, headers: { "Content-Type": "application/json" } },
+          );
+        if (
+          path ===
+          "/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps"
+        )
+          return new Response(JSON.stringify([]), {
+            status: 200,
+            headers: { "Content-Type": "application/json" },
+          });
+        return new Response(null, { status: 404 });
+      }),
+    );
+
+    render(
+      <MemoryRouter initialEntries={["/"]}>
+        <App />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Freizeiten" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Sommerfreizeit 2026")).toBeNull();
+  });
+
   it("exposes the next plan and core navigation in German", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },
@@ -42,6 +103,16 @@ describe("Dashboard", () => {
         },
       },
     );
+    queryClient.setQueryData(["account"], {
+      id: "10000000-0000-0000-0000-000000000001",
+      email: "lea@example.test",
+      displayName: "Lea Beispiel",
+      firstName: "Lea",
+      lastName: "Beispiel",
+      deletionScheduledAt: null,
+      isSuperAdmin: true,
+      version: 1,
+    });
     render(
       <QueryClientProvider client={queryClient}>
         <MemoryRouter
@@ -60,6 +131,12 @@ describe("Dashboard", () => {
     expect(
       screen.getByRole("link", { name: "Hilfe & Anleitung" }),
     ).toHaveAttribute("href", "/hilfe/");
+    expect(
+      screen.getByRole("link", { name: "Organisation verwalten" }),
+    ).toHaveAttribute("href", "/o/sonnenhoehe/verwaltung/team");
+    expect(
+      screen.getByRole("link", { name: "Plattform verwalten" }),
+    ).toHaveAttribute("href", "/superadmin/organisationen");
   });
 
   it("starts password login with labelled password-manager fields", () => {
