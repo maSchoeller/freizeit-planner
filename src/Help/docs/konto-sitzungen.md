@@ -1,6 +1,6 @@
 # Aktive Sitzungen verwalten
 
-Öffne dein Kontomenü und wähle **Aktive Sitzungen**. Die aktuelle und weitere noch gültige Sitzungen werden mit
+Öffne dein Kontomenü und wähle **Sicherheit & Sitzungen**. Die aktuelle und weitere noch gültige Sitzungen werden mit
 Beginn, Ablauf und der bei der Anmeldung verwendeten IP-Adresse angezeigt.
 
 - **Sitzung widerrufen** beendet genau diesen Zugriff sofort.

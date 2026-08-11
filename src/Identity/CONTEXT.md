@@ -54,3 +54,6 @@
 - Offline session boundary: explicit logout, revocation of the current browser session, leaving the active
   Organization, and switching Organizations purge the single local Camp planning snapshot. Identity, account,
   session and administration routes never render authenticated cached content while offline.
+- Web navigation: login returns only to a validated same-origin relative route. The application root derives its
+  destination from current memberships and SuperAdmin status; First Login is linked only while the persistent
+  initialization marker is absent. Profile, security/sessions, Organizations and privacy have separate routes.

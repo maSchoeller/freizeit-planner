@@ -1,6 +1,5 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import { LoginPage } from "./LoginPage";
-import { SessionsPage } from "./SessionsPage";
 import { InvitationConfirmationPage, InvitationPage } from "./InvitationPage";
 import { AccountPage } from "./AccountPage";
 import { OrganizationMembersPage } from "./OrganizationMembersPage";
@@ -73,19 +72,24 @@ export function App() {
         />
         <Route
           path="/konto"
-          element={
-            <OnlineOnly>
-              <AccountPage />
-            </OnlineOnly>
-          }
+          element={<Navigate replace to="/konto/profil" />}
         />
+        {(
+          ["profil", "sicherheit", "organisationen", "datenschutz"] as const
+        ).map((section) => (
+          <Route
+            key={section}
+            path={`/konto/${section}`}
+            element={
+              <OnlineOnly>
+                <AccountPage section={section} />
+              </OnlineOnly>
+            }
+          />
+        ))}
         <Route
           path="/konto/sitzungen"
-          element={
-            <OnlineOnly>
-              <SessionsPage />
-            </OnlineOnly>
-          }
+          element={<Navigate replace to="/konto/sicherheit#sitzungen" />}
         />
         <Route
           path="/o/:organizationSlug/einstellungen/mitglieder"

@@ -1,5 +1,12 @@
+import { useState } from "react";
 import type { ReactNode } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import {
+  authenticatedFetch as fetch,
+  clearAuthentication,
+} from "./api/authentication";
+import { getAntiforgeryToken } from "./api/security";
+import { clearOfflineSession } from "./offlineSnapshot";
 
 export function AppHeader({
   homeTo,
@@ -22,6 +29,34 @@ export function AppHeader({
   status?: ReactNode;
   profileAvailable?: boolean;
 }) {
+  const navigate = useNavigate();
+  const [logoutBusy, setLogoutBusy] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
+
+  async function logout() {
+    setLogoutBusy(true);
+    setLogoutError("");
+    try {
+      const response = await fetch("/api/v1/auth/logout", {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "X-CSRF-TOKEN": await getAntiforgeryToken() },
+      });
+      if (!response.ok) throw new Error("Die Abmeldung ist fehlgeschlagen.");
+      clearAuthentication();
+      clearOfflineSession();
+      void navigate("/anmelden", { replace: true });
+    } catch (reason) {
+      setLogoutError(
+        reason instanceof Error
+          ? reason.message
+          : "Die Abmeldung ist fehlgeschlagen.",
+      );
+    } finally {
+      setLogoutBusy(false);
+    }
+  }
+
   return (
     <header className="topbar">
       <Link
@@ -54,17 +89,40 @@ export function AppHeader({
       <div className="topbar-actions">
         {status}
         {profileAvailable ? (
-          <Link
-            className="profile-button"
-            aria-label={
-              displayName
-                ? `Konto von ${displayName} öffnen`
-                : "Mein Konto öffnen"
-            }
-            to="/konto/profil"
-          >
-            {displayName ? accountInitials(displayName) : "Konto"}
-          </Link>
+          <details className="profile-menu">
+            <summary
+              className="profile-button"
+              aria-label={
+                displayName
+                  ? `Kontomenü von ${displayName} öffnen`
+                  : "Kontomenü öffnen"
+              }
+            >
+              {displayName ? accountInitials(displayName) : "Konto"}
+            </summary>
+            <div className="profile-menu-panel">
+              <Link to="/konto/profil">Mein Profil</Link>
+              <Link to="/konto/sicherheit">Sicherheit &amp; Sitzungen</Link>
+              <Link to="/konto/organisationen">Meine Organisationen</Link>
+              {canManageOrganization && organizationSlug ? (
+                <Link to={`/o/${organizationSlug}/verwaltung/team`}>
+                  Organisation verwalten
+                </Link>
+              ) : null}
+              {isSuperAdmin ? (
+                <Link to="/superadmin/organisationen">Plattform verwalten</Link>
+              ) : null}
+              <button
+                className="text-action"
+                disabled={logoutBusy}
+                onClick={() => void logout()}
+                type="button"
+              >
+                {logoutBusy ? "Wird abgemeldet …" : "Abmelden"}
+              </button>
+              {logoutError ? <span role="alert">{logoutError}</span> : null}
+            </div>
+          </details>
         ) : (
           <span
             className="profile-button"

@@ -2,7 +2,8 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { setAccessToken } from "./api/authentication";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
-import { Brand, PasswordField } from "./LoginPage";
+import { PasswordField } from "./LoginPage";
+import { AuthShell } from "./AuthShell";
 
 export function FirstLoginPage() {
   const [available, setAvailable] = useState<boolean | null>(null);
@@ -76,92 +77,90 @@ export function FirstLoginPage() {
   }
 
   return (
-    <div className="login-layout">
-      <main id="main" className="login-card">
-        <Brand />
-        <p className="eyebrow">Einmalige Ersteinrichtung</p>
-        <h1>Ersten Superadmin anlegen</h1>
-        {available === null && !error ? (
-          <p role="status">Verfügbarkeit wird geprüft …</p>
-        ) : null}
-        {available === false ? (
-          <div className="notice-card">
-            <p>Die Ersteinrichtung wurde bereits abgeschlossen.</p>
-            <Link className="primary-action" to="/anmelden">
-              Zur Anmeldung
-            </Link>
-          </div>
-        ) : null}
-        {available ? (
-          <form onSubmit={(event) => void submit(event)} noValidate>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="first-name">Vorname</label>
-                <input
-                  id="first-name"
-                  autoComplete="given-name"
-                  required
-                  maxLength={80}
-                  value={firstName}
-                  onChange={(event) => setFirstName(event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="last-name">Nachname</label>
-                <input
-                  id="last-name"
-                  autoComplete="family-name"
-                  required
-                  maxLength={80}
-                  value={lastName}
-                  onChange={(event) => setLastName(event.target.value)}
-                />
-              </div>
-            </div>
+    <AuthShell
+      eyebrow="Einmalige Ersteinrichtung"
+      heading="Ersten Superadmin anlegen"
+    >
+      {available === null && !error ? (
+        <p role="status">Verfügbarkeit wird geprüft …</p>
+      ) : null}
+      {available === false ? (
+        <div className="notice-card">
+          <p>Die Ersteinrichtung wurde bereits abgeschlossen.</p>
+          <Link className="primary-action" to="/anmelden">
+            Zur Anmeldung
+          </Link>
+        </div>
+      ) : null}
+      {available ? (
+        <form onSubmit={(event) => void submit(event)} noValidate>
+          <div className="field-row">
             <div className="field">
-              <label htmlFor="first-email">E-Mail-Adresse</label>
+              <label htmlFor="first-name">Vorname</label>
               <input
-                id="first-email"
-                type="email"
-                autoComplete="email"
+                id="first-name"
+                autoComplete="given-name"
                 required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                maxLength={80}
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
               />
             </div>
-            <p className="field-hint">
-              Mindestens 15 Zeichen. Leerzeichen und Unicode sind erlaubt.
-            </p>
-            <PasswordField
-              id="first-password"
-              label="Passwort"
-              autoComplete="new-password"
-              value={password}
-              show={showPassword}
-              onChange={setPassword}
-              onToggle={() => setShowPassword((current) => !current)}
-            />
-            <PasswordField
-              id="first-password-confirmation"
-              label="Passwort bestätigen"
-              autoComplete="new-password"
-              value={confirmation}
-              show={showPassword}
-              onChange={setConfirmation}
-              onToggle={() => setShowPassword((current) => !current)}
-            />
-            <button className="primary-action" disabled={busy} type="submit">
-              {busy ? "Superadmin wird angelegt …" : "Superadmin anlegen"}
-            </button>
-          </form>
-        ) : null}
-        {error ? (
-          <div className="error-message" role="alert">
-            {error}
+            <div className="field">
+              <label htmlFor="last-name">Nachname</label>
+              <input
+                id="last-name"
+                autoComplete="family-name"
+                required
+                maxLength={80}
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+              />
+            </div>
           </div>
-        ) : null}
-      </main>
-    </div>
+          <div className="field">
+            <label htmlFor="first-email">E-Mail-Adresse</label>
+            <input
+              id="first-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <p className="field-hint">
+            Mindestens 15 Zeichen. Leerzeichen und Unicode sind erlaubt.
+          </p>
+          <PasswordField
+            id="first-password"
+            label="Passwort"
+            autoComplete="new-password"
+            value={password}
+            show={showPassword}
+            onChange={setPassword}
+            onToggle={() => setShowPassword((current) => !current)}
+          />
+          <PasswordField
+            id="first-password-confirmation"
+            label="Passwort bestätigen"
+            autoComplete="new-password"
+            value={confirmation}
+            show={showPassword}
+            onChange={setConfirmation}
+            onToggle={() => setShowPassword((current) => !current)}
+          />
+          <button className="primary-action" disabled={busy} type="submit">
+            {busy ? "Superadmin wird angelegt …" : "Superadmin anlegen"}
+          </button>
+        </form>
+      ) : null}
+      {error ? (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      ) : null}
+    </AuthShell>
   );
 }
 

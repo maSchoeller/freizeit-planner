@@ -100,6 +100,54 @@ a:focus-visible {
   align-items: center;
   gap: 0.75rem;
 }
+.global-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(0.75rem, 2vw, 1.5rem);
+  margin-inline: auto 1.5rem;
+}
+.global-navigation a {
+  color: var(--petrol-900);
+  font-weight: 700;
+  text-decoration: none;
+}
+.profile-menu {
+  position: relative;
+}
+.profile-menu summary {
+  list-style: none;
+}
+.profile-menu summary::-webkit-details-marker {
+  display: none;
+}
+.profile-menu-panel {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.65rem);
+  right: 0;
+  display: grid;
+  width: min(19rem, calc(100vw - 2rem));
+  padding: 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--white);
+  box-shadow: 0 1rem 2.5rem rgba(18, 75, 72, 0.18);
+}
+.profile-menu-panel a,
+.profile-menu-panel button {
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.75rem;
+  border: 0;
+  border-radius: 0.5rem;
+  text-align: left;
+  text-decoration: none;
+}
+.profile-menu-panel a:hover,
+.profile-menu-panel button:hover {
+  background: var(--petrol-100);
+}
 .connection {
   padding: 0.3rem 0.65rem;
   border-radius: 999px;
@@ -857,6 +905,36 @@ button:disabled {
 }
 .account-page {
   margin-inline: auto;
+}
+.section-navigation {
+  display: flex;
+  gap: 0.35rem;
+  margin-block: 1.5rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--white);
+  overflow-x: auto;
+}
+.section-navigation a {
+  flex: 0 0 auto;
+  min-height: 2.75rem;
+  padding: 0.65rem 0.9rem;
+  border-radius: 0.55rem;
+  color: var(--petrol-900);
+  font-weight: 700;
+  text-decoration: none;
+}
+.section-navigation a[aria-current="page"] {
+  background: var(--petrol-100);
+  color: var(--petrol-900);
+}
+.landing-page {
+  margin-inline: auto;
+}
+.field-help-link {
+  margin: -0.8rem 0 0;
+  text-align: right;
 }
 .account-heading {
   align-items: center;

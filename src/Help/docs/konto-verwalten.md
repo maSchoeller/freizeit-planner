@@ -1,6 +1,7 @@
 # Konto verwalten
 
-Öffne über dein Kürzel oben rechts **Mein Konto**. Dort kannst du Vor- und Nachname sowie deine
+Öffne über dein Kürzel oben rechts das Kontomenü. **Mein Profil**, **Sicherheit & Sitzungen**, **Meine
+Organisationen** und **Datenschutz** führen direkt zum passenden Bereich. Dort kannst du Namen und
 Anmelde-E-Mail-Adresse ändern, Mitgliedschaften verlassen und dein Konto zur Löschung vormerken.
 
 ## E-Mail-Adresse ändern

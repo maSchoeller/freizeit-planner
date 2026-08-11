@@ -1,7 +1,8 @@
-import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { setAccessToken } from "./api/authentication";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
+import { AuthShell } from "./AuthShell";
 
 export function LoginPage() {
   const [email, setEmail] = useState("");
@@ -11,7 +12,26 @@ export function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [emailError, setEmailError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [firstLoginAvailable, setFirstLoginAvailable] = useState(false);
+  const errorRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch("/api/v1/auth/first-login", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) return;
+        const body = (await response.json()) as { available?: unknown };
+        setFirstLoginAvailable(body.available === true);
+      })
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+
+  useEffect(() => {
+    if (error) errorRef.current?.focus();
+  }, [error]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -47,7 +67,7 @@ export function LoginPage() {
       if (!hasAccessToken(body))
         throw new Error("Die Anmeldung ist unvollständig.");
       setAccessToken(body.accessToken);
-      void navigate("/", { replace: true });
+      void navigate(safeReturnTo(location.state), { replace: true });
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -60,72 +80,79 @@ export function LoginPage() {
   }
 
   return (
-    <div className="login-layout">
-      <main id="main" className="login-card">
-        <Brand />
-        <p className="eyebrow">Willkommen zurück</p>
-        <h1>Im Freizeit-Cockpit anmelden</h1>
-        <p>Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.</p>
-        <form onSubmit={(event) => void submit(event)} noValidate>
-          <div className="field">
-            <label htmlFor="login-email">E-Mail-Adresse</label>
-            <input
-              id="login-email"
-              name="email"
-              type="email"
-              autoComplete="email"
-              autoFocus
-              required
-              aria-describedby={emailError ? "login-email-error" : undefined}
-              aria-invalid={emailError ? "true" : undefined}
-              value={email}
-              onChange={(event) => {
-                setEmail(event.target.value);
-                setEmailError(null);
-              }}
-            />
-            {emailError ? (
-              <span id="login-email-error" className="field-error">
-                {emailError}
-              </span>
-            ) : null}
-          </div>
-          <PasswordField
-            id="login-password"
-            label="Passwort"
-            autoComplete="current-password"
-            value={password}
-            show={showPassword}
-            onChange={setPassword}
-            onToggle={() => setShowPassword((current) => !current)}
+    <AuthShell
+      eyebrow="Willkommen zurück"
+      heading="Im Freizeit-Cockpit anmelden"
+    >
+      <p>Melde dich mit deiner E-Mail-Adresse und deinem Passwort an.</p>
+      <form onSubmit={(event) => void submit(event)} noValidate>
+        <div className="field">
+          <label htmlFor="login-email">E-Mail-Adresse</label>
+          <input
+            id="login-email"
+            name="email"
+            type="email"
+            autoComplete="email"
+            autoFocus
+            required
+            aria-describedby={emailError ? "login-email-error" : undefined}
+            aria-invalid={emailError ? "true" : undefined}
+            value={email}
+            onChange={(event) => {
+              setEmail(event.target.value);
+              setEmailError(null);
+            }}
           />
-          <label className="checkbox-field">
-            <input
-              type="checkbox"
-              checked={rememberMe}
-              onChange={(event) => setRememberMe(event.target.checked)}
-            />
-            <span>
-              Angemeldet bleiben
-              <small>Die Sitzung wird bei Nutzung jeweils verlängert.</small>
+          {emailError ? (
+            <span id="login-email-error" className="field-error">
+              {emailError}
             </span>
-          </label>
-          <button className="primary-action" disabled={busy} type="submit">
-            {busy ? "Anmeldung läuft …" : "Anmelden"}
-          </button>
-        </form>
-        {error ? (
-          <div className="error-message" role="alert">
-            {error}
-          </div>
-        ) : null}
-        <p className="login-help">
+          ) : null}
+        </div>
+        <PasswordField
+          id="login-password"
+          label="Passwort"
+          autoComplete="current-password"
+          value={password}
+          show={showPassword}
+          onChange={setPassword}
+          onToggle={() => setShowPassword((current) => !current)}
+        />
+        <p className="field-help-link">
           <Link to="/passwort-vergessen">Passwort vergessen?</Link>
-          {" · "}
+        </p>
+        <label className="checkbox-field">
+          <input
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(event) => setRememberMe(event.target.checked)}
+          />
+          <span>
+            Auf diesem Gerät angemeldet bleiben
+            <small>Die Sitzung kann bis zu 30 Tage verlängert werden.</small>
+          </span>
+        </label>
+        <button className="primary-action" disabled={busy} type="submit">
+          {busy ? "Anmeldung läuft …" : "Anmelden"}
+        </button>
+      </form>
+      {error ? (
+        <div
+          className="error-message"
+          role="alert"
+          ref={errorRef}
+          tabIndex={-1}
+        >
+          {error}
+        </div>
+      ) : null}
+      {firstLoginAvailable ? (
+        <p className="login-help">
+          Neue Installation?{" "}
           <Link to="/erste-einrichtung">Erste Einrichtung</Link>
         </p>
-      </main>
-    </div>
+      ) : null}
+    </AuthShell>
   );
 }
 
@@ -161,17 +188,6 @@ export function PasswordField(props: {
   );
 }
 
-export function Brand() {
-  return (
-    <div className="login-brand" aria-label="Freizeit-Cockpit">
-      <span className="brand-mark" aria-hidden="true">
-        F
-      </span>
-      <span>Freizeit-Cockpit</span>
-    </div>
-  );
-}
-
 function hasAccessToken(value: unknown): value is { accessToken: string } {
   return (
     typeof value === "object" &&
@@ -179,4 +195,19 @@ function hasAccessToken(value: unknown): value is { accessToken: string } {
     "accessToken" in value &&
     typeof value.accessToken === "string"
   );
+}
+
+function safeReturnTo(state: unknown): string {
+  if (
+    typeof state === "object" &&
+    state !== null &&
+    "returnTo" in state &&
+    typeof state.returnTo === "string" &&
+    state.returnTo.startsWith("/") &&
+    !state.returnTo.startsWith("//") &&
+    !state.returnTo.includes("://")
+  ) {
+    return state.returnTo;
+  }
+  return "/";
 }

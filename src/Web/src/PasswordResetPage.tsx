@@ -2,7 +2,8 @@ import { FormEvent, useState } from "react";
 import type { ReactNode } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
-import { Brand, PasswordField } from "./LoginPage";
+import { PasswordField } from "./LoginPage";
+import { AuthShell } from "./AuthShell";
 
 export function PasswordResetPage() {
   const [searchParams] = useSearchParams();
@@ -200,13 +201,8 @@ function ResetLayout({
   children: ReactNode;
 }) {
   return (
-    <div className="login-layout">
-      <main id="main" className="login-card">
-        <Brand />
-        <p className="eyebrow">{eyebrow}</p>
-        <h1>{heading}</h1>
-        {children}
-      </main>
-    </div>
+    <AuthShell eyebrow={eyebrow} heading={heading}>
+      {children}
+    </AuthShell>
   );
 }

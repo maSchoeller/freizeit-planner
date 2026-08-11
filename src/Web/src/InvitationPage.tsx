@@ -4,7 +4,8 @@ import { api } from "./api/client";
 import { restoreAuthentication, setAccessToken } from "./api/authentication";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
 import type { components } from "./api/schema";
-import { Brand, PasswordField } from "./LoginPage";
+import { PasswordField } from "./LoginPage";
+import { AuthShell } from "./AuthShell";
 
 type InvitationPreview = components["schemas"]["InvitationPreview"];
 
@@ -135,138 +136,136 @@ export function InvitationPage() {
 
   const unavailable = preview ? invitationStatusText(preview.status) : null;
   return (
-    <div className="login-layout">
-      <main id="main" className="login-card">
-        <Brand />
-        <p className="eyebrow">Einladung</p>
-        <h1>
-          {registered
-            ? "E-Mail-Adresse bestätigen"
-            : accepted
-              ? "Einladung angenommen"
-              : "Einladung annehmen"}
-        </h1>
-        {!preview && !error ? (
-          <p role="status">Einladung wird geprüft …</p>
-        ) : null}
-        {preview ? (
-          <div className="notice-card">
-            <strong>{grantDescription(preview)}</strong>
-            <p>
-              Gültig bis {new Date(preview.expiresAt).toLocaleString("de-DE")}.
-            </p>
-          </div>
-        ) : null}
-        {unavailable ? (
-          <div className="error-message" role="alert">
-            {unavailable}
-          </div>
-        ) : null}
-        {registered ? (
-          <p role="status">
-            Wir haben dir einen Bestätigungslink gesendet. Öffne ihn innerhalb
-            einer Stunde, um Registrierung und Einladung abzuschließen.
+    <AuthShell
+      eyebrow="Einladung"
+      heading={
+        registered
+          ? "E-Mail-Adresse bestätigen"
+          : accepted
+            ? "Einladung angenommen"
+            : "Einladung annehmen"
+      }
+    >
+      {!preview && !error ? (
+        <p role="status">Einladung wird geprüft …</p>
+      ) : null}
+      {preview ? (
+        <div className="notice-card">
+          <strong>{grantDescription(preview)}</strong>
+          <p>
+            Gültig bis {new Date(preview.expiresAt).toLocaleString("de-DE")}.
           </p>
-        ) : null}
-        {accepted ? (
-          <p role="status">
-            Die neue Berechtigung gehört jetzt zu deinem bestehenden Konto.
+        </div>
+      ) : null}
+      {unavailable ? (
+        <div className="error-message" role="alert">
+          {unavailable}
+        </div>
+      ) : null}
+      {registered ? (
+        <p role="status">
+          Wir haben dir einen Bestätigungslink gesendet. Öffne ihn innerhalb
+          einer Stunde, um Registrierung und Einladung abzuschließen.
+        </p>
+      ) : null}
+      {accepted ? (
+        <p role="status">
+          Die neue Berechtigung gehört jetzt zu deinem bestehenden Konto.
+        </p>
+      ) : null}
+      {preview?.status === 0 && !registered && !accepted && signedIn ? (
+        <button
+          className="primary-action"
+          disabled={busy}
+          type="button"
+          onClick={() => void acceptExisting()}
+        >
+          {busy ? "Einladung wird angenommen …" : "Einladung annehmen"}
+        </button>
+      ) : null}
+      {preview?.status === 0 && !registered && !accepted && !signedIn ? (
+        <form onSubmit={(event) => void register(event)} noValidate>
+          <p>
+            Erstelle dein Konto. Die E-Mail-Adresse bestätigst du anschließend
+            per Link.
           </p>
-        ) : null}
-        {preview?.status === 0 && !registered && !accepted && signedIn ? (
-          <button
-            className="primary-action"
-            disabled={busy}
-            type="button"
-            onClick={() => void acceptExisting()}
-          >
-            {busy ? "Einladung wird angenommen …" : "Einladung annehmen"}
-          </button>
-        ) : null}
-        {preview?.status === 0 && !registered && !accepted && !signedIn ? (
-          <form onSubmit={(event) => void register(event)} noValidate>
-            <p>
-              Erstelle dein Konto. Die E-Mail-Adresse bestätigst du anschließend
-              per Link.
-            </p>
-            <div className="field-row">
-              <div className="field">
-                <label htmlFor="invitation-first-name">Vorname</label>
-                <input
-                  id="invitation-first-name"
-                  autoComplete="given-name"
-                  required
-                  maxLength={80}
-                  value={firstName}
-                  onChange={(event) => setFirstName(event.target.value)}
-                />
-              </div>
-              <div className="field">
-                <label htmlFor="invitation-last-name">Nachname</label>
-                <input
-                  id="invitation-last-name"
-                  autoComplete="family-name"
-                  required
-                  maxLength={80}
-                  value={lastName}
-                  onChange={(event) => setLastName(event.target.value)}
-                />
-              </div>
-            </div>
+          <div className="field-row">
             <div className="field">
-              <label htmlFor="invitation-email">E-Mail-Adresse</label>
+              <label htmlFor="invitation-first-name">Vorname</label>
               <input
-                id="invitation-email"
-                type="email"
-                autoComplete="email"
+                id="invitation-first-name"
+                autoComplete="given-name"
                 required
-                value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                maxLength={80}
+                value={firstName}
+                onChange={(event) => setFirstName(event.target.value)}
               />
             </div>
-            <p className="field-hint">
-              Mindestens 15 Zeichen. Leerzeichen und Unicode sind erlaubt.
-            </p>
-            <PasswordField
-              id="invitation-password"
-              label="Passwort"
-              autoComplete="new-password"
-              value={password}
-              show={showPassword}
-              onChange={setPassword}
-              onToggle={() => setShowPassword((current) => !current)}
-              minLength={15}
-              maxLength={128}
-            />
-            <PasswordField
-              id="invitation-password-confirmation"
-              label="Passwort bestätigen"
-              autoComplete="new-password"
-              value={passwordConfirmation}
-              show={showPassword}
-              onChange={setPasswordConfirmation}
-              onToggle={() => setShowPassword((current) => !current)}
-              minLength={15}
-              maxLength={128}
-            />
-            <button className="primary-action" disabled={busy} type="submit">
-              {busy ? "Konto wird vorbereitet …" : "Konto erstellen"}
-            </button>
-            <p className="login-help">
-              Schon registriert? <Link to="/anmelden">Zuerst anmelden</Link>
-            </p>
-          </form>
-        ) : null}
-        {error ? (
-          <div className="error-message" role="alert">
-            {error}
+            <div className="field">
+              <label htmlFor="invitation-last-name">Nachname</label>
+              <input
+                id="invitation-last-name"
+                autoComplete="family-name"
+                required
+                maxLength={80}
+                value={lastName}
+                onChange={(event) => setLastName(event.target.value)}
+              />
+            </div>
           </div>
-        ) : null}
-        <p className="login-help">
-          <a href="/hilfe/organisationen-camps-rollen">Hilfe zu Einladungen</a>
-        </p>
-      </main>
-    </div>
+          <div className="field">
+            <label htmlFor="invitation-email">E-Mail-Adresse</label>
+            <input
+              id="invitation-email"
+              type="email"
+              autoComplete="email"
+              required
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </div>
+          <p className="field-hint">
+            Mindestens 15 Zeichen. Leerzeichen und Unicode sind erlaubt.
+          </p>
+          <PasswordField
+            id="invitation-password"
+            label="Passwort"
+            autoComplete="new-password"
+            value={password}
+            show={showPassword}
+            onChange={setPassword}
+            onToggle={() => setShowPassword((current) => !current)}
+            minLength={15}
+            maxLength={128}
+          />
+          <PasswordField
+            id="invitation-password-confirmation"
+            label="Passwort bestätigen"
+            autoComplete="new-password"
+            value={passwordConfirmation}
+            show={showPassword}
+            onChange={setPasswordConfirmation}
+            onToggle={() => setShowPassword((current) => !current)}
+            minLength={15}
+            maxLength={128}
+          />
+          <button className="primary-action" disabled={busy} type="submit">
+            {busy ? "Konto wird vorbereitet …" : "Konto erstellen"}
+          </button>
+          <p className="login-help">
+            Schon registriert? <Link to="/anmelden">Zuerst anmelden</Link>
+          </p>
+        </form>
+      ) : null}
+      {error ? (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      ) : null}
+      <p className="login-help">
+        <a href="/hilfe/organisationen-camps-rollen">Hilfe zu Einladungen</a>
+      </p>
+    </AuthShell>
   );
 }
 
@@ -317,33 +316,31 @@ export function InvitationConfirmationPage() {
   }, [token]);
 
   return (
-    <div className="login-layout">
-      <main id="main" className="login-card">
-        <Brand />
-        <p className="eyebrow">Registrierung</p>
-        <h1>
-          {confirmed ? "E-Mail-Adresse bestätigt" : "E-Mail-Adresse bestätigen"}
-        </h1>
-        {!confirmed && !error ? (
-          <p role="status">Bestätigung wird geprüft …</p>
-        ) : null}
-        {confirmed ? (
-          <>
-            <p role="status">
-              Dein Konto ist aktiv und die Einladung wurde angenommen.
-            </p>
-            <Link className="primary-action button-link" to="/">
-              Zum Freizeit-Cockpit
-            </Link>
-          </>
-        ) : null}
-        {error ? (
-          <div className="error-message" role="alert">
-            {error}
-          </div>
-        ) : null}
-      </main>
-    </div>
+    <AuthShell
+      eyebrow="Registrierung"
+      heading={
+        confirmed ? "E-Mail-Adresse bestätigt" : "E-Mail-Adresse bestätigen"
+      }
+    >
+      {!confirmed && !error ? (
+        <p role="status">Bestätigung wird geprüft …</p>
+      ) : null}
+      {confirmed ? (
+        <>
+          <p role="status">
+            Dein Konto ist aktiv und die Einladung wurde angenommen.
+          </p>
+          <Link className="primary-action button-link" to="/">
+            Zum Freizeit-Cockpit
+          </Link>
+        </>
+      ) : null}
+      {error ? (
+        <div className="error-message" role="alert">
+          {error}
+        </div>
+      ) : null}
+    </AuthShell>
   );
 }
 

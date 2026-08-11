@@ -15,6 +15,110 @@ afterEach(() => {
 });
 
 describe("identity self-service pages", () => {
+  it("shows First Login only while the installation is still uninitialized", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path }) =>
+        path === "/api/v1/auth/first-login"
+          ? json({ available: false })
+          : empty(404),
+      ),
+    );
+
+    renderRoute("/anmelden");
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("link", { name: "Erste Einrichtung" }),
+      ).toBeNull(),
+    );
+  });
+
+  it("returns to the requested internal page after login", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path, method }) => {
+        if (path === "/api/v1/auth/first-login")
+          return json({ available: false });
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (path === "/api/v1/auth/login" && method === "POST")
+          return json({ accessToken: "access.jwt" });
+        if (path === "/api/v1/superadmin/users")
+          return json({ items: [], page: 1, pageSize: 25, totalCount: 0 });
+        if (path === "/api/v1/superadmin/organizations") return json([]);
+        return empty(404);
+      }),
+    );
+
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <MemoryRouter
+          initialEntries={[
+            {
+              pathname: "/anmelden",
+              state: { returnTo: "/superadmin/benutzer" },
+            },
+          ]}
+        >
+          <App />
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await user.type(
+      screen.getByLabelText("E-Mail-Adresse"),
+      "lea@example.test",
+    );
+    await user.type(
+      screen.getByLabelText("Passwort"),
+      "Eine sichere Passphrase",
+    );
+    await user.click(screen.getByRole("button", { name: "Anmelden" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Benutzer verwalten" }),
+    ).toBeInTheDocument();
+  });
+
+  it("exposes account areas as direct navigation instead of one long page", async () => {
+    vi.stubGlobal(
+      "fetch",
+      routeFetch(({ path }) => {
+        if (path === "/api/v1/account")
+          return json({
+            id: userId,
+            email: "lea@example.test",
+            displayName: "Lea Beispiel",
+            firstName: "Lea",
+            lastName: "Beispiel",
+            deletionScheduledAt: null,
+            isSuperAdmin: false,
+            version: 1,
+          });
+        if (path === "/api/v1/account/memberships") return json([]);
+        if (path === "/api/v1/auth/sessions") return json([]);
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/konto/sicherheit");
+
+    expect(
+      await screen.findByRole("navigation", { name: "Kontobereiche" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Sicherheit" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.getByRole("heading", { name: "Passwort ändern" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Profil" })).toBeNull();
+  });
+
   it("completes password login with a persistent refresh session", async () => {
     const user = userEvent.setup();
     let loginBody = "";
@@ -44,7 +148,9 @@ describe("identity self-service pages", () => {
       "Eine sichere Passphrase",
     );
     await user.click(
-      screen.getByRole("checkbox", { name: /Angemeldet bleiben/ }),
+      screen.getByRole("checkbox", {
+        name: /Auf diesem Gerät angemeldet bleiben/,
+      }),
     );
     await user.click(screen.getByRole("button", { name: "Anmelden" }));
     await waitFor(() => expect(loginBody).toContain('"rememberMe":true'));
@@ -157,8 +263,10 @@ describe("identity self-service pages", () => {
     await user.click(screen.getByRole("button", { name: "Namen speichern" }));
     await waitFor(() => expect(lastName).toHaveValue("Neu"));
 
+    await user.click(screen.getByRole("link", { name: "Sicherheit" }));
+
     await user.type(
-      screen.getByLabelText("Neue E-Mail-Adresse"),
+      await screen.findByLabelText("Neue E-Mail-Adresse"),
       "neu@example.test",
     );
     await user.click(
@@ -173,6 +281,8 @@ describe("identity self-service pages", () => {
         screen.getByText("Anmeldung: neu@example.test"),
       ).toBeInTheDocument(),
     );
+
+    await user.click(screen.getByRole("link", { name: "Organisationen" }));
 
     localStorage.setItem(
       "freizeit-cockpit:offline:organization:v1",
@@ -189,8 +299,11 @@ describe("identity self-service pages", () => {
     );
     expect(localStorage.getItem("freizeit-cockpit:offline:v1")).toBeNull();
 
+    await user.click(screen.getByRole("link", { name: "Datenschutz" }));
     await user.click(
-      screen.getByRole("button", { name: "Konto zur Löschung vormerken" }),
+      await screen.findByRole("button", {
+        name: "Konto zur Löschung vormerken",
+      }),
     );
     await user.click(screen.getByRole("button", { name: "Konto vormerken" }));
     await expect(
@@ -231,19 +344,20 @@ describe("identity self-service pages", () => {
       }),
     );
 
-    renderRoute("/konto");
+    renderRoute("/konto/datenschutz");
     await user.click(
       await screen.findByRole("button", { name: "Löschung abbrechen" }),
     );
     await expect(
       screen.findByRole("button", { name: "Konto zur Löschung vormerken" }),
     ).resolves.toBeInTheDocument();
+    await user.click(screen.getByRole("link", { name: "Profil" }));
     await user.click(screen.getByRole("button", { name: "Namen speichern" }));
     await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
       "Der Name ist bereits vergeben.",
     );
     expect(
-      screen.getByRole("link", { name: /Superadmin-Verwaltung öffnen/ }),
+      screen.getAllByRole("link", { name: "Plattform verwalten" })[0],
     ).toBeInTheDocument();
   });
 
@@ -252,6 +366,18 @@ describe("identity self-service pages", () => {
     vi.stubGlobal(
       "fetch",
       routeFetch(({ path, method }) => {
+        if (path === "/api/v1/account" && method === "GET")
+          return json({
+            id: userId,
+            email: "lea@example.test",
+            displayName: "Lea Beispiel",
+            firstName: "Lea",
+            lastName: "Beispiel",
+            deletionScheduledAt: null,
+            isSuperAdmin: false,
+            version: 1,
+          });
+        if (path === "/api/v1/account/memberships") return json([]);
         if (path === "/api/v1/auth/sessions" && method === "GET")
           return json([
             {
@@ -282,7 +408,7 @@ describe("identity self-service pages", () => {
     );
     localStorage.setItem("freizeit-cockpit:offline:v1", "snapshot");
 
-    renderRoute("/konto/sitzungen");
+    renderRoute("/konto/sicherheit");
     await user.click(
       await screen.findByRole("button", { name: "Alle anderen widerrufen" }),
     );

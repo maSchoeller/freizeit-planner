@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
@@ -12,11 +12,16 @@ import {
   clearOfflineSession,
 } from "./offlineSnapshot";
 import { PasswordField } from "./LoginPage";
+import { AppHeader } from "./AppShell";
+import { SessionsPanel } from "./SessionsPanel";
 
 type Account = components["schemas"]["AccountView"];
 type Membership = components["schemas"]["AccountMembershipView"];
 
-export function AccountPage() {
+export type AccountSection =
+  "profil" | "sicherheit" | "organisationen" | "datenschutz";
+
+export function AccountPage({ section }: { section: AccountSection }) {
   const [account, setAccount] = useState<Account | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [firstName, setFirstName] = useState("");
@@ -194,20 +199,6 @@ export function AccountPage() {
     });
   }
 
-  async function logout() {
-    await mutate("logout", async (token) => {
-      const response = await fetch("/api/v1/auth/logout", {
-        method: "POST",
-        credentials: "same-origin",
-        headers: { "X-CSRF-TOKEN": token },
-      });
-      if (!response.ok) throw new Error("Die Abmeldung ist fehlgeschlagen.");
-      clearAuthentication();
-      clearOfflineSession();
-      void navigate("/anmelden", { replace: true });
-    });
-  }
-
   async function changePassword(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (newPassword !== passwordConfirmation) {
@@ -258,17 +249,23 @@ export function AccountPage() {
 
   return (
     <div className="account-layout">
-      <header className="topbar">
-        <Link className="brand" to="/o/sonnenhoehe/camps/sommerfreizeit-2026">
-          <span className="brand-mark" aria-hidden="true">
-            F
-          </span>
-          <span>Freizeit-Cockpit</span>
-        </Link>
-      </header>
+      <a className="skip-link" href="#main">
+        Zum Inhalt springen
+      </a>
+      <AppHeader
+        homeTo="/"
+        displayName={account?.displayName}
+        isSuperAdmin={account?.isSuperAdmin ?? false}
+      />
       <main id="main" className="account-page">
         <p className="eyebrow">Konto</p>
         <h1>Mein Konto</h1>
+        <nav className="section-navigation" aria-label="Kontobereiche">
+          <NavLink to="/konto/profil">Profil</NavLink>
+          <NavLink to="/konto/sicherheit">Sicherheit</NavLink>
+          <NavLink to="/konto/organisationen">Organisationen</NavLink>
+          <NavLink to="/konto/datenschutz">Datenschutz</NavLink>
+        </nav>
         {loading ? <p role="status">Kontodaten werden geladen …</p> : null}
         {error ? (
           <div className="error-message" role="alert">
@@ -280,6 +277,7 @@ export function AccountPage() {
             <section
               className="settings-section"
               aria-labelledby="profile-heading"
+              hidden={section !== "profil"}
             >
               <h2 id="profile-heading">Profil</h2>
               <p className="muted">Anmeldung: {account.email}</p>
@@ -318,28 +316,11 @@ export function AccountPage() {
                     : "Namen speichern"}
                 </button>
               </form>
-              <p>
-                <Link to="/konto/sitzungen">Aktive Sitzungen verwalten</Link>
-              </p>
-              <button
-                className="secondary-action"
-                disabled={busy !== null}
-                onClick={() => void logout()}
-                type="button"
-              >
-                {busy === "logout" ? "Wird abgemeldet …" : "Abmelden"}
-              </button>
-              {account.isSuperAdmin ? (
-                <p>
-                  <Link to="/superadmin/organisationen">
-                    Superadmin-Verwaltung öffnen
-                  </Link>
-                </p>
-              ) : null}
             </section>
             <section
               className="settings-section"
               aria-labelledby="password-heading"
+              hidden={section !== "sicherheit"}
             >
               <h2 id="password-heading">Passwort ändern</h2>
               <p>
@@ -396,6 +377,7 @@ export function AccountPage() {
             <section
               className="settings-section"
               aria-labelledby="email-heading"
+              hidden={section !== "sicherheit"}
             >
               <h2 id="email-heading">E-Mail-Adresse ändern</h2>
               <p>
@@ -471,9 +453,11 @@ export function AccountPage() {
                 </form>
               )}
             </section>
+            {section === "sicherheit" ? <SessionsPanel /> : null}
             <section
               className="settings-section"
               aria-labelledby="memberships-heading"
+              hidden={section !== "organisationen"}
             >
               <h2 id="memberships-heading">Organisationen</h2>
               {memberships.length === 0 ? (
@@ -486,13 +470,13 @@ export function AccountPage() {
                         <strong>{membership.organizationName}</strong>
                         <span>{roleLabel(membership.role)}</span>
                         <Link to={`/o/${membership.organizationSlug}/camps`}>
-                          Camps anzeigen
+                          Freizeiten anzeigen
                         </Link>
                         {membership.role === 1 ? (
                           <Link
-                            to={`/o/${membership.organizationSlug}/verwaltung/benutzer`}
+                            to={`/o/${membership.organizationSlug}/verwaltung/team`}
                           >
-                            Mitglieder verwalten
+                            Team &amp; Rechte verwalten
                           </Link>
                         ) : null}
                       </div>
@@ -514,6 +498,7 @@ export function AccountPage() {
             <section
               className="settings-section danger-zone"
               aria-labelledby="delete-account-heading"
+              hidden={section !== "datenschutz"}
             >
               <h2 id="delete-account-heading">Konto löschen</h2>
               {account.deletionScheduledAt ? (
@@ -535,8 +520,8 @@ export function AccountPage() {
               ) : confirmDeletion ? (
                 <div className="confirmation-panel">
                   <p>
-                    Dein Konto wird 30 Tage vorgemerkt. Organizationen können
-                    dabei bewusst ohne Orgadmin verbleiben.
+                    Dein Konto wird 30 Tage vorgemerkt. Organisationen können
+                    dabei bewusst ohne Organisationsadmin verbleiben.
                   </p>
                   <div className="login-actions">
                     <button
@@ -577,7 +562,7 @@ function roleLabel(role: Membership["role"]): string {
   return (
     (
       {
-        1: "Orgadmin",
+        1: "Organisationsadmin",
         2: "Camp-Leitung",
         3: "Mitglied",
         4: "Lesender Zugriff",

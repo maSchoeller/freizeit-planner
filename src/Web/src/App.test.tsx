@@ -132,10 +132,10 @@ describe("Dashboard", () => {
       screen.getByRole("link", { name: "Hilfe & Anleitung" }),
     ).toHaveAttribute("href", "/hilfe/");
     expect(
-      screen.getByRole("link", { name: "Organisation verwalten" }),
+      screen.getAllByRole("link", { name: "Organisation verwalten" })[0],
     ).toHaveAttribute("href", "/o/sonnenhoehe/verwaltung/team");
     expect(
-      screen.getByRole("link", { name: "Plattform verwalten" }),
+      screen.getAllByRole("link", { name: "Plattform verwalten" })[0],
     ).toHaveAttribute("href", "/superadmin/organisationen");
   });
 
@@ -163,7 +163,10 @@ describe("Dashboard", () => {
 
   it("keeps an invalid login address in the form with an associated error", async () => {
     const user = userEvent.setup();
-    const fetchMock = vi.fn();
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      void input;
+      return Promise.resolve(new Response(null, { status: 404 }));
+    });
     vi.stubGlobal("fetch", fetchMock);
     render(
       <MemoryRouter initialEntries={["/anmelden"]}>
@@ -180,10 +183,52 @@ describe("Dashboard", () => {
       "Gib eine gültige E-Mail-Adresse ein.",
     );
     expect(email).toHaveFocus();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(
+      fetchMock.mock.calls.some(
+        ([request]) => request === "/api/v1/auth/login",
+      ),
+    ).toBe(false);
   });
 
-  it("offers an understandable loading state while sessions are retrieved", () => {
+  it("offers an understandable loading state while sessions are retrieved", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((input: RequestInfo | URL) => {
+        const url =
+          typeof input === "string"
+            ? input
+            : input instanceof URL
+              ? input.toString()
+              : input.url;
+        const path = new URL(url, "https://localhost").pathname;
+        if (path === "/api/v1/account")
+          return Promise.resolve(
+            new Response(
+              JSON.stringify({
+                id: "10000000-0000-0000-0000-000000000001",
+                email: "lea@example.test",
+                displayName: "Lea Beispiel",
+                firstName: "Lea",
+                lastName: "Beispiel",
+                deletionScheduledAt: null,
+                isSuperAdmin: false,
+                version: 1,
+              }),
+              { status: 200, headers: { "Content-Type": "application/json" } },
+            ),
+          );
+        if (path === "/api/v1/account/memberships")
+          return Promise.resolve(
+            new Response(JSON.stringify([]), {
+              status: 200,
+              headers: { "Content-Type": "application/json" },
+            }),
+          );
+        if (path === "/api/v1/auth/sessions")
+          return new Promise<Response>(() => undefined);
+        return Promise.resolve(new Response(null, { status: 404 }));
+      }),
+    );
     render(
       <MemoryRouter initialEntries={["/konto/sitzungen"]}>
         <App />
@@ -191,9 +236,9 @@ describe("Dashboard", () => {
     );
 
     expect(
-      screen.getByRole("heading", { name: "Aktive Sitzungen" }),
+      await screen.findByRole("heading", { name: "Aktive Sitzungen" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
+    expect(screen.getAllByRole("status").at(-1)).toHaveTextContent(
       "Sitzungen werden geladen",
     );
   });
