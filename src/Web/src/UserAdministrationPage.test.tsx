@@ -437,6 +437,116 @@ describe("user administration", () => {
     await user.click(screen.getByRole("button", { name: "Suchen" }));
     await waitFor(() => expect(loadedPages).toContain("2"));
   });
+
+  it("explains a denied administration scope without exposing user data", async () => {
+    vi.stubGlobal(
+      "fetch",
+      administrationFetch(({ path }) => {
+        if (path === "/api/v1/superadmin/organizations") return json([]);
+        if (path === "/api/v1/superadmin/users")
+          return json(
+            { detail: "Für diese Verwaltung fehlt die Berechtigung." },
+            403,
+          );
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/superadmin/benutzer");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Für diese Verwaltung fehlt die Berechtigung.",
+    );
+    expect(
+      screen.queryByRole("list", { name: undefined }),
+    ).not.toHaveTextContent("@example.test");
+    expect(
+      screen.getByRole("searchbox", { name: "Name oder E-Mail" }),
+    ).toBeEnabled();
+  });
+
+  it("returns to the login page when the administration session expired", async () => {
+    vi.stubGlobal(
+      "fetch",
+      administrationFetch(({ path }) => {
+        if (path === "/api/v1/superadmin/organizations") return json([]);
+        if (path === "/api/v1/superadmin/users") return empty(401);
+        if (path === "/api/v1/auth/first-login")
+          return json({ available: false });
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/superadmin/benutzer");
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Im Freizeit-Cockpit anmelden",
+      }),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps the opened user visible when a stale version is rejected", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      administrationFetch(({ path, method }) => {
+        if (path === "/api/v1/account/memberships")
+          return json([
+            {
+              organizationId,
+              organizationName: "Evangelisches Jugendwerk",
+              organizationSlug: "ejw",
+              role: 1,
+            },
+          ]);
+        if (
+          path ===
+          `/api/v1/organizations/${organizationId}/administration/users`
+        )
+          return json(page([organizationUser()]));
+        if (path === `/api/v1/organizations/${organizationId}/camps`)
+          return json([]);
+        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
+        if (
+          path.endsWith(`/administration/users/${userId}/membership`) &&
+          method === "PUT"
+        )
+          return json(
+            {
+              detail:
+                "Die Berechtigung wurde zwischenzeitlich geändert. Lade die Liste neu.",
+            },
+            412,
+          );
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/o/ejw/verwaltung/team");
+    await user.click(
+      await screen.findByRole("button", { name: "Erika Muster auswählen" }),
+    );
+    await user.click(
+      screen.getByRole("button", { name: "In Organisation sperren" }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "In Organisation sperren",
+      }),
+    );
+
+    expect(
+      await screen.findByText(
+        "Die Berechtigung wurde zwischenzeitlich geändert. Lade die Liste neu.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Organisation" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Organisationsadmin · aktiv")).toBeInTheDocument();
+  });
 });
 
 function renderRoute(path: string) {

@@ -129,47 +129,26 @@ function UserAdministrationPage({
     setLoading(true);
     setError(null);
     try {
-      let data: Page | undefined;
-      let response: Response;
-      if (mode === "superadmin") {
-        const result = await api.GET("/api/v1/superadmin/users", {
-          params: {
-            query: { search: search || undefined, page, pageSize: 25 },
-          },
-        });
-        data = result.data;
-        response = result.response;
-        if (!data)
-          throw new Error(
-            readProblemDetail(
-              result.error,
-              "Benutzer konnten nicht geladen werden.",
-            ),
-          );
-      } else {
-        const result = await api.GET(
-          "/api/v1/organizations/{organizationId}/administration/users",
-          {
-            params: {
-              path: { organizationId: organizationId! },
-              query: { search: search || undefined, page, pageSize: 25 },
-            },
-          },
-        );
-        data = result.data;
-        response = result.response;
-        if (!data)
-          throw new Error(
-            readProblemDetail(
-              result.error,
-              "Benutzer konnten nicht geladen werden.",
-            ),
-          );
-      }
-      if (response.status === 401) {
+      const query = { search: search || undefined, page, pageSize: 25 };
+      const result =
+        mode === "superadmin"
+          ? await api.GET("/api/v1/superadmin/users", { params: { query } })
+          : await api.GET(
+              "/api/v1/organizations/{organizationId}/administration/users",
+              { params: { path: { organizationId: organizationId! }, query } },
+            );
+      if (result.response.status === 401) {
         void navigate("/anmelden", { replace: true });
         return;
       }
+      const data: Page | undefined = result.data;
+      if (!data)
+        throw new Error(
+          readProblemDetail(
+            result.error,
+            "Benutzer konnten nicht geladen werden.",
+          ),
+        );
       setUsers(data.items);
       setTotalCount(Number(data.totalCount));
     } catch (caught) {
