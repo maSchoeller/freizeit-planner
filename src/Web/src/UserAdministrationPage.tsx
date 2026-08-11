@@ -8,6 +8,7 @@ import {
   OrganizationAdministrationNavigation,
   PlatformAdministrationNavigation,
 } from "./AdministrationNavigation";
+import { ModalDialog } from "./ModalDialog";
 
 type User = components["schemas"]["UserAdministrationView"];
 type Page = components["schemas"]["AdministrationPageOfUserAdministrationView"];
@@ -477,10 +478,9 @@ function UserAdministrationPage({
         </button>
       </div>
       {showInvitation ? (
-        <dialog
-          open
-          aria-labelledby="invite-person-heading"
-          className="app-dialog"
+        <ModalDialog
+          labelledBy="invite-person-heading"
+          onClose={() => setShowInvitation(false)}
         >
           <h2 id="invite-person-heading">Person einladen</h2>
           <p>Wähle nur den Zugang, den die Person wirklich benötigt.</p>
@@ -489,6 +489,7 @@ function UserAdministrationPage({
               <label>
                 Rolle des nächsten Einladungslinks
                 <select
+                  autoFocus
                   onChange={(event) =>
                     setInvitationKind(
                       event.target.value as
@@ -527,6 +528,7 @@ function UserAdministrationPage({
               <label>
                 Rolle des nächsten Einladungslinks
                 <select
+                  autoFocus
                   onChange={(event) =>
                     setGlobalInvitationKind(
                       event.target.value as "superadmin" | "orgadmin",
@@ -582,7 +584,7 @@ function UserAdministrationPage({
               Abbrechen
             </button>
           </div>
-        </dialog>
+        </ModalDialog>
       ) : null}
       {copiedLink ? (
         <p className="success-message" role="status">
@@ -839,10 +841,10 @@ function UserAdministrationPage({
         </nav>
       ) : null}
       {pendingAction ? (
-        <dialog
-          open
-          aria-labelledby="confirm-admin-action"
-          className="app-dialog danger-dialog"
+        <ModalDialog
+          labelledBy="confirm-admin-action"
+          className="danger-dialog"
+          onClose={() => setPendingAction(null)}
         >
           <h2 id="confirm-admin-action">{pendingAction.title}</h2>
           <p>{pendingAction.description}</p>
@@ -869,7 +871,7 @@ function UserAdministrationPage({
               Abbrechen
             </button>
           </div>
-        </dialog>
+        </ModalDialog>
       ) : null}
     </SettingsLayout>
   );

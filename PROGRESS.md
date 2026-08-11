@@ -522,3 +522,8 @@ This file is the resumable evidence ledger. Commands are run from the repository
   Catering, Logistics, Search and Trash have direct section anchors; phone-sized schedule pages start with the
   accessible agenda. The acceptance coverage asserts every desktop group, direct Search/Trash links and the four
   always-visible mobile work paths. All 54 Camp workspace tests and the complete 112-test React suite are green.
+- 2026-08-11: UX05 centralizes surface, spacing, radius, focus, danger and dialog tokens; administration dialogs now
+  use the browser's modal focus boundary and close predictably with Escape. Each SPA route sets a meaningful German
+  document title and internal redirects move focus to the new main heading. Administration rows, section navigation,
+  responsive details and destructive areas share the consolidated visual language. Targeted keyboard, route-focus,
+  administration and identity journeys plus the complete 112-test React suite are green.

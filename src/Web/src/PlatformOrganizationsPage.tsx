@@ -5,6 +5,7 @@ import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
 import { SettingsLayout } from "./OrganizationMembersPage";
 import { PlatformAdministrationNavigation } from "./AdministrationNavigation";
+import { ModalDialog } from "./ModalDialog";
 
 type Organization = components["schemas"]["SuperAdminOrganizationView"];
 type OrganizationStatus = components["schemas"]["OrganizationStatus"];
@@ -166,10 +167,9 @@ export function PlatformOrganizationsPage() {
         Organisationsadmin-Zuweisung nicht zugänglich.
       </p>
       {showCreate ? (
-        <dialog
-          open
-          aria-labelledby="create-organization-heading"
-          className="app-dialog"
+        <ModalDialog
+          labelledBy="create-organization-heading"
+          onClose={() => setShowCreate(false)}
         >
           <form
             className="organization-invitation-form"
@@ -180,6 +180,7 @@ export function PlatformOrganizationsPage() {
             <label>
               Name
               <input
+                autoFocus
                 onChange={(event) => setOrganizationName(event.target.value)}
                 required
                 value={organizationName}
@@ -214,7 +215,7 @@ export function PlatformOrganizationsPage() {
               </button>
             </div>
           </form>
-        </dialog>
+        </ModalDialog>
       ) : null}
       {copiedLink ? (
         <p className="success-message" role="status">
@@ -263,10 +264,10 @@ export function PlatformOrganizationsPage() {
         ))}
       </ul>
       {pendingStatus ? (
-        <dialog
-          open
-          aria-labelledby="confirm-organization-status"
-          className="app-dialog danger-dialog"
+        <ModalDialog
+          labelledBy="confirm-organization-status"
+          className="danger-dialog"
+          onClose={() => setPendingStatus(null)}
         >
           <h2 id="confirm-organization-status">Organisation sperren?</h2>
           <p>
@@ -293,7 +294,7 @@ export function PlatformOrganizationsPage() {
               Abbrechen
             </button>
           </div>
-        </dialog>
+        </ModalDialog>
       ) : null}
     </SettingsLayout>
   );

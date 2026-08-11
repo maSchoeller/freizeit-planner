@@ -126,7 +126,7 @@ describe("Dashboard", () => {
       screen.getByRole("heading", { name: /Tagesplan$/ }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("navigation", { name: "Camp-Navigation" }),
+      screen.getByRole("navigation", { name: "Freizeit-Navigation" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "Hilfe & Anleitung" }),
@@ -257,18 +257,21 @@ describe("Dashboard", () => {
     );
   });
 
-  it("shows a loading state for account self-service", () => {
+  it("sets a route title and focuses the heading after an internal redirect", async () => {
     render(
       <MemoryRouter initialEntries={["/konto"]}>
         <App />
       </MemoryRouter>,
     );
-    expect(
-      screen.getByRole("heading", { name: "Mein Konto" }),
-    ).toBeInTheDocument();
+    const heading = screen.getByRole("heading", { name: "Mein Konto" });
+    expect(heading).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
       "Kontodaten werden geladen",
     );
+    await waitFor(() =>
+      expect(document.title).toBe("Mein Profil | Freizeit-Cockpit"),
+    );
+    expect(heading).toHaveFocus();
   });
 
   it("keeps identity and administration unavailable offline", () => {

@@ -1,4 +1,11 @@
-import { Navigate, Route, Routes, useParams } from "react-router-dom";
+import { useEffect, useRef } from "react";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useParams,
+} from "react-router-dom";
 import { LoginPage } from "./LoginPage";
 import { InvitationConfirmationPage, InvitationPage } from "./InvitationPage";
 import { AccountPage } from "./AccountPage";
@@ -19,6 +26,7 @@ export function App() {
   return (
     <>
       <PwaUpdatePrompt />
+      <RouteEffects />
       <Routes>
         <Route path="/" element={<LandingPage />} />
         <Route
@@ -146,6 +154,53 @@ export function App() {
       </Routes>
     </>
   );
+}
+
+function RouteEffects() {
+  const { pathname } = useLocation();
+  const previousPath = useRef<string | null>(null);
+
+  useEffect(() => {
+    document.title = `${routeTitle(pathname)} | Freizeit-Cockpit`;
+    if (previousPath.current && previousPath.current !== pathname) {
+      const heading = document.querySelector<HTMLElement>("main h1");
+      if (heading) {
+        heading.tabIndex = -1;
+        heading.focus();
+      }
+    }
+    previousPath.current = pathname;
+  }, [pathname]);
+
+  return null;
+}
+
+function routeTitle(pathname: string) {
+  if (pathname === "/anmelden") return "Anmelden";
+  if (pathname === "/erste-einrichtung") return "Erste Einrichtung";
+  if (pathname.startsWith("/passwort-")) return "Passwort zurücksetzen";
+  if (pathname.startsWith("/einladung")) return "Einladung";
+  if (pathname.startsWith("/konto/sicherheit")) return "Sicherheit";
+  if (pathname.startsWith("/konto/organisationen"))
+    return "Meine Organisationen";
+  if (pathname.startsWith("/konto/datenschutz")) return "Datenschutz";
+  if (pathname.startsWith("/konto")) return "Mein Profil";
+  if (pathname === "/superadmin/organisationen")
+    return "Plattformverwaltung – Organisationen";
+  if (pathname === "/superadmin/benutzer")
+    return "Plattformverwaltung – Benutzer";
+  if (pathname.includes("/verwaltung/")) return "Organisationsverwaltung";
+  if (pathname.endsWith("/einstellungen")) return "Einstellungen";
+  if (pathname.endsWith("/tagesplan")) return "Tagesplan";
+  if (pathname.endsWith("/essen")) return "Verpflegung";
+  if (pathname.endsWith("/logistik")) return "Material & Einkauf";
+  if (pathname.endsWith("/andachten")) return "Andachten";
+  if (pathname.endsWith("/notizen")) return "Notizbuch";
+  if (pathname.endsWith("/dateien")) return "Dateien";
+  if (pathname.endsWith("/suche")) return "Suche";
+  if (pathname.endsWith("/camps")) return "Freizeiten";
+  if (pathname.includes("/camps/")) return "Freizeit";
+  return "Startseite";
 }
 
 function OrganizationAdministrationRedirect() {

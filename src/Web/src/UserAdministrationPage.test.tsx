@@ -62,9 +62,17 @@ describe("user administration", () => {
       screen.getByRole("heading", { name: "Plattformrolle" }),
     ).toBeInTheDocument();
     await user.click(screen.getByRole("button", { name: "Person einladen" }));
+    const invitation = screen.getByRole("dialog", { name: "Person einladen" });
+    expect(invitation).toBeInTheDocument();
     expect(
-      screen.getByRole("dialog", { name: "Person einladen" }),
-    ).toBeInTheDocument();
+      within(invitation).getByRole("combobox", {
+        name: "Rolle des nächsten Einladungslinks",
+      }),
+    ).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(
+      screen.queryByRole("dialog", { name: "Person einladen" }),
+    ).toBeNull();
   });
 
   it("manages global status and copies a Superadmin invitation", async () => {
