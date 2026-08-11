@@ -1,0 +1,29 @@
+name: freizeit-cockpit
+
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+services:
+  web:
+    host: containerapp
+    language: docker
+    project: .
+    docker:
+      path: ./src/FreizeitCockpit.Web/Dockerfile
+      context: .
+  migrator:
+    host: containerapp
+    language: docker
+    project: .
+    docker:
+      path: ./src/FreizeitCockpit.Migrator/Dockerfile
+      context: .
+  cleanup:
+    host: containerapp
+    language: docker
+    project: .
+    docker:
+      path: ./src/FreizeitCockpit.Cleanup/Dockerfile
+      context: .

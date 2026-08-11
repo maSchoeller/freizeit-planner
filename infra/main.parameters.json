@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "${AZURE_ENV_NAME}" },
+    "location": { "value": "${AZURE_LOCATION=germanywestcentral}" },
+    "postgresAdministratorPrincipalName": {
+      "value": "${POSTGRES_ADMINISTRATOR_PRINCIPAL_NAME}"
+    },
+    "postgresAdministratorPrincipalId": {
+      "value": "${POSTGRES_ADMINISTRATOR_PRINCIPAL_ID}"
+    },
+    "postgresAdministratorPrincipalType": {
+      "value": "${POSTGRES_ADMINISTRATOR_PRINCIPAL_TYPE=Group}"
+    },
+    "loginCodePepper": { "value": "${LOGIN_CODE_PEPPER}" },
+    "invitationTokenPepper": { "value": "${INVITATION_TOKEN_PEPPER}" },
+    "smtpPassword": { "value": "${SMTP_PASSWORD}" },
+    "smtpHost": { "value": "${SMTP_HOST=}" },
+    "smtpPort": { "value": "${SMTP_PORT=587}" },
+    "smtpUsername": { "value": "${SMTP_USERNAME=}" },
+    "publicBaseUrl": { "value": "${PUBLIC_BASE_URL=}" },
+    "imprintUrl": { "value": "${IMPRINT_URL=}" },
+    "privacyUrl": { "value": "${PRIVACY_URL=}" },
+    "bibleApiBaseUrl": {
+      "value": "${BIBLE_API_BASE_URL=https://api.scripture.api.bible}"
+    },
+    "customDomainName": { "value": "${CUSTOM_DOMAIN_NAME=}" },
+    "githubRepository": { "value": "${GITHUB_REPOSITORY=}" },
+    "githubEnvironment": { "value": "${GITHUB_ENVIRONMENT=production}" },
+    "alertEmail": { "value": "${ALERT_EMAIL=}" }
+  }
+}

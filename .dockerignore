@@ -1,0 +1,16 @@
+.git
+.github
+.azure
+.artifacts
+.tools
+**/bin
+**/obj
+**/TestResults
+coverage
+node_modules
+playwright-report
+test-results
+src/FreizeitCockpit.Web/wwwroot
+src/Help/docs/.vitepress/cache
+src/Help/docs/.vitepress/dist
+
