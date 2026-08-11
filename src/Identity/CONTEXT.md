@@ -57,3 +57,7 @@
 - Web navigation: login returns only to a validated same-origin relative route. The application root derives its
   destination from current memberships and SuperAdmin status; First Login is linked only while the persistent
   initialization marker is absent. Profile, security/sessions, Organizations and privacy have separate routes.
+- Administration web navigation: SuperAdmins share a persistent Organizations/Users navigation. OrganizationAdmins
+  share Camps/Team & rights navigation at the canonical `/o/{slug}/verwaltung/team` route; both legacy member routes
+  redirect there. User rows disclose role controls only after focused selection, while global suspension,
+  Organization suspension and SuperAdmin demotion require an explicit impact confirmation.

@@ -4624,7 +4624,9 @@ function MealsPage({
             disabled={readOnly || !canManageLibrary}
             aria-expanded={showRecipeForm}
             title={
-              canManageLibrary ? undefined : "Nur Orgadmins verwalten Rezepte."
+              canManageLibrary
+                ? undefined
+                : "Nur Organisationsadmins verwalten Rezepte."
             }
             onClick={() => {
               setShowRecipeForm((current) => !current);
@@ -4643,7 +4645,9 @@ function MealsPage({
             disabled={readOnly || !canManageLibrary}
             aria-expanded={showIngredientLibrary}
             title={
-              canManageLibrary ? undefined : "Nur Orgadmins verwalten Zutaten."
+              canManageLibrary
+                ? undefined
+                : "Nur Organisationsadmins verwalten Zutaten."
             }
             onClick={() => {
               setShowIngredientLibrary((current) => !current);

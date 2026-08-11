@@ -18,6 +18,14 @@
   --sky-700: #176b96;
   --border: #c9dfdc;
   --white: #fff;
+  --surface: #fff;
+  --surface-muted: #f4fbfa;
+  --focus: #f3b61f;
+  --danger: #a12b22;
+  --radius-sm: 0.55rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --shadow-dialog: 0 1.5rem 4rem rgba(18, 75, 72, 0.22);
 }
 
 * {
@@ -36,8 +44,11 @@ a {
   text-underline-offset: 0.2em;
 }
 button:focus-visible,
-a:focus-visible {
-  outline: 3px solid #f3b61f;
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+summary:focus-visible {
+  outline: 3px solid var(--focus);
   outline-offset: 3px;
 }
 .skip-link {
@@ -1645,6 +1656,37 @@ button:disabled {
   border-radius: 0.75rem;
   background: #fff;
 }
+.admin-user-list > li.selected {
+  border-color: var(--petrol-700);
+  box-shadow: 0 0 0 1px var(--petrol-700);
+}
+.admin-user-select {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.admin-user-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.admin-user-details section {
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  background: var(--surface-muted);
+}
+.admin-user-details h3 {
+  margin-top: 0;
+}
+.admin-user-details button + button {
+  margin-inline-start: 0.5rem;
+}
 .admin-user-heading,
 .admin-actions,
 .pagination {
@@ -1653,6 +1695,41 @@ button:disabled {
   justify-content: space-between;
   flex-wrap: wrap;
   gap: 0.75rem;
+}
+.app-dialog {
+  position: fixed;
+  inset: 50% auto auto 50%;
+  z-index: 80;
+  width: min(38rem, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  margin: 0;
+  padding: 1.5rem;
+  overflow: auto;
+  transform: translate(-50%, -50%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dialog);
+  color: inherit;
+  background: var(--surface);
+}
+.app-dialog::backdrop {
+  background: rgba(10, 37, 36, 0.48);
+}
+.app-dialog h2 {
+  margin-top: 0;
+}
+.danger-dialog {
+  border-top: 0.35rem solid var(--danger);
+}
+.dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1.5rem;
+}
+.compact-heading {
+  align-items: start;
 }
 .admin-user-heading > div {
   display: grid;
@@ -1793,6 +1870,18 @@ button:disabled {
   .organization-invitation-form h2,
   .organization-invitation-form button {
     grid-column: auto;
+  }
+  .admin-user-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .admin-user-details button,
+  .admin-user-details button + button,
+  .dialog-actions button {
+    width: 100%;
+    margin-inline-start: 0;
+  }
+  .dialog-actions {
+    flex-direction: column;
   }
 }
 .login-help {

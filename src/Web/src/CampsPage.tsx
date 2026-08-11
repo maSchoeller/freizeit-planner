@@ -5,6 +5,7 @@ import type { components } from "./api/schema";
 import { SettingsLayout } from "./OrganizationMembersPage";
 import { activateOfflineOrganization } from "./offlineSnapshot";
 import { authenticatedFetch as fetch } from "./api/authentication";
+import { OrganizationAdministrationNavigation } from "./AdministrationNavigation";
 
 type Membership = components["schemas"]["AccountMembershipView"];
 type CampSummary = components["schemas"]["CampSummary"];
@@ -137,11 +138,21 @@ export function CampsPage() {
   const canCreate = membership?.role === 1;
 
   return (
-    <SettingsLayout backTo="/konto">
+    <SettingsLayout
+      backTo="/"
+      organizationName={membership?.organizationName}
+      organizationSlug={organizationSlug}
+      canManageOrganization={membership?.role === 1}
+    >
       <p className="eyebrow">
         {membership?.organizationName ?? "Organisation"}
       </p>
       <h1>Freizeiten</h1>
+      {membership?.role === 1 ? (
+        <OrganizationAdministrationNavigation
+          organizationSlug={organizationSlug}
+        />
+      ) : null}
       <p>
         Plane laufende und kommende Freizeiten oder öffne vergangene Freizeiten
         zum Lesen und Exportieren.

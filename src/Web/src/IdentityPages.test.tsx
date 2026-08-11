@@ -458,7 +458,7 @@ describe("identity self-service pages", () => {
     );
 
     renderRoute("/einladung?token=einmal-token");
-    await screen.findByText(/Orgadmin für CVJM Sonnenhöhe/);
+    await screen.findByText(/Organisationsadmin für CVJM Sonnenhöhe/);
     await user.type(screen.getByLabelText("Vorname"), "Neue");
     await user.type(screen.getByLabelText("Nachname"), "Person");
     await user.type(
@@ -694,35 +694,30 @@ describe("identity self-service pages", () => {
     );
   });
 
-  it("changes and removes organization members with version headers", async () => {
-    const user = userEvent.setup();
+  it("redirects the legacy member route to Team & Rechte", async () => {
     vi.stubGlobal(
       "fetch",
       routeFetch(({ path, method }) => {
-        if (
-          path === `/api/v1/organizations/${organizationId}/members` &&
-          method === "GET"
-        )
+        if (path === "/api/v1/account/memberships" && method === "GET")
           return json([
             {
-              userId,
-              displayName: "Alex",
-              email: "alex@example.test",
-              role: 3,
-              version: 4,
+              organizationId,
+              organizationName: "CVJM Sonnenhöhe",
+              organizationSlug: "sonnenhoehe",
+              role: 1,
             },
           ]);
-        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
-        if (path.endsWith(`/members/${userId}/role`) && method === "PATCH")
-          return json({
-            userId,
-            displayName: "Alex",
-            email: "alex@example.test",
-            role: 4,
-            version: 5,
-          });
-        if (path.endsWith(`/members/${userId}`) && method === "DELETE")
-          return empty(204);
+        if (
+          path === `/api/v1/organizations/${organizationId}/camps` &&
+          method === "GET"
+        )
+          return json([]);
+        if (
+          path ===
+            `/api/v1/organizations/${organizationId}/administration/users` &&
+          method === "GET"
+        )
+          return json({ items: [], page: 1, pageSize: 25, totalCount: 0 });
         return empty(404);
       }),
     );
@@ -730,17 +725,16 @@ describe("identity self-service pages", () => {
     renderRoute(
       `/o/sonnenhoehe/einstellungen/mitglieder?organizationId=${organizationId}`,
     );
-    const role = await screen.findByRole("combobox", {
-      name: "Rolle für Alex",
-    });
-    await user.selectOptions(role, "4");
-    await waitFor(() => expect(role).toHaveValue("4"));
-    await user.click(screen.getByRole("button", { name: "Entfernen" }));
-    await waitFor(() =>
-      expect(
-        screen.getByText("Keine Mitglieder gefunden."),
-      ).toBeInTheDocument(),
+    expect(
+      await screen.findByRole("heading", { name: "Team verwalten" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Team & Rechte" })).toHaveAttribute(
+      "aria-current",
+      "page",
     );
+    expect(
+      await screen.findByText("Keine passenden Benutzer gefunden."),
+    ).toBeInTheDocument();
   });
 
   it("changes organization metadata without exposing tenant content", async () => {
@@ -773,11 +767,16 @@ describe("identity self-service pages", () => {
     const row = item.closest("li");
     expect(row).not.toBeNull();
     await user.click(within(row!).getByRole("button", { name: "Sperren" }));
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Organisation sperren",
+      }),
+    );
     await waitFor(() =>
       expect(within(row!).getByText(/Gesperrt/)).toBeInTheDocument(),
     );
     expect(
-      screen.getByText(/Fachliche Inhalte der Mandanten/),
+      screen.getByText(/Fachliche Inhalte der Organisationen/),
     ).toBeInTheDocument();
   });
 });

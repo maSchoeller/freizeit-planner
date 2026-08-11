@@ -1,20 +1,16 @@
 import { useEffect, useState } from "react";
-import {
-  Link,
-  useNavigate,
-  useParams,
-  useSearchParams,
-} from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
+import { AppHeader } from "./AppShell";
 
 type Member = components["schemas"]["OrganizationMemberView"];
 type TenantRole = components["schemas"]["TenantRole"];
 
 const roles: ReadonlyArray<{ value: TenantRole; label: string }> = [
-  { value: 1, label: "Orgadmin" },
-  { value: 2, label: "Camp-Leitung" },
+  { value: 1, label: "Organisationsadmin" },
+  { value: 2, label: "Freizeit-Leitung" },
   { value: 3, label: "Mitglied" },
   { value: 4, label: "Lesender Zugriff" },
 ];
@@ -31,7 +27,7 @@ export function OrganizationMembersPage() {
 
   useEffect(() => {
     if (!organizationId) {
-      setError("Die Organization-ID fehlt im Link.");
+      setError("Die Organisations-ID fehlt im Link.");
       setLoading(false);
       return;
     }
@@ -141,11 +137,11 @@ export function OrganizationMembersPage() {
 
   return (
     <SettingsLayout backTo="/konto">
-      <p className="eyebrow">Organization-Einstellungen</p>
+      <p className="eyebrow">Organisationseinstellungen</p>
       <h1>Mitglieder verwalten</h1>
       <p>
-        Rollen gelten serverseitig. Eine Organization darf bewusst ohne Orgadmin
-        bestehen.
+        Rollen gelten serverseitig. Eine Organisation darf bewusst ohne
+        Organisationsadmin bestehen.
       </p>
       {loading ? <p role="status">Mitglieder werden geladen …</p> : null}
       {error ? (
@@ -193,7 +189,7 @@ export function OrganizationMembersPage() {
           </li>
         ))}
       </ul>
-      <p className="muted">Organization: {organizationSlug}</p>
+      <p className="muted">Organisation: {organizationSlug}</p>
     </SettingsLayout>
   );
 }
@@ -201,20 +197,30 @@ export function OrganizationMembersPage() {
 export function SettingsLayout({
   backTo,
   children,
+  organizationName,
+  organizationSlug,
+  canManageOrganization = false,
+  isSuperAdmin = false,
 }: {
   backTo: string;
   children: React.ReactNode;
+  organizationName?: string;
+  organizationSlug?: string;
+  canManageOrganization?: boolean;
+  isSuperAdmin?: boolean;
 }) {
   return (
     <div className="account-layout">
-      <header className="topbar">
-        <Link className="brand" to={backTo}>
-          <span className="brand-mark" aria-hidden="true">
-            F
-          </span>
-          <span>Freizeit-Cockpit</span>
-        </Link>
-      </header>
+      <a className="skip-link" href="#main">
+        Zum Inhalt springen
+      </a>
+      <AppHeader
+        homeTo={backTo}
+        organizationName={organizationName}
+        organizationSlug={organizationSlug}
+        canManageOrganization={canManageOrganization}
+        isSuperAdmin={isSuperAdmin}
+      />
       <main id="main" className="account-page">
         {children}
       </main>

@@ -1,9 +1,13 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
 import { SettingsLayout } from "./OrganizationMembersPage";
+import {
+  OrganizationAdministrationNavigation,
+  PlatformAdministrationNavigation,
+} from "./AdministrationNavigation";
 
 type User = components["schemas"]["UserAdministrationView"];
 type Page = components["schemas"]["AdministrationPageOfUserAdministrationView"];
@@ -34,6 +38,7 @@ function UserAdministrationPage({
   const { organizationSlug = "" } = useParams();
   const navigate = useNavigate();
   const [organizationId, setOrganizationId] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState("");
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState("");
   const [camps, setCamps] = useState<Camp[]>([]);
@@ -45,6 +50,14 @@ function UserAdministrationPage({
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [showInvitation, setShowInvitation] = useState(false);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    title: string;
+    description: string;
+    confirmLabel: string;
+    run: () => Promise<void>;
+  } | null>(null);
   const [globalInvitationKind, setGlobalInvitationKind] = useState<
     "superadmin" | "orgadmin"
   >("superadmin");
@@ -74,14 +87,15 @@ function UserAdministrationPage({
           (item) => item.organizationSlug === organizationSlug,
         );
         if (!organization)
-          throw new Error("Die Organization wurde nicht gefunden.");
+          throw new Error("Die Organisation wurde nicht gefunden.");
         setOrganizationId(organization.organizationId);
+        setOrganizationName(organization.organizationName);
       })
       .catch((caught: unknown) => {
         if (caught instanceof DOMException && caught.name === "AbortError")
           return;
         setError(
-          message(caught, "Die Organization konnte nicht geladen werden."),
+          message(caught, "Die Organisation konnte nicht geladen werden."),
         );
         setLoading(false);
       });
@@ -212,6 +226,26 @@ function UserAdministrationPage({
     });
   }
 
+  async function clearLoginLockout(user: User) {
+    await mutate(user.userId, async (token) => {
+      const result = await api.POST(
+        "/api/v1/superadmin/users/{userId}/unlock",
+        {
+          params: { path: { userId: user.userId } },
+          headers: versionHeaders(token, user.version),
+        },
+      );
+      if (!result.data)
+        throw new Error(
+          readProblemDetail(
+            result.error,
+            "Die Anmeldesperre konnte nicht aufgehoben werden.",
+          ),
+        );
+      replaceUser(result.data);
+    });
+  }
+
   async function changeMembership(user: User, status: MembershipStatus) {
     const targetOrganizationId =
       mode === "superadmin" ? selectedOrganizationId : organizationId;
@@ -274,7 +308,7 @@ function UserAdministrationPage({
         throw new Error(
           readProblemDetail(
             result.error,
-            "Die Camp-Rolle konnte nicht geändert werden.",
+            "Die Freizeitrolle konnte nicht geändert werden.",
           ),
         );
       replaceMembership(user, {
@@ -340,6 +374,7 @@ function UserAdministrationPage({
       const link = `${globalThis.location.origin}/einladung?token=${encodeURIComponent(result.data.token)}`;
       await globalThis.navigator.clipboard.writeText(link);
       setCopiedLink(link);
+      setShowInvitation(false);
     } catch (caught) {
       setError(
         message(caught, "Der Einladungslink konnte nicht erstellt werden."),
@@ -382,25 +417,35 @@ function UserAdministrationPage({
   }
 
   const title = mode === "superadmin" ? "Benutzer verwalten" : "Team verwalten";
-  const invitationLabel =
-    mode === "superadmin"
-      ? globalInvitationKind === "superadmin"
-        ? "Superadmin-Link kopieren"
-        : "Orgadmin-Link kopieren"
-      : invitationKind === "orgadmin"
-        ? "Orgadmin-Link kopieren"
-        : "Camp-Link kopieren";
+  const invitationUnavailable =
+    (mode === "organization" &&
+      invitationKind !== "orgadmin" &&
+      !invitationCampId) ||
+    (mode === "superadmin" &&
+      globalInvitationKind === "orgadmin" &&
+      !selectedOrganizationId);
 
   return (
     <SettingsLayout
-      backTo={mode === "superadmin" ? "/konto" : `/o/${organizationSlug}/camps`}
+      backTo={mode === "superadmin" ? "/" : `/o/${organizationSlug}/camps`}
+      organizationName={organizationName || undefined}
+      organizationSlug={mode === "organization" ? organizationSlug : undefined}
+      canManageOrganization={mode === "organization"}
+      isSuperAdmin={mode === "superadmin"}
     >
       <p className="eyebrow">
         {mode === "superadmin"
-          ? "Superadmin-Verwaltung"
-          : "Organization-Verwaltung"}
+          ? "Plattformverwaltung"
+          : "Organisationsverwaltung"}
       </p>
       <h1>{title}</h1>
+      {mode === "superadmin" ? (
+        <PlatformAdministrationNavigation />
+      ) : (
+        <OrganizationAdministrationNavigation
+          organizationSlug={organizationSlug}
+        />
+      )}
       <p>
         Suche, Rollen und Sperren werden serverseitig geprüft. Änderungen gelten
         sofort für neue und bestehende Sitzungen.
@@ -425,86 +470,119 @@ function UserAdministrationPage({
           disabled={
             busy !== null || (mode === "organization" && !organizationId)
           }
-          onClick={() => void createInvitation()}
+          onClick={() => setShowInvitation(true)}
           type="button"
         >
-          {busy === "invitation" ? "Link wird erstellt …" : invitationLabel}
+          Person einladen
         </button>
       </div>
-      {mode === "organization" ? (
-        <div className="invitation-options">
-          <label>
-            Rolle des nächsten Einladungslinks
-            <select
-              onChange={(event) =>
-                setInvitationKind(
-                  event.target.value as
-                    "orgadmin" | "campLead" | "member" | "viewer",
-                )
-              }
-              value={invitationKind}
-            >
-              <option value="orgadmin">Orgadmin</option>
-              <option value="campLead">Camp-Leitung</option>
-              <option value="member">Campmitarbeit</option>
-              <option value="viewer">Lesender Campzugriff</option>
-            </select>
-          </label>
-          {invitationKind !== "orgadmin" ? (
-            <label>
-              Freizeit
-              <select
-                onChange={(event) => setInvitationCampId(event.target.value)}
-                required
-                value={invitationCampId}
-              >
-                {camps.map((camp) => (
-                  <option key={camp.id} value={camp.id}>
-                    {camp.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-        </div>
-      ) : null}
-      {mode === "superadmin" && organizations.length > 0 ? (
-        <div className="invitation-options">
-          <label>
-            Rolle des nächsten Einladungslinks
-            <select
-              onChange={(event) =>
-                setGlobalInvitationKind(
-                  event.target.value as "superadmin" | "orgadmin",
-                )
-              }
-              value={globalInvitationKind}
-            >
-              <option value="superadmin">Superadmin</option>
-              <option value="orgadmin">Orgadmin</option>
-            </select>
-          </label>
-          <label className="admin-organization-choice">
-            Organization für Orgadmin-Rechte
-            <select
-              disabled={globalInvitationKind !== "orgadmin"}
-              onChange={(event) =>
-                setSelectedOrganizationId(event.target.value)
-              }
-              value={selectedOrganizationId}
-            >
-              {organizations.map((organization) => (
-                <option
-                  key={organization.organizationId}
-                  value={organization.organizationId}
+      {showInvitation ? (
+        <dialog
+          open
+          aria-labelledby="invite-person-heading"
+          className="app-dialog"
+        >
+          <h2 id="invite-person-heading">Person einladen</h2>
+          <p>Wähle nur den Zugang, den die Person wirklich benötigt.</p>
+          {mode === "organization" ? (
+            <div className="invitation-options">
+              <label>
+                Rolle des nächsten Einladungslinks
+                <select
+                  onChange={(event) =>
+                    setInvitationKind(
+                      event.target.value as
+                        "orgadmin" | "campLead" | "member" | "viewer",
+                    )
+                  }
+                  value={invitationKind}
                 >
-                  {organization.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Link to="/superadmin/organisationen">Organizations verwalten</Link>
-        </div>
+                  <option value="orgadmin">Organisationsadmin</option>
+                  <option value="campLead">Freizeit-Leitung</option>
+                  <option value="member">Freizeitmitarbeit</option>
+                  <option value="viewer">Lesender Freizeitzugriff</option>
+                </select>
+              </label>
+              {invitationKind !== "orgadmin" ? (
+                <label>
+                  Freizeit
+                  <select
+                    onChange={(event) =>
+                      setInvitationCampId(event.target.value)
+                    }
+                    required
+                    value={invitationCampId}
+                  >
+                    {camps.map((camp) => (
+                      <option key={camp.id} value={camp.id}>
+                        {camp.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          ) : (
+            <div className="invitation-options">
+              <label>
+                Rolle des nächsten Einladungslinks
+                <select
+                  onChange={(event) =>
+                    setGlobalInvitationKind(
+                      event.target.value as "superadmin" | "orgadmin",
+                    )
+                  }
+                  value={globalInvitationKind}
+                >
+                  <option value="superadmin">Superadmin</option>
+                  <option value="orgadmin">Organisationsadmin</option>
+                </select>
+              </label>
+              {globalInvitationKind === "orgadmin" ? (
+                <label className="admin-organization-choice">
+                  Organisation für Organisationsadmin-Rechte
+                  <select
+                    onChange={(event) =>
+                      setSelectedOrganizationId(event.target.value)
+                    }
+                    required
+                    value={selectedOrganizationId}
+                  >
+                    <option value="">Organisation auswählen</option>
+                    {organizations.map((organization) => (
+                      <option
+                        key={organization.organizationId}
+                        value={organization.organizationId}
+                      >
+                        {organization.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+            </div>
+          )}
+          <div className="dialog-actions">
+            <button
+              className="primary-action"
+              disabled={busy !== null || invitationUnavailable}
+              onClick={() => void createInvitation()}
+              type="button"
+            >
+              {busy === "invitation"
+                ? "Link wird erstellt …"
+                : "Einladungslink erstellen & kopieren"}
+            </button>
+            <button
+              className="secondary-action"
+              disabled={busy !== null}
+              onClick={() => setShowInvitation(false)}
+              type="button"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </dialog>
       ) : null}
       {copiedLink ? (
         <p className="success-message" role="status">
@@ -526,14 +604,20 @@ function UserAdministrationPage({
           const membership = organizationId
             ? membershipFor(user, organizationId)
             : null;
+          const displayName =
+            `${user.firstName} ${user.lastName}`.trim() || "Ohne Namen";
+          const selected = selectedUserId === user.userId;
           return (
-            <li key={user.userId}>
-              <div className="admin-user-heading">
+            <li key={user.userId} className={selected ? "selected" : undefined}>
+              <button
+                className="admin-user-heading admin-user-select"
+                type="button"
+                aria-expanded={selected}
+                aria-label={`${displayName} auswählen`}
+                onClick={() => setSelectedUserId(selected ? null : user.userId)}
+              >
                 <div>
-                  <strong>
-                    {`${user.firstName} ${user.lastName}`.trim() ||
-                      "Ohne Namen"}
-                  </strong>
+                  <strong>{displayName}</strong>
                   <span>{user.email}</span>
                 </div>
                 <span
@@ -545,104 +629,188 @@ function UserAdministrationPage({
                 >
                   {user.accountStatus === active ? "Aktiv" : "Global gesperrt"}
                 </span>
-              </div>
-              {mode === "superadmin" ? (
-                <div className="admin-actions">
-                  <button
-                    className="secondary-action"
-                    disabled={busy !== null}
-                    onClick={() => void changeSuperAdmin(user)}
-                    type="button"
-                  >
-                    {user.isSuperAdmin
-                      ? "Superadmin entziehen"
-                      : "Zum Superadmin machen"}
-                  </button>
-                  <button
-                    className={
-                      user.accountStatus === active
-                        ? "danger-action"
-                        : "secondary-action"
-                    }
-                    disabled={busy !== null}
-                    onClick={() => void changeGlobalStatus(user)}
-                    type="button"
-                  >
-                    {user.accountStatus === active
-                      ? "Global sperren"
-                      : "Entsperren"}
-                  </button>
-                  {selectedOrganizationId ? (
-                    <button
-                      className="secondary-action"
-                      disabled={busy !== null}
-                      onClick={() => void changeMembership(user, active)}
-                      type="button"
-                    >
-                      Als Orgadmin zuweisen
-                    </button>
-                  ) : null}
-                </div>
-              ) : (
-                <div className="admin-actions">
-                  <span>
-                    {membership?.status === active
-                      ? membership.role === organizationAdmin
-                        ? "Orgadmin · aktiv"
-                        : "Mitglied · aktiv"
-                      : membership?.status === suspended
-                        ? "In dieser Organization gesperrt"
-                        : "Entfernt"}
-                  </span>
-                  <button
-                    className="secondary-action"
-                    disabled={busy !== null}
-                    onClick={() => void changeMembership(user, active)}
-                    type="button"
-                  >
-                    Als Orgadmin aktivieren
-                  </button>
-                  <button
-                    className="danger-action"
-                    disabled={busy !== null || membership?.status !== active}
-                    onClick={() => void changeMembership(user, suspended)}
-                    type="button"
-                  >
-                    In Organization sperren
-                  </button>
-                </div>
-              )}
-              {mode === "organization" && membership?.status === active ? (
-                <div className="camp-role-grid">
-                  {camps.map((camp) => {
-                    const assignment = membership.camps.find(
-                      (item) => item.campId === camp.id,
-                    );
-                    return (
-                      <label key={camp.id}>
-                        {camp.name}
-                        <select
-                          aria-label={`Camp-Rolle für ${user.firstName} ${user.lastName} in ${camp.name}`}
-                          disabled={busy !== null}
-                          onChange={(event) =>
-                            void changeCampAssignment(
-                              user,
-                              camp.id,
-                              event.target.value === ""
-                                ? null
-                                : Number(event.target.value),
-                            )
+              </button>
+              {selected ? (
+                <div className="admin-user-details">
+                  {mode === "superadmin" ? (
+                    <>
+                      <section aria-labelledby={`account-${user.userId}`}>
+                        <h3 id={`account-${user.userId}`}>Konto</h3>
+                        <p>
+                          {user.accountStatus === active
+                            ? "Das Konto ist global aktiv."
+                            : "Das Konto ist global gesperrt; alle Sitzungen sind beendet."}
+                        </p>
+                        <button
+                          className={
+                            user.accountStatus === active
+                              ? "danger-action"
+                              : "secondary-action"
                           }
-                          value={assignment?.role ?? ""}
+                          disabled={busy !== null}
+                          onClick={() => {
+                            if (user.accountStatus !== active) {
+                              void changeGlobalStatus(user);
+                              return;
+                            }
+                            setPendingAction({
+                              title: "Konto global sperren?",
+                              description: `${displayName} verliert sofort jeden Plattform- und Organisationszugriff. Alle Sitzungen werden beendet.`,
+                              confirmLabel: "Konto global sperren",
+                              run: () => changeGlobalStatus(user),
+                            });
+                          }}
+                          type="button"
                         >
-                          <option value="">Kein Zugriff</option>
-                          <option value="0">Camp-Leitung</option>
-                          <option value="1">Mitarbeit</option>
-                          <option value="2">Lesender Zugriff</option>
-                        </select>
-                      </label>
-                    );
-                  })}
+                          {user.accountStatus === active
+                            ? "Global sperren"
+                            : "Global entsperren"}
+                        </button>
+                        {user.loginLockedUntil ? (
+                          <button
+                            className="secondary-action"
+                            disabled={busy !== null}
+                            onClick={() => void clearLoginLockout(user)}
+                            type="button"
+                          >
+                            Anmeldesperre aufheben
+                          </button>
+                        ) : null}
+                      </section>
+                      <section aria-labelledby={`platform-role-${user.userId}`}>
+                        <h3 id={`platform-role-${user.userId}`}>
+                          Plattformrolle
+                        </h3>
+                        <p>
+                          {user.isSuperAdmin
+                            ? "Superadmin"
+                            : "Keine Plattformrolle"}
+                        </p>
+                        <button
+                          className={
+                            user.isSuperAdmin
+                              ? "danger-action"
+                              : "secondary-action"
+                          }
+                          disabled={busy !== null}
+                          onClick={() => {
+                            if (!user.isSuperAdmin) {
+                              void changeSuperAdmin(user);
+                              return;
+                            }
+                            setPendingAction({
+                              title: "Superadmin-Rolle entziehen?",
+                              description: `${displayName} kann danach keine Plattformkonten oder Organisationen mehr verwalten.`,
+                              confirmLabel: "Superadmin-Rolle entziehen",
+                              run: () => changeSuperAdmin(user),
+                            });
+                          }}
+                          type="button"
+                        >
+                          {user.isSuperAdmin
+                            ? "Superadmin entziehen"
+                            : "Zum Superadmin machen"}
+                        </button>
+                      </section>
+                      <section aria-labelledby={`organizations-${user.userId}`}>
+                        <h3 id={`organizations-${user.userId}`}>
+                          Organisationen
+                        </h3>
+                        <p>
+                          Organisationsadmin-Zugang für die oben ausgewählte
+                          Organisation vergeben.
+                        </p>
+                        {selectedOrganizationId ? (
+                          <button
+                            className="secondary-action"
+                            disabled={busy !== null}
+                            onClick={() => void changeMembership(user, active)}
+                            type="button"
+                          >
+                            Als Organisationsadmin zuweisen
+                          </button>
+                        ) : (
+                          <p>Keine Organisation vorhanden.</p>
+                        )}
+                      </section>
+                    </>
+                  ) : (
+                    <section aria-labelledby={`organization-${user.userId}`}>
+                      <h3 id={`organization-${user.userId}`}>Organisation</h3>
+                      <p>
+                        {membership?.status === active
+                          ? membership.role === organizationAdmin
+                            ? "Organisationsadmin · aktiv"
+                            : "Mitglied · aktiv"
+                          : membership?.status === suspended
+                            ? "In dieser Organisation gesperrt"
+                            : "Entfernt"}
+                      </p>
+                      <div className="admin-actions">
+                        <button
+                          className="secondary-action"
+                          disabled={busy !== null}
+                          onClick={() => void changeMembership(user, active)}
+                          type="button"
+                        >
+                          Als Organisationsadmin aktivieren
+                        </button>
+                        <button
+                          className="danger-action"
+                          disabled={
+                            busy !== null || membership?.status !== active
+                          }
+                          onClick={() =>
+                            setPendingAction({
+                              title: "In dieser Organisation sperren?",
+                              description: `${displayName} verliert den Zugriff auf diese Organisation und ihre Freizeiten. Andere Zugänge bleiben bestehen.`,
+                              confirmLabel: "In Organisation sperren",
+                              run: () => changeMembership(user, suspended),
+                            })
+                          }
+                          type="button"
+                        >
+                          In Organisation sperren
+                        </button>
+                      </div>
+                    </section>
+                  )}
+                  {mode === "organization" && membership?.status === active ? (
+                    <section aria-labelledby={`camps-${user.userId}`}>
+                      <h3 id={`camps-${user.userId}`}>Freizeiten</h3>
+                      <div className="camp-role-grid">
+                        {camps.map((camp) => {
+                          const assignment = membership.camps.find(
+                            (item) => item.campId === camp.id,
+                          );
+                          return (
+                            <label key={camp.id}>
+                              {camp.name}
+                              <select
+                                aria-label={`Freizeitrolle für ${user.firstName} ${user.lastName} in ${camp.name}`}
+                                disabled={busy !== null}
+                                onChange={(event) =>
+                                  void changeCampAssignment(
+                                    user,
+                                    camp.id,
+                                    event.target.value === ""
+                                      ? null
+                                      : Number(event.target.value),
+                                  )
+                                }
+                                value={assignment?.role ?? ""}
+                              >
+                                <option value="">Kein Zugriff</option>
+                                <option value="0">Freizeit-Leitung</option>
+                                <option value="1">Mitarbeit</option>
+                                <option value="2">Lesender Zugriff</option>
+                              </select>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ) : null}
                 </div>
               ) : null}
             </li>
@@ -670,10 +838,38 @@ function UserAdministrationPage({
           </button>
         </nav>
       ) : null}
-      {mode === "superadmin" ? (
-        <p>
-          <Link to="/superadmin/organisationen">Organizations verwalten</Link>
-        </p>
+      {pendingAction ? (
+        <dialog
+          open
+          aria-labelledby="confirm-admin-action"
+          className="app-dialog danger-dialog"
+        >
+          <h2 id="confirm-admin-action">{pendingAction.title}</h2>
+          <p>{pendingAction.description}</p>
+          <div className="dialog-actions">
+            <button
+              className="danger-action"
+              disabled={busy !== null}
+              onClick={() => {
+                const action = pendingAction;
+                setPendingAction(null);
+                void action.run();
+              }}
+              type="button"
+            >
+              {pendingAction.confirmLabel}
+            </button>
+            <button
+              autoFocus
+              className="secondary-action"
+              disabled={busy !== null}
+              onClick={() => setPendingAction(null)}
+              type="button"
+            >
+              Abbrechen
+            </button>
+          </div>
+        </dialog>
       ) : null}
     </SettingsLayout>
   );

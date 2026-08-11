@@ -363,9 +363,9 @@ function grantDescription(preview: InvitationPreview): string {
   const grant = preview.grant;
   if (grant.isSuperAdmin) return "Superadmin für das gesamte Freizeit-Cockpit";
   if (grant.newOrganization)
-    return `Orgadmin für die neue Organization ${grant.newOrganization.name}`;
+    return `Organisationsadmin für die neue Organisation ${grant.newOrganization.name}`;
   if (grant.organizationRole !== null)
-    return `Orgadmin für ${preview.organizationName ?? "die Organization"}`;
+    return `Organisationsadmin für ${preview.organizationName ?? "die Organisation"}`;
   const campRole =
     grant.campRole === 0
       ? "Campleitung"

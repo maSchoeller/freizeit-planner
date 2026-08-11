@@ -1,8 +1,7 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useParams } from "react-router-dom";
 import { LoginPage } from "./LoginPage";
 import { InvitationConfirmationPage, InvitationPage } from "./InvitationPage";
 import { AccountPage } from "./AccountPage";
-import { OrganizationMembersPage } from "./OrganizationMembersPage";
 import { PlatformOrganizationsPage } from "./PlatformOrganizationsPage";
 import { CampWorkspace } from "./CampWorkspace";
 import { CampsPage, CampSettingsPage } from "./CampsPage";
@@ -93,11 +92,7 @@ export function App() {
         />
         <Route
           path="/o/:organizationSlug/einstellungen/mitglieder"
-          element={
-            <OnlineOnly>
-              <OrganizationMembersPage />
-            </OnlineOnly>
-          }
+          element={<OrganizationAdministrationRedirect />}
         />
         <Route
           path="/superadmin/organisationen"
@@ -117,6 +112,10 @@ export function App() {
         />
         <Route
           path="/o/:organizationSlug/verwaltung/benutzer"
+          element={<OrganizationAdministrationRedirect />}
+        />
+        <Route
+          path="/o/:organizationSlug/verwaltung/team"
           element={
             <OnlineOnly>
               <OrganizationUsersPage />
@@ -147,4 +146,9 @@ export function App() {
       </Routes>
     </>
   );
+}
+
+function OrganizationAdministrationRedirect() {
+  const { organizationSlug = "" } = useParams();
+  return <Navigate replace to={`/o/${organizationSlug}/verwaltung/team`} />;
 }

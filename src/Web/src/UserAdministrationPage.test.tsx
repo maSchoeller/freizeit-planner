@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +22,51 @@ beforeEach(() => {
 });
 
 describe("user administration", () => {
+  it("separates platform navigation, invitation and focused user details", async () => {
+    const user = userEvent.setup();
+    vi.stubGlobal(
+      "fetch",
+      administrationFetch(({ path }) => {
+        if (path === "/api/v1/superadmin/users")
+          return json(page([globalUser()]));
+        if (path === "/api/v1/superadmin/organizations")
+          return json([
+            {
+              organizationId,
+              name: "Evangelisches Jugendwerk",
+              slug: "ejw",
+              status: 0,
+              version: 1,
+            },
+          ]);
+        return empty(404);
+      }),
+    );
+
+    renderRoute("/superadmin/benutzer");
+
+    expect(
+      await screen.findByRole("navigation", { name: "Plattformverwaltung" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Benutzer" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(
+      screen.queryByRole("button", { name: "Zum Superadmin machen" }),
+    ).toBeNull();
+    await user.click(
+      screen.getByRole("button", { name: "Erika Muster auswählen" }),
+    );
+    expect(
+      screen.getByRole("heading", { name: "Plattformrolle" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Person einladen" }));
+    expect(
+      screen.getByRole("dialog", { name: "Person einladen" }),
+    ).toBeInTheDocument();
+  });
+
   it("manages global status and copies a Superadmin invitation", async () => {
     const user = userEvent.setup();
     const copied: string[] = [];
@@ -84,13 +129,21 @@ describe("user administration", () => {
     renderRoute("/superadmin/benutzer");
     expect(await screen.findByText("Erika Muster")).toBeInTheDocument();
     await user.click(
+      screen.getByRole("button", { name: "Erika Muster auswählen" }),
+    );
+    await user.click(
       screen.getByRole("button", { name: "Zum Superadmin machen" }),
     );
     await user.click(
-      await screen.findByRole("button", { name: "Als Orgadmin zuweisen" }),
+      await screen.findByRole("button", {
+        name: "Als Organisationsadmin zuweisen",
+      }),
     );
+    await user.click(screen.getByRole("button", { name: "Person einladen" }));
     await user.click(
-      screen.getByRole("button", { name: "Superadmin-Link kopieren" }),
+      screen.getByRole("button", {
+        name: "Einladungslink erstellen & kopieren",
+      }),
     );
 
     await waitFor(() => expect(copied).toHaveLength(1));
@@ -166,20 +219,28 @@ describe("user administration", () => {
 
     renderRoute("/o/ejw/verwaltung/benutzer");
     expect(await screen.findByText("Erika Muster")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Erika Muster auswählen" }),
+    );
     await user.selectOptions(
       await screen.findByRole("combobox", {
-        name: "Camp-Rolle für Erika Muster in Sommerfreizeit",
+        name: "Freizeitrolle für Erika Muster in Sommerfreizeit",
       }),
       "1",
     );
     await waitFor(() => expect(campBody).toContain('"role":1'));
     await user.click(
-      screen.getByRole("button", { name: "In Organization sperren" }),
+      screen.getByRole("button", { name: "In Organisation sperren" }),
+    );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "In Organisation sperren",
+      }),
     );
 
     await waitFor(() => expect(membershipBody).toContain('"status":1'));
     expect(
-      await screen.findByText("In dieser Organization gesperrt"),
+      await screen.findByText("In dieser Organisation gesperrt"),
     ).toBeInTheDocument();
   });
 
@@ -201,6 +262,7 @@ describe("user administration", () => {
   });
 
   it("labels an active Camp worker without Orgadmin rights as a member", async () => {
+    const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
       administrationFetch(({ path }) => {
@@ -233,6 +295,9 @@ describe("user administration", () => {
 
     renderRoute("/o/ejw/verwaltung/benutzer");
 
+    await user.click(
+      await screen.findByRole("button", { name: "Erika Muster auswählen" }),
+    );
     expect(await screen.findByText("Mitglied · aktiv")).toBeInTheDocument();
   });
 
@@ -323,16 +388,25 @@ describe("user administration", () => {
     renderRoute("/superadmin/benutzer");
     expect(await screen.findByText("Ohne Namen")).toBeInTheDocument();
     expect(screen.getByText("Global gesperrt")).toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: "Ohne Namen auswählen" }),
+    );
 
     await user.click(
       screen.getByRole("button", { name: "Superadmin entziehen" }),
     );
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Superadmin-Rolle entziehen",
+      }),
+    );
     expect(
       await screen.findByText("Der letzte Superadmin bleibt geschützt."),
     ).toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Entsperren" }));
+    await user.click(screen.getByRole("button", { name: "Global entsperren" }));
     expect((await screen.findAllByText("Aktiv")).length).toBeGreaterThan(0);
 
+    await user.click(screen.getByRole("button", { name: "Person einladen" }));
     await user.selectOptions(
       screen.getByRole("combobox", {
         name: "Rolle des nächsten Einladungslinks",
@@ -340,7 +414,9 @@ describe("user administration", () => {
       "orgadmin",
     );
     await user.click(
-      screen.getByRole("button", { name: "Orgadmin-Link kopieren" }),
+      screen.getByRole("button", {
+        name: "Einladungslink erstellen & kopieren",
+      }),
     );
     await waitFor(() => expect(copied[0]).toContain("orgadmin-token"));
 

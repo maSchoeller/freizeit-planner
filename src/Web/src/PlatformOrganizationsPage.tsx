@@ -1,9 +1,10 @@
 import { FormEvent, useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { components } from "./api/schema";
 import { api } from "./api/client";
 import { getAntiforgeryToken, readProblemDetail } from "./api/security";
 import { SettingsLayout } from "./OrganizationMembersPage";
+import { PlatformAdministrationNavigation } from "./AdministrationNavigation";
 
 type Organization = components["schemas"]["SuperAdminOrganizationView"];
 type OrganizationStatus = components["schemas"]["OrganizationStatus"];
@@ -16,6 +17,8 @@ export function PlatformOrganizationsPage() {
   const [organizationName, setOrganizationName] = useState("");
   const [organizationSlug, setOrganizationSlug] = useState("");
   const [copiedLink, setCopiedLink] = useState<string | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<Organization | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export function PlatformOrganizationsPage() {
           throw new Error(
             readProblemDetail(
               result.error,
-              "Organizations konnten nicht geladen werden.",
+              "Organisationen konnten nicht geladen werden.",
             ),
           );
         setOrganizations(result.data);
@@ -42,7 +45,7 @@ export function PlatformOrganizationsPage() {
         setError(
           caught instanceof Error
             ? caught.message
-            : "Organizations konnten nicht geladen werden.",
+            : "Organisationen konnten nicht geladen werden.",
         );
       })
       .finally(() => setLoading(false));
@@ -128,6 +131,7 @@ export function PlatformOrganizationsPage() {
       setCopiedLink(link);
       setOrganizationName("");
       setOrganizationSlug("");
+      setShowCreate(false);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -140,63 +144,92 @@ export function PlatformOrganizationsPage() {
   }
 
   return (
-    <SettingsLayout backTo="/konto">
-      <p className="eyebrow">Superadmin-Verwaltung</p>
-      <h1>Organizations</h1>
-      <p>
-        <Link to="/superadmin/benutzer">Zur Benutzerverwaltung</Link>
-      </p>
-      <p>
-        Hier werden ausschließlich Plattform-Metadaten angezeigt. Fachliche
-        Inhalte der Mandanten sind für Superadmins ohne zusätzliche
-        Orgadmin-Zuweisung nicht zugänglich.
-      </p>
-      <form
-        className="organization-invitation-form"
-        onSubmit={(event) => void createOrganizationInvitation(event)}
-      >
-        <h2>Neue Organization einrichten</h2>
-        <label>
-          Name
-          <input
-            onChange={(event) => setOrganizationName(event.target.value)}
-            required
-            value={organizationName}
-          />
-        </label>
-        <label>
-          Kurzname für die URL
-          <input
-            onChange={(event) => setOrganizationSlug(event.target.value)}
-            pattern="[a-z0-9-]+"
-            required
-            value={organizationSlug}
-          />
-        </label>
+    <SettingsLayout backTo="/" isSuperAdmin>
+      <p className="eyebrow">Plattformverwaltung</p>
+      <div className="page-heading compact-heading">
+        <div>
+          <h1>Organisationen verwalten</h1>
+          <p>Plattformzugänge und Organisationsstatus zentral verwalten.</p>
+        </div>
         <button
           className="primary-action"
-          disabled={busy !== null}
-          type="submit"
+          type="button"
+          onClick={() => setShowCreate(true)}
         >
-          {busy === "new-organization"
-            ? "Link wird erstellt …"
-            : "Einrichtungslink kopieren"}
+          Organisation einrichten
         </button>
-      </form>
+      </div>
+      <PlatformAdministrationNavigation />
+      <p>
+        Hier werden ausschließlich Plattform-Metadaten angezeigt. Fachliche
+        Inhalte der Organisationen sind für Superadmins ohne zusätzliche
+        Organisationsadmin-Zuweisung nicht zugänglich.
+      </p>
+      {showCreate ? (
+        <dialog
+          open
+          aria-labelledby="create-organization-heading"
+          className="app-dialog"
+        >
+          <form
+            className="organization-invitation-form"
+            onSubmit={(event) => void createOrganizationInvitation(event)}
+          >
+            <h2 id="create-organization-heading">Organisation einrichten</h2>
+            <p>Der Link ist einmalig sichtbar und wird direkt kopiert.</p>
+            <label>
+              Name
+              <input
+                onChange={(event) => setOrganizationName(event.target.value)}
+                required
+                value={organizationName}
+              />
+            </label>
+            <label>
+              Kurzname für die URL
+              <input
+                onChange={(event) => setOrganizationSlug(event.target.value)}
+                pattern="[a-z0-9-]+"
+                required
+                value={organizationSlug}
+              />
+            </label>
+            <div className="dialog-actions">
+              <button
+                className="primary-action"
+                disabled={busy !== null}
+                type="submit"
+              >
+                {busy === "new-organization"
+                  ? "Link wird erstellt …"
+                  : "Einrichtungslink erstellen & kopieren"}
+              </button>
+              <button
+                className="secondary-action"
+                disabled={busy !== null}
+                type="button"
+                onClick={() => setShowCreate(false)}
+              >
+                Abbrechen
+              </button>
+            </div>
+          </form>
+        </dialog>
+      ) : null}
       {copiedLink ? (
         <p className="success-message" role="status">
           Einrichtungslink wurde kopiert:{" "}
           <span className="copy-value">{copiedLink}</span>
         </p>
       ) : null}
-      {loading ? <p role="status">Organizations werden geladen …</p> : null}
+      {loading ? <p role="status">Organisationen werden geladen …</p> : null}
       {error ? (
         <div className="error-message" role="alert">
           {error}
         </div>
       ) : null}
       {!loading && !error && organizations.length === 0 ? (
-        <p className="empty-state">Noch keine Organization vorhanden.</p>
+        <p className="empty-state">Noch keine Organisation vorhanden.</p>
       ) : null}
       <ul className="management-list">
         {organizations.map((organization) => (
@@ -213,7 +246,11 @@ export function PlatformOrganizationsPage() {
                 organization.status === 0 ? "danger-action" : "secondary-action"
               }
               disabled={busy !== null}
-              onClick={() => void changeStatus(organization)}
+              onClick={() =>
+                organization.status === 0
+                  ? setPendingStatus(organization)
+                  : void changeStatus(organization)
+              }
               type="button"
             >
               {busy === organization.organizationId
@@ -225,6 +262,39 @@ export function PlatformOrganizationsPage() {
           </li>
         ))}
       </ul>
+      {pendingStatus ? (
+        <dialog
+          open
+          aria-labelledby="confirm-organization-status"
+          className="app-dialog danger-dialog"
+        >
+          <h2 id="confirm-organization-status">Organisation sperren?</h2>
+          <p>
+            „{pendingStatus.name}“ kann danach nicht mehr fachlich arbeiten. Die
+            Sperre lässt sich wieder aufheben.
+          </p>
+          <div className="dialog-actions">
+            <button
+              className="danger-action"
+              type="button"
+              onClick={() => {
+                const target = pendingStatus;
+                setPendingStatus(null);
+                void changeStatus(target);
+              }}
+            >
+              Organisation sperren
+            </button>
+            <button
+              className="secondary-action"
+              type="button"
+              onClick={() => setPendingStatus(null)}
+            >
+              Abbrechen
+            </button>
+          </div>
+        </dialog>
+      ) : null}
     </SettingsLayout>
   );
 }

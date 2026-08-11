@@ -563,7 +563,7 @@ function roleLabel(role: Membership["role"]): string {
     (
       {
         1: "Organisationsadmin",
-        2: "Camp-Leitung",
+        2: "Freizeit-Leitung",
         3: "Mitglied",
         4: "Lesender Zugriff",
       } satisfies Record<number, string>

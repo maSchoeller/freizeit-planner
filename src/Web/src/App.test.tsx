@@ -374,10 +374,10 @@ describe("Dashboard", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("heading", { name: "Mitglieder verwalten" }),
+      screen.getByRole("heading", { name: "Team verwalten" }),
     ).toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Mitglieder werden geladen",
+      "Benutzer werden geladen",
     );
   });
 
@@ -388,10 +388,10 @@ describe("Dashboard", () => {
       </MemoryRouter>,
     );
     expect(
-      screen.getByRole("heading", { name: "Organizations" }),
+      screen.getByRole("heading", { name: "Organisationen verwalten" }),
     ).toBeInTheDocument();
     expect(
-      screen.getByText(/Fachliche Inhalte der Mandanten/),
+      screen.getByText(/Fachliche Inhalte der Organisationen/),
     ).toBeInTheDocument();
   });
 });
