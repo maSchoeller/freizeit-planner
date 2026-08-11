@@ -33,6 +33,11 @@
   bottom navigation keeps overview, schedule, catering and shopping reachable while a More menu owns secondary
   areas, account and Organization administration. Catering, Logistics, Search and Trash expose direct section
   anchors; the calendar is hidden at phone width so the accessible agenda is the primary schedule presentation.
+- Web module layout: `src/Web/src/CampWorkspace.tsx` keeps only the exported route entry and its runtime resolution.
+  `src/Web/src/camp/` owns the workspace shell plus one module per planning area, with `runtime.ts` (context, camp
+  query, navigation groups), `api.ts` (versioned JSON helpers), `types.ts`, `schedule.ts`, `ui.tsx` and
+  `AttachmentsPanel.tsx` as the shared seams. `camp/logistics/` splits material and shopping state into two workspace
+  hooks so the page component only composes their sections. No area imports another area's internals.
 - Every agenda row also opens its Files-owned private attachment area without crossing module internals. Authorized
   readers obtain a fresh actor-bound grant before opening a file; Camp writers upload with antiforgery and move files
   to the shared 30-day trash with the attachment `If-Match`. Archived Camps expose these files read-only.

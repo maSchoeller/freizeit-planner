@@ -280,6 +280,7 @@ h2 {
 }
 .section-heading {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   gap: 1rem;
   align-items: baseline;
@@ -420,6 +421,8 @@ h2 {
 .settings-section select,
 .settings-section input {
   min-height: 3rem;
+  min-width: 0;
+  max-width: 100%;
   padding: 0.6rem 0.75rem;
   border: 1px solid #88aaa6;
   border-radius: 0.55rem;
@@ -446,6 +449,9 @@ h2 {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1rem;
+}
+.split-view > * {
+  min-width: 0;
 }
 .detail-list,
 .agenda-list,

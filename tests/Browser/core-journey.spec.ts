@@ -540,6 +540,170 @@ function isMailpitList(value: unknown): value is {
   );
 }
 
+test("@smoke visible administration entries follow the signed-in role matrix", async ({
+  page,
+}) => {
+  await page.goto("/o/sonnenhoehe/camps/browser-testcamp");
+  const globalNavigation = page.getByRole("navigation", {
+    name: "Globale Navigation",
+  });
+  await expect(
+    globalNavigation.getByRole("link", { name: "Organisation verwalten" }),
+  ).toBeVisible();
+  await expect(
+    globalNavigation.getByRole("link", { name: "Plattform verwalten" }),
+  ).toHaveCount(0);
+
+  await globalNavigation
+    .getByRole("link", { name: "Organisation verwalten" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Team verwalten", level: 1 }),
+  ).toBeVisible();
+  const organizationNavigation = page.getByRole("navigation", {
+    name: "Organisationsverwaltung",
+  });
+  await expect(
+    organizationNavigation.getByRole("link", { name: "Team & Rechte" }),
+  ).toHaveAttribute("aria-current", "page");
+  await organizationNavigation
+    .getByRole("link", { name: "Freizeiten" })
+    .click();
+  await expect(
+    page.getByRole("heading", { name: "Freizeiten", level: 1 }),
+  ).toBeVisible();
+
+  await page.goto("/superadmin/benutzer");
+  await expect(page.getByRole("alert")).toBeVisible();
+  await expect(page.getByText("@example.test")).toHaveCount(0);
+
+  await page.context().setExtraHTTPHeaders({
+    Authorization: `Bearer ${requireSuperAdminAccessToken()}`,
+  });
+  await page.goto("/superadmin/organisationen");
+  const platformNavigation = page.getByRole("navigation", {
+    name: "Plattformverwaltung",
+  });
+  await expect(
+    platformNavigation.getByRole("link", { name: "Organisationen" }),
+  ).toHaveAttribute("aria-current", "page");
+  await platformNavigation.getByRole("link", { name: "Benutzer" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Benutzer verwalten", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Organisationsverwaltung" }),
+  ).toHaveCount(0);
+});
+
+test("@smoke a combined Orgadmin and Superadmin sees both named administration areas", async ({
+  page,
+}) => {
+  await page.route("**/api/v1/account", async (route) => {
+    const response = await route.fetch();
+    const account = (await response.json()) as Record<string, unknown>;
+    await route.fulfill({
+      response,
+      json: { ...account, isSuperAdmin: true },
+    });
+  });
+
+  await page.goto("/o/sonnenhoehe/camps/browser-testcamp");
+  const globalNavigation = page.getByRole("navigation", {
+    name: "Globale Navigation",
+  });
+  await expect(
+    globalNavigation.getByRole("link", { name: "Organisation verwalten" }),
+  ).toBeVisible();
+  await expect(
+    globalNavigation.getByRole("link", { name: "Plattform verwalten" }),
+  ).toBeVisible();
+
+  await page.getByLabel(/Kontomenü.*öffnen/).click();
+  const profileMenu = page.locator(".profile-menu-panel");
+  await expect(
+    profileMenu.getByRole("link", { name: "Organisation verwalten" }),
+  ).toBeVisible();
+  await expect(
+    profileMenu.getByRole("link", { name: "Plattform verwalten" }),
+  ).toBeVisible();
+  await assertAxe(page);
+});
+
+test("@smoke administration and camp pages stay usable at 200 % text size and 400 % zoom", async ({
+  page,
+}, testInfo) => {
+  for (const target of [
+    { path: "/o/sonnenhoehe/verwaltung/team", heading: "Team verwalten" },
+    {
+      path: "/o/sonnenhoehe/camps/browser-testcamp/logistik",
+      heading: "Material & Einkaufslisten",
+    },
+  ]) {
+    await page.goto(target.path);
+    await expect(
+      page.getByRole("heading", { name: target.heading, level: 1 }),
+    ).toBeVisible();
+    await page.addStyleTag({ content: ":root { font-size: 200%; }" });
+    await expect(
+      page.getByRole("heading", { name: target.heading, level: 1 }),
+    ).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await assertAxe(page);
+  }
+  await capture(page, testInfo, "textvergroesserung");
+
+  const zoomed = page.viewportSize();
+  if (zoomed) {
+    await page.setViewportSize({
+      width: Math.max(320, Math.round(zoomed.width / 4)),
+      height: Math.max(256, Math.round(zoomed.height / 4)),
+    });
+    await page.goto("/o/sonnenhoehe/verwaltung/team");
+    await expect(
+      page.getByRole("heading", { name: "Team verwalten", level: 1 }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Person einladen" }),
+    ).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await assertAxe(page);
+    await capture(page, testInfo, "vierhundert-prozent-zoom");
+    await page.setViewportSize(zoomed);
+  }
+});
+
+test("@smoke forced colors and reduced motion keep navigation, dialogs and focus usable", async ({
+  page,
+}, testInfo) => {
+  await page.emulateMedia({ forcedColors: "active", reducedMotion: "reduce" });
+  await page.goto("/o/sonnenhoehe/verwaltung/team");
+  await expect(
+    page.getByRole("heading", { name: "Team verwalten", level: 1 }),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "Organisationsverwaltung" })
+      .getByRole("link", { name: "Team & Rechte" }),
+  ).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertAxe(page);
+
+  await page.getByRole("button", { name: "Person einladen" }).click();
+  const invitation = page.getByRole("dialog", { name: "Person einladen" });
+  await expect(invitation).toBeVisible();
+  await expect(
+    invitation.getByRole("combobox", {
+      name: "Rolle des nächsten Einladungslinks",
+    }),
+  ).toBeFocused();
+  await assertAxe(page);
+  await capture(page, testInfo, "forced-colors");
+  await page.keyboard.press("Escape");
+  await expect(invitation).toHaveCount(0);
+  await page.emulateMedia({ forcedColors: null, reducedMotion: null });
+});
+
 async function assertAxe(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"])
@@ -577,7 +741,12 @@ async function assertNoHorizontalOverflow(page: Page) {
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
   const updatePrompt = page.getByRole("button", { name: "Hinweis schließen" });
-  if ((await updatePrompt.count()) > 0 && (await updatePrompt.isVisible())) {
+  const modalOpen = await page.locator("dialog[open]").count();
+  if (
+    modalOpen === 0 &&
+    (await updatePrompt.count()) > 0 &&
+    (await updatePrompt.isVisible())
+  ) {
     await updatePrompt.click();
   }
   const artifact = testInfo.outputPath(`${name}.png`);
@@ -589,7 +758,9 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 
   if (
     process.env.UPDATE_HELP_SCREENSHOTS === "1" &&
-    testInfo.project.name === "chromium-desktop" &&
+    new Set(["chromium-desktop", "chrome-desktop"]).has(
+      testInfo.project.name,
+    ) &&
     new Set(["anmeldung", "freizeiten", "uebersicht", "tagesplan"]).has(name)
   ) {
     const helpDirectory = path.resolve("src/Help/docs/public/screenshots");

@@ -61,3 +61,10 @@
   share Camps/Team & rights navigation at the canonical `/o/{slug}/verwaltung/team` route; both legacy member routes
   redirect there. User rows disclose role controls only after focused selection, while global suspension,
   Organization suspension and SuperAdmin demotion require an explicit impact confirmation.
+- Administration web layout: `src/Web/src/UserAdministrationPage.tsx` owns the two exported entry points, loading and
+  the versioned mutations. `src/Web/src/administration/` holds the invitation dialog, the focused
+  account/platform/Organization/Camp detail groups, the destructive confirmation dialog and one `support.ts` with the
+  shared view types, status constants and `If-Match` header helper.
+- Administration error handling: an expired session is detected from the response status before any body check, so the
+  user list returns to the login route instead of showing a generic load failure. A denied scope and a rejected stale
+  version keep the current selection and explain the conflict without exposing other accounts.
