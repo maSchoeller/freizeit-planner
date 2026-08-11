@@ -36,7 +36,7 @@ export default async function globalSetup(config: FullConfig) {
     await page.goto("/anmelden");
     await page.getByLabel("E-Mail-Adresse").fill(email);
     await page.getByLabel("Passwort", { exact: true }).fill(password);
-    await page.getByRole("checkbox", { name: /Angemeldet bleiben/ }).check();
+    await page.getByRole("checkbox", { name: /angemeldet bleiben/i }).check();
     const loginResponsePromise = page.waitForResponse(
       (response) =>
         response.url().endsWith("/api/v1/auth/login") &&

@@ -102,7 +102,7 @@ test("@smoke password login is responsive, keyboard operable and accessible", as
 
   await page.getByLabel("E-Mail-Adresse").fill(browserUserEmail);
   await page.getByLabel("Passwort", { exact: true }).fill(browserUserPassword);
-  await page.getByRole("checkbox", { name: /Angemeldet bleiben/ }).check();
+  await page.getByRole("checkbox", { name: /angemeldet bleiben/i }).check();
   const loginResponsePromise = page.waitForResponse(
     (response) =>
       response.url().endsWith("/api/v1/auth/login") &&
