@@ -65,6 +65,32 @@ try {
     }
 
     Invoke-Psql -Sql @'
+BEGIN;
+SET LOCAL ROLE freizeit_app;
+SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000006', true);
+SELECT set_config('app.operation', 'invitation_acceptance', true);
+DO $assert$
+BEGIN
+    IF (SELECT count(*) FROM identity.organizations) <> 1 THEN
+        RAISE EXCEPTION 'invitation acceptance cannot resolve its target organization';
+    END IF;
+END
+$assert$;
+INSERT INTO identity.organizations ("Id", "Name", "Slug", "Status", "Version")
+VALUES ('20000000-0000-0000-0000-000000000098', 'Einladungs-Organization', 'einladungs-organization', 0, 1);
+INSERT INTO identity.memberships
+    (organization_id, user_id, "Role", "IsActive", "Version", "Status", "OrganizationRole")
+VALUES
+    ('20000000-0000-0000-0000-000000000098', '10000000-0000-0000-0000-000000000006', 4, true, 1, 0, 0);
+INSERT INTO identity.camp_assignments
+    (camp_id, user_id, "CampRole", "IsActive", organization_id, "Role", "Version")
+VALUES
+    ('30000000-0000-0000-0000-000000000098', '10000000-0000-0000-0000-000000000006', 1, true,
+     '20000000-0000-0000-0000-000000000098', 2, 1);
+ROLLBACK;
+'@ | Out-Null
+
+    Invoke-Psql -Sql @'
 INSERT INTO identity.organizations ("Id", "Name", "Slug", "Status", "Version")
 VALUES ('20000000-0000-0000-0000-000000000002', 'Fremder Veranstalter', 'fremd', 0, 1);
 INSERT INTO identity.memberships (organization_id, user_id, "Role", "IsActive", "Version")

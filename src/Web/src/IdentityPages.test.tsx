@@ -448,9 +448,11 @@ describe("identity self-service pages", () => {
 
   it("lets a signed-in user attach a grant to the existing global account", async () => {
     const user = userEvent.setup();
+    let refreshCompleted = false;
+    let authenticatedAntiforgeryRequested = false;
     vi.stubGlobal(
       "fetch",
-      routeFetch(({ path, method }) => {
+      routeFetch(({ path, method, headers }) => {
         if (path === "/api/v1/invitations/bestehend/preview")
           return json({
             grant: {
@@ -465,9 +467,16 @@ describe("identity self-service pages", () => {
             expiresAt: "2026-08-13T12:00:00Z",
             status: 0,
           });
-        if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
-        if (path === "/api/v1/auth/refresh" && method === "POST")
+        if (path === "/api/v1/auth/antiforgery") {
+          if (refreshCompleted)
+            authenticatedAntiforgeryRequested =
+              headers.get("Authorization") === "Bearer restored.jwt";
+          return json({ token: "csrf" });
+        }
+        if (path === "/api/v1/auth/refresh" && method === "POST") {
+          refreshCompleted = true;
           return json({ accessToken: "restored.jwt" });
+        }
         if (
           path === "/api/v1/invitations/bestehend/accept" &&
           method === "POST"
@@ -485,6 +494,7 @@ describe("identity self-service pages", () => {
     await expect(
       screen.findByRole("heading", { name: "Einladung angenommen" }),
     ).resolves.toBeInTheDocument();
+    expect(authenticatedAntiforgeryRequested).toBe(true);
     expect(screen.queryByLabelText("E-Mail-Adresse")).not.toBeInTheDocument();
   });
 
@@ -664,6 +674,7 @@ function routeFetch(
     path: string;
     method: string;
     body: string;
+    headers: Headers;
   }) => Response,
 ) {
   return vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -681,10 +692,13 @@ function routeFetch(
         : typeof init?.body === "string"
           ? init.body
           : "";
+    const headers =
+      input instanceof Request ? input.headers : new Headers(init?.headers);
     return handler({
       path: new URL(url, "https://localhost").pathname,
       method,
       body,
+      headers,
     });
   });
 }

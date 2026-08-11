@@ -73,7 +73,8 @@ internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
     {
         if (HttpMethods.IsPost(request.Method)
             && request.Path.StartsWithSegments("/api/v1/invitations")
-            && request.Path.Value?.EndsWith("/accept", StringComparison.Ordinal) == true)
+            && (request.Path == "/api/v1/invitations/confirm"
+                || request.Path.Value?.EndsWith("/accept", StringComparison.Ordinal) == true))
         {
             return "invitation_acceptance";
         }

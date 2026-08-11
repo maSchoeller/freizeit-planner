@@ -11,6 +11,8 @@ import path from "node:path";
 
 const browserUserEmail = "miriam@example.test";
 const browserUserPassword = "Browser-Testpasswort 2026!";
+const browserSuperAdminEmail = "superadmin@example.test";
+const browserSuperAdminPassword = "Browser-Superadminpasswort 2026!";
 type WorkerAuthentication = {
   accessToken: string;
   storageState: {
@@ -232,6 +234,48 @@ test("@smoke Superadmin and Orgadmin user pages are responsive and accessible", 
   } finally {
     await api.dispose();
   }
+});
+
+test("@smoke Superadmin creates an Organization setup link after UI login", async ({
+  page,
+  context,
+}, testInfo) => {
+  await context.setExtraHTTPHeaders({});
+  await page.goto("/anmelden");
+  await page.getByLabel("E-Mail-Adresse").fill(browserSuperAdminEmail);
+  await page
+    .getByLabel("Passwort", { exact: true })
+    .fill(browserSuperAdminPassword);
+  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  await expect(page).not.toHaveURL(/\/anmelden$/);
+
+  await page.goto("/superadmin/organisationen");
+  await expect(
+    page.getByRole("heading", { name: "Organizations" }),
+  ).toBeVisible();
+  await page.getByLabel("Name", { exact: true }).fill("Browser Organization");
+  await page
+    .getByLabel("Kurzname für die URL", { exact: true })
+    .fill(`browser-organization-${testInfo.project.name}`);
+  const linkResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/invitations/links") &&
+      response.request().method() === "POST" &&
+      response.status() === 201,
+  );
+  await page.getByRole("button", { name: "Einrichtungslink kopieren" }).click();
+
+  expect((await linkResponse).status()).toBe(201);
+  await expect(page.getByText(/Einrichtungslink wurde kopiert:/)).toBeVisible();
+  const invitationUrl = await page.locator(".copy-value").textContent();
+  expect(invitationUrl).toBeTruthy();
+  await page.goto(invitationUrl!);
+  await page.getByRole("button", { name: "Einladung annehmen" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Einladung angenommen" }),
+  ).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertAxe(page);
 });
 
 function requireSuperAdminAccessToken(): string {

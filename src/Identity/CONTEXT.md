@@ -19,6 +19,9 @@
   minutes. Access JWTs are asymmetric, expire after 15 minutes and remain only in browser memory. The strict,
   HttpOnly refresh cookie rotates against an HMAC hash in the revocable server session. Reuse revokes that family.
   A standard session lasts at most 12 hours; an opted-in session slides by 30 days.
+- Browser antiforgery: authenticated mutations request their CSRF token through the in-memory Bearer-aware API path
+  so ASP.NET Core binds token issuance and validation to the same current user. Anonymous login, reset, registration
+  and First Login requests continue through the same endpoint without an access token.
 - Password maintenance: reset requests are non-disclosing. A random reset token is stored only as an HMAC hash,
   expires after 60 minutes and is single-use. Reset and authenticated password change replace the security stamp
   and revoke every session. Password reauthentication updates only the current active session and is valid for ten

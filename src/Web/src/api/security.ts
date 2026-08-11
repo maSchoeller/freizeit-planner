@@ -1,5 +1,9 @@
+import { authenticatedFetch } from "./authentication";
+
 export async function getAntiforgeryToken(): Promise<string> {
-  const response = await fetch("/api/v1/auth/antiforgery");
+  const response = await authenticatedFetch("/api/v1/auth/antiforgery", {
+    credentials: "same-origin",
+  });
   if (!response.ok)
     throw new Error("Sicherheits-Token konnte nicht geladen werden.");
   const value: unknown = await response.json();

@@ -3,6 +3,7 @@ var builder = DistributedApplication.CreateBuilder(args);
 var database = builder
     .AddPostgres("postgres")
     .WithImageTag("17")
+    .WithDataVolume("freizeit-cockpit-postgres-data")
     .AddDatabase("freizeit");
 
 var storage = builder.AddAzureStorage("storage").RunAsEmulator();
