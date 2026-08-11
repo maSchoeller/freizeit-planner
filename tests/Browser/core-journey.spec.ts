@@ -132,7 +132,7 @@ test("member signs in with a persistent refresh session and reaches the camp ove
   await restartedPage.goto("/o/sonnenhoehe/camps");
 
   await expect(
-    restartedPage.getByRole("heading", { name: "Camps" }),
+    restartedPage.getByRole("heading", { name: "Freizeiten" }),
   ).toBeVisible();
   await assertNoHorizontalOverflow(restartedPage);
   await assertAxe(restartedPage);
