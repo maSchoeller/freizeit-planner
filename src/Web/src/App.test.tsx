@@ -185,8 +185,11 @@ describe("Dashboard", () => {
                 id: "10000000-0000-0000-0000-000000000001",
                 email: "lea@example.test",
                 displayName: "Lea Beispiel",
+                firstName: "Lea",
+                lastName: "Beispiel",
                 deletionScheduledAt: null,
-                isPlatformAdmin: false,
+                isSuperAdmin: false,
+                version: 1,
               }),
               { status: 200, headers: { "Content-Type": "application/json" } },
             ),
@@ -256,9 +259,9 @@ describe("Dashboard", () => {
     );
   });
 
-  it("explains the platform metadata boundary", () => {
+  it("explains the Superadmin metadata boundary", () => {
     render(
-      <MemoryRouter initialEntries={["/plattform/organisationen"]}>
+      <MemoryRouter initialEntries={["/superadmin/organisationen"]}>
         <App />
       </MemoryRouter>,
     );

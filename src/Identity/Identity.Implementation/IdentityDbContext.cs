@@ -14,8 +14,6 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 
     public bool IsSuperAdmin { get; set; }
 
-    public bool IsPlatformAdmin { get; set; }
-
     public Identity.Contracts.AccountStatus AccountStatus { get; set; }
 
     public long Version { get; set; } = 1;
@@ -28,13 +26,13 @@ public sealed class ApplicationUser : IdentityUser<Guid>
 public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options)
 {
-    internal DbSet<LoginChallengeEntity> LoginChallenges => Set<LoginChallengeEntity>();
-
     internal DbSet<LoginSessionEntity> LoginSessions => Set<LoginSessionEntity>();
 
     internal DbSet<LoginRateEventEntity> LoginRateEvents => Set<LoginRateEventEntity>();
 
     internal DbSet<PasswordResetTokenEntity> PasswordResetTokens => Set<PasswordResetTokenEntity>();
+
+    internal DbSet<IdentityInitializationEntity> IdentityInitialization => Set<IdentityInitializationEntity>();
 
     internal DbSet<OrganizationEntity> Organizations => Set<OrganizationEntity>();
 
@@ -70,14 +68,6 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
         builder.Entity<IdentityRoleClaim<Guid>>().ToTable("role_claims");
         builder.Entity<IdentityUserToken<Guid>>().ToTable("user_tokens");
 
-        builder.Entity<LoginChallengeEntity>(entity =>
-        {
-            entity.ToTable("login_challenges");
-            entity.HasKey(item => item.Id);
-            entity.HasIndex(item => item.NormalizedEmail).IsUnique();
-            entity.Property(item => item.NormalizedEmail).HasMaxLength(320);
-            entity.Property(item => item.CodeHash).HasMaxLength(64);
-        });
         builder.Entity<LoginSessionEntity>(entity =>
         {
             entity.ToTable("login_sessions");
@@ -106,6 +96,11 @@ public sealed class IdentityDbContext(DbContextOptions<IdentityDbContext> option
                 .WithMany()
                 .HasForeignKey(item => item.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+        });
+        builder.Entity<IdentityInitializationEntity>(entity =>
+        {
+            entity.ToTable("initialization");
+            entity.HasKey(item => item.Id);
         });
         builder.Entity<OrganizationEntity>(entity =>
         {
@@ -215,6 +210,10 @@ internal sealed class MembershipEntity
 
     public Identity.Contracts.TenantRole Role { get; set; }
 
+    public Identity.Contracts.MembershipStatus Status { get; set; }
+
+    public Identity.Contracts.OrganizationRole? OrganizationRole { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     public long Version { get; set; } = 1;
@@ -229,6 +228,8 @@ internal sealed class CampAssignmentEntity
     public Guid UserId { get; set; }
 
     public Identity.Contracts.TenantRole Role { get; set; }
+
+    public Identity.Contracts.CampRole CampRole { get; set; }
 
     public bool IsActive { get; set; } = true;
 
@@ -320,23 +321,6 @@ internal sealed class InvitationRegistrationEntity
     public DateTimeOffset? UsedAt { get; set; }
 }
 
-internal sealed class LoginChallengeEntity
-{
-    public Guid Id { get; set; }
-
-    public Guid UserId { get; set; }
-
-    public required string NormalizedEmail { get; set; }
-
-    public required string CodeHash { get; set; }
-
-    public DateTimeOffset ExpiresAt { get; set; }
-
-    public int FailedAttempts { get; set; }
-
-    public DateTimeOffset? UsedAt { get; set; }
-}
-
 internal sealed class EmailChangeChallengeEntity
 {
     public Guid UserId { get; set; }
@@ -399,4 +383,11 @@ internal sealed class PasswordResetTokenEntity
     public DateTimeOffset ExpiresAt { get; set; }
 
     public DateTimeOffset? UsedAt { get; set; }
+}
+
+internal sealed class IdentityInitializationEntity
+{
+    public int Id { get; set; }
+
+    public DateTimeOffset CompletedAt { get; set; }
 }

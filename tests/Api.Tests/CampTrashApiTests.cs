@@ -5,7 +5,6 @@ using System.Text.Json;
 using Camps.Contracts;
 using Catering.Contracts;
 using Files.Contracts;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Knowledge.Contracts;
@@ -25,15 +24,12 @@ public sealed class CampTrashApiTests
     [Fact]
     public async Task CampManagerReceivesOneChronologicalTrashAcrossModules()
     {
-        var sender = new CapturingSender();
         var trash = new TrashFake();
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<ICampNotebook>();
                 services.RemoveAll<IDevotionPlanning>();
                 services.RemoveAll<IAttachmentCatalog>();
@@ -41,8 +37,6 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<IShoppingPlanning>();
                 services.RemoveAll<ISchedulePlanning>();
                 services.RemoveAll<ICampMealPlanning>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
                 services.AddSingleton<IDevotionPlanning>(trash);
                 services.AddSingleton<IAttachmentCatalog>(trash);
@@ -59,7 +53,7 @@ public sealed class CampTrashApiTests
             HandleCookies = true
         });
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, sender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
             $"/api/v1/organizations/{trash.OrganizationId}/camps/{trash.CampId}/trash",
@@ -83,15 +77,12 @@ public sealed class CampTrashApiTests
     [InlineData("Catering")]
     public async Task CampTrashReturnsAForbiddenProblemForModuleAccessDenial(string failingModule)
     {
-        var sender = new CapturingSender();
         var trash = new TrashFake(failingModule);
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<ICampNotebook>();
                 services.RemoveAll<IDevotionPlanning>();
                 services.RemoveAll<IAttachmentCatalog>();
@@ -99,8 +90,6 @@ public sealed class CampTrashApiTests
                 services.RemoveAll<IShoppingPlanning>();
                 services.RemoveAll<ISchedulePlanning>();
                 services.RemoveAll<ICampMealPlanning>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampNotebook>(trash);
                 services.AddSingleton<IDevotionPlanning>(trash);
                 services.AddSingleton<IAttachmentCatalog>(trash);
@@ -117,7 +106,7 @@ public sealed class CampTrashApiTests
             HandleCookies = true
         });
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, sender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
             $"/api/v1/organizations/{trash.OrganizationId}/camps/{trash.CampId}/trash",
@@ -130,7 +119,6 @@ public sealed class CampTrashApiTests
 
     private static Task LoginAsync(
         HttpClient client,
-        CapturingSender sender,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -156,18 +144,6 @@ public sealed class CampTrashApiTests
     }
 
     private sealed record AntiforgeryResponse(string Token);
-
-    private sealed class CapturingSender : ILoginCodeSender
-    {
-        public List<string> Codes { get; } = [];
-
-        public Task SendAsync(string email, string code, DateTimeOffset expiresAt,
-            CancellationToken cancellationToken)
-        {
-            Codes.Add(code);
-            return Task.CompletedTask;
-        }
-    }
 
     private sealed class TrashFake(string? failingModule = null) : ICampNotebook, IDevotionPlanning, IAttachmentCatalog, IMaterialPlanning,
         IShoppingPlanning, ISchedulePlanning, ICampMealPlanning

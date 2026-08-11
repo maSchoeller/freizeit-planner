@@ -58,6 +58,9 @@ public sealed class InitialSuperAdminRegistrationTests
             user.PasswordHash,
             "Eine sichere Admin-Passphrase"));
         Assert.False(await service.IsAvailableAsync(cancellationToken));
+        database.Users.Remove(user);
+        await database.SaveChangesAsync(cancellationToken);
+        Assert.False(await service.IsAvailableAsync(cancellationToken));
     }
 
     [Fact]

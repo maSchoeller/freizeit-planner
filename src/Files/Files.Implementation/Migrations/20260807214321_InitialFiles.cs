@@ -139,24 +139,22 @@ namespace Files.Implementation.Migrations
                         AND nullif(current_setting('app.organization_id', true), '')::uuid = target_organization_id
                         AND (target_camp_id IS NULL
                              OR nullif(current_setting('app.camp_id', true), '')::uuid = target_camp_id)
-                        AND NOT EXISTS (
-                            SELECT 1
-                            FROM identity.users AS users
-                            WHERE users."Id" = nullif(current_setting('app.user_id', true), '')::uuid
-                              AND users."IsPlatformAdmin")
                         AND EXISTS (
                             SELECT 1
                             FROM identity.organizations AS organizations
                             JOIN identity.memberships AS memberships
                               ON memberships.organization_id = organizations."Id"
+                            JOIN identity.users AS users
+                              ON users."Id" = memberships.user_id
                             WHERE organizations."Id" = target_organization_id
                               AND organizations."Status" = 0
+                              AND users."AccountStatus" = 0
                               AND memberships.user_id = nullif(current_setting('app.user_id', true), '')::uuid
-                              AND memberships."IsActive"
+                              AND memberships."Status" = 0
                               AND CASE
                                   WHEN target_camp_id IS NULL THEN
-                                      NOT require_write OR memberships."Role" IN (0, 1)
-                                  WHEN memberships."Role" IN (0, 1) THEN
+                                      NOT require_write OR memberships."OrganizationRole" = 0
+                                  WHEN memberships."OrganizationRole" = 0 THEN
                                       true
                                   ELSE EXISTS (
                                       SELECT 1
@@ -165,7 +163,7 @@ namespace Files.Implementation.Migrations
                                         AND assignments.camp_id = target_camp_id
                                         AND assignments.user_id = memberships.user_id
                                         AND assignments."IsActive"
-                                        AND (NOT require_write OR assignments."Role" IN (2, 3)))
+                                        AND (NOT require_write OR assignments."CampRole" IN (0, 1)))
                               END);
                 $function$;
 

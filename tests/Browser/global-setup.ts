@@ -1,8 +1,8 @@
-import { chromium, expect, type FullConfig } from "@playwright/test";
+import { chromium, expect, request, type FullConfig } from "@playwright/test";
 
 const email = "miriam@example.test";
 const password = "Browser-Testpasswort 2026!";
-const superAdminEmail = "platform-admin@example.test";
+const superAdminEmail = "superadmin@example.test";
 const superAdminPassword = "Browser-Superadminpasswort 2026!";
 
 export default async function globalSetup(config: FullConfig) {
@@ -37,8 +37,48 @@ export default async function globalSetup(config: FullConfig) {
     await page.getByLabel("E-Mail-Adresse").fill(email);
     await page.getByLabel("Passwort", { exact: true }).fill(password);
     await page.getByRole("checkbox", { name: /Angemeldet bleiben/ }).check();
+    const loginResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/auth/login") &&
+        response.request().method() === "POST",
+    );
     await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+    const loginResponse = await loginResponsePromise;
+    expect(loginResponse.ok()).toBe(true);
+    const memberAuthentication = (await loginResponse.json()) as {
+      accessToken: string;
+    };
     await expect(page).not.toHaveURL(/\/anmelden$/);
+
+    process.env.BROWSER_MEMBER_ACCESS_TOKEN = memberAuthentication.accessToken;
+    process.env.BROWSER_MEMBER_STORAGE_STATE = JSON.stringify(
+      await page.context().storageState(),
+    );
+
+    const api = await request.newContext({ baseURL });
+    try {
+      const antiforgeryResponse = await api.get("/api/v1/auth/antiforgery");
+      expect(antiforgeryResponse.ok()).toBe(true);
+      const antiforgery = (await antiforgeryResponse.json()) as {
+        token: string;
+      };
+      const superAdminLogin = await api.post("/api/v1/auth/login", {
+        headers: { "X-CSRF-TOKEN": antiforgery.token },
+        data: {
+          email: superAdminEmail,
+          password: superAdminPassword,
+          rememberMe: false,
+        },
+      });
+      expect(superAdminLogin.ok()).toBe(true);
+      const superAdminAuthentication = (await superAdminLogin.json()) as {
+        accessToken: string;
+      };
+      process.env.BROWSER_SUPERADMIN_ACCESS_TOKEN =
+        superAdminAuthentication.accessToken;
+    } finally {
+      await api.dispose();
+    }
 
     await page.goto("/o/sonnenhoehe/camps");
     await expect(page.getByRole("heading", { name: "Camps" })).toBeVisible();

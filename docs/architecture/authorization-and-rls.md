@@ -1,8 +1,8 @@
 # Authorization and row-level security
 
-Identity exposes three role-oriented interfaces. `ITenantAccessControl` decides organization and camp actions,
-`ITenantAdministration` changes memberships and camp assignments, and `IPlatformAdministration` lists only
-organization metadata and changes suspension status. HTTP handlers never infer permission from responsibility or
+Identity exposes role-oriented interfaces. `ITenantAccessControl` decides organization and camp actions,
+`ITenantAdministration` changes memberships and camp assignments, `ISuperAdminOrganizationAdministration` changes
+organization status, and `IUserAdministration` manages global and scoped account rights. HTTP handlers never infer permission from responsibility or
 from a client-supplied role. Every mutable membership, assignment, invitation, and organization row has an
 application-managed version used through `ETag` and `If-Match`.
 
@@ -12,15 +12,16 @@ connection interceptor selects the `freizeit_app` runtime role, which is created
 Transaction-local values prevent pooled-connection context leakage.
 
 PostgreSQL forces RLS on organizations, memberships, camp assignments, and invitations. Security-definer predicate
-functions read the authoritative user, membership, organization-status, and camp-assignment rows. They deny tenant
-access to Platform Admin accounts, deny suspended organizations, restrict lower roles to their own membership and
-camp assignment, and permit broader rows only for Owner/Admin or the current camp's Camp Lead. Platform operations
-can read organization metadata only after an independent Platform Admin check and never receive membership or camp
-rows. Invitation acceptance and first-Organization creation use named, endpoint-specific policy exceptions.
+functions read the authoritative user, membership, organization-status, and camp-assignment rows. They deny globally
+suspended accounts and suspended organizations, restrict lower roles to their own membership and camp assignment,
+and permit broader rows only for OrganizationAdmin or the current camp's CampLead. SuperAdmin status alone never
+grants tenant-content access; an explicit active Organization membership remains mandatory. Named `platform_admin`
+operations allow current SuperAdmins to administer identity metadata across tenants. Invitation acceptance uses a
+narrow endpoint-specific policy exception.
 
 `scripts/test-rls.ps1` creates an isolated PostgreSQL 17 container, migrates and seeds it, asserts that the runtime
 role has neither superuser nor bypass-RLS capability, then proves own-row visibility, foreign read/write denial,
-Platform Admin isolation, suspension, platform metadata boundaries, and transaction-context cleanup.
+SuperAdmin content isolation, global and organization suspension, administration boundaries, and transaction-context cleanup.
 
 The separate `freizeit_jobs` non-login role also cannot bypass RLS. It receives no INSERT or DDL rights; named
 per-table policies permit only cross-tenant SELECT, UPDATE, and DELETE for deterministic retention and erasure. The

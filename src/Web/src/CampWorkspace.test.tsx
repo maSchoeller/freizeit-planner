@@ -216,8 +216,11 @@ describe("camp workspace", () => {
           id: userId,
           email: "lea@example.test",
           displayName: "Lea Beispiel",
+          firstName: "Lea",
+          lastName: "Beispiel",
           deletionScheduledAt: null,
-          isPlatformAdmin: false,
+          isSuperAdmin: false,
+          version: 1,
         };
       else if (path.includes("/schedule?"))
         body = [

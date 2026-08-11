@@ -1,6 +1,6 @@
 # Konto verwalten
 
-Öffne über dein Kürzel oben rechts **Mein Konto**. Dort kannst du deinen Anzeigenamen und deine
+Öffne über dein Kürzel oben rechts **Mein Konto**. Dort kannst du Vor- und Nachname sowie deine
 Anmelde-E-Mail-Adresse ändern, Mitgliedschaften verlassen und dein Konto zur Löschung vormerken.
 
 ## E-Mail-Adresse ändern
@@ -14,11 +14,11 @@ und wird nach fünf falschen Eingaben gesperrt.
 
 ## Mitgliedschaft verlassen
 
-Du kannst eine Organisation verlassen, sofern dadurch mindestens ein aktiver Owner bestehen bleibt. Als letzter
-Owner übergibst du die Owner-Rolle daher zuerst an eine andere Person.
+Du kannst eine Organisation jederzeit verlassen. Eine Organisation darf danach auch vorübergehend ohne Orgadmin
+bestehen; ein Superadmin kann später wieder Orgadmin-Rechte vergeben.
 
 ## Konto löschen
 
 Die Löschung wird zunächst für 30 Tage vorgemerkt und kann in dieser Zeit abgebrochen werden. Danach entfernt der
-Bereinigungsprozess die personenbezogenen und fachlichen Daten dauerhaft. Auch diese Vormerkung ist für den letzten
-aktiven Owner gesperrt.
+Bereinigungsprozess die personenbezogenen und fachlichen Daten dauerhaft. Ist das Konto der letzte aktive
+Superadmin, müssen die Superadmin-Rechte zuvor an eine andere aktive Person übergeben werden.

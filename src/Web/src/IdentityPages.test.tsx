@@ -109,8 +109,11 @@ describe("identity self-service pages", () => {
       id: "10000000-0000-0000-0000-000000000001",
       email: "miriam@example.test",
       displayName: "Miriam König",
+      firstName: "Miriam",
+      lastName: "König",
       deletionScheduledAt: null,
-      isPlatformAdmin: false,
+      isSuperAdmin: false,
+      version: 1,
     };
     const fetchMock = routeFetch(({ path, method }) => {
       if (path === "/api/v1/account" && method === "GET") return json(account);
@@ -120,12 +123,18 @@ describe("identity self-service pages", () => {
             organizationId,
             organizationName: "CVJM Sonnenhöhe",
             organizationSlug: "sonnenhoehe",
-            role: 0,
+            role: 1,
           },
         ]);
       if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
       if (path === "/api/v1/account/profile" && method === "PATCH")
-        return json({ ...account, displayName: "Miriam Neu" });
+        return json({
+          ...account,
+          displayName: "Miriam Neu",
+          firstName: "Miriam",
+          lastName: "Neu",
+          version: 2,
+        });
       if (path === "/api/v1/account/email-change" && method === "POST")
         return json({ message: "Code versendet" }, 202);
       if (path === "/api/v1/account/email-change/confirm" && method === "POST")
@@ -142,13 +151,11 @@ describe("identity self-service pages", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     renderRoute("/konto");
-    const name = await screen.findByLabelText("Anzeigename");
-    await user.clear(name);
-    await user.type(name, "Miriam Neu");
-    await user.click(
-      screen.getByRole("button", { name: "Anzeigename speichern" }),
-    );
-    await waitFor(() => expect(name).toHaveValue("Miriam Neu"));
+    const lastName = await screen.findByLabelText("Nachname");
+    await user.clear(lastName);
+    await user.type(lastName, "Neu");
+    await user.click(screen.getByRole("button", { name: "Namen speichern" }));
+    await waitFor(() => expect(lastName).toHaveValue("Neu"));
 
     await user.type(
       screen.getByLabelText("Neue E-Mail-Adresse"),
@@ -202,8 +209,11 @@ describe("identity self-service pages", () => {
             id: userId,
             email: "admin@example.test",
             displayName: "Admin",
+            firstName: "Super",
+            lastName: "Admin",
             deletionScheduledAt: "2026-08-09T12:00:00Z",
-            isPlatformAdmin: true,
+            isSuperAdmin: true,
+            version: 1,
           });
         if (path === "/api/v1/account/memberships") return json([]);
         if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
@@ -228,14 +238,12 @@ describe("identity self-service pages", () => {
     await expect(
       screen.findByRole("button", { name: "Konto zur Löschung vormerken" }),
     ).resolves.toBeInTheDocument();
-    await user.click(
-      screen.getByRole("button", { name: "Anzeigename speichern" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Namen speichern" }));
     await expect(screen.findByRole("alert")).resolves.toHaveTextContent(
       "Der Name ist bereits vergeben.",
     );
     expect(
-      screen.getByRole("link", { name: /Organizations auf Plattformebene/ }),
+      screen.getByRole("link", { name: /Superadmin-Verwaltung öffnen/ }),
     ).toBeInTheDocument();
   });
 
@@ -599,12 +607,12 @@ describe("identity self-service pages", () => {
     );
   });
 
-  it("changes platform metadata without exposing tenant content", async () => {
+  it("changes organization metadata without exposing tenant content", async () => {
     const user = userEvent.setup();
     vi.stubGlobal(
       "fetch",
       routeFetch(({ path, method }) => {
-        if (path === "/api/v1/platform/organizations" && method === "GET")
+        if (path === "/api/v1/superadmin/organizations" && method === "GET")
           return json([
             {
               organizationId,
@@ -616,7 +624,7 @@ describe("identity self-service pages", () => {
           ]);
         if (path === "/api/v1/auth/antiforgery") return json({ token: "csrf" });
         if (
-          path.endsWith(`/platform/organizations/${organizationId}/status`) &&
+          path.endsWith(`/superadmin/organizations/${organizationId}/status`) &&
           method === "PATCH"
         )
           return json({ status: 1, version: 3 });
@@ -624,7 +632,7 @@ describe("identity self-service pages", () => {
       }),
     );
 
-    renderRoute("/plattform/organisationen");
+    renderRoute("/superadmin/organisationen");
     const item = await screen.findByText("CVJM Sonnenhöhe");
     const row = item.closest("li");
     expect(row).not.toBeNull();

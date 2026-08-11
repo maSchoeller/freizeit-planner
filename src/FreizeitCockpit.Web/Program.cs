@@ -137,20 +137,10 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use First Login must supply IInitialSuperAdminRegistration."));
     builder.Services.AddScoped<IPasswordMaintenance>(_ =>
         throw new InvalidOperationException("Tests that maintain passwords must supply IPasswordMaintenance."));
-    builder.Services.AddSingleton<IPasswordlessState>(_ =>
-        throw new InvalidOperationException("Tests that use authentication must supply IPasswordlessState."));
-    builder.Services.AddSingleton<ILoginCodeSender>(_ =>
-        throw new InvalidOperationException("Tests that request codes must supply ILoginCodeSender."));
     builder.Services.AddSingleton<IEmailChangeCodeSender>(_ =>
         throw new InvalidOperationException("Tests that send email-change codes must supply IEmailChangeCodeSender."));
-    builder.Services.AddSingleton<IInvitationSender>(_ =>
-        throw new InvalidOperationException("Tests that send invitations must supply IInvitationSender."));
     builder.Services.AddSingleton<IPasswordResetSender>(_ =>
         throw new InvalidOperationException("Tests that send password resets must supply IPasswordResetSender."));
-    builder.Services.AddSingleton<IPasswordlessLogin>(services =>
-        CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
-    builder.Services.AddScoped<IInvitationLifecycle>(_ =>
-        throw new InvalidOperationException("Tests that use invitation endpoints must supply IInvitationLifecycle."));
     builder.Services.AddScoped<ITransferableInvitationLinks>(_ =>
         throw new InvalidOperationException("Tests that use transferable invitations must supply ITransferableInvitationLinks."));
     builder.Services.AddScoped<IInvitationRegistration>(_ =>
@@ -167,8 +157,10 @@ if (builder.Environment.IsEnvironment("Testing") || isOpenApiGeneration)
         throw new InvalidOperationException("Tests that use tenant administration must supply ITenantAdministration."));
     builder.Services.AddScoped<ICampMemberDirectory>(_ =>
         throw new InvalidOperationException("Tests that use the camp member directory must supply ICampMemberDirectory."));
-    builder.Services.AddScoped<IPlatformAdministration>(_ =>
-        throw new InvalidOperationException("Tests that use platform administration must supply IPlatformAdministration."));
+    builder.Services.AddScoped<ISuperAdminOrganizationAdministration>(_ =>
+        throw new InvalidOperationException("Tests that use platform administration must supply ISuperAdminOrganizationAdministration."));
+    builder.Services.AddScoped<IUserAdministration>(_ =>
+        throw new InvalidOperationException("Tests that use user administration must supply IUserAdministration."));
     builder.Services.AddScoped<ICampManagement>(_ =>
         throw new InvalidOperationException("Tests that use camp management must supply ICampManagement."));
     builder.Services.AddScoped<ICampPlanningDefaults>(_ =>
@@ -251,22 +243,15 @@ else
     builder.Services.AddSingleton<IPasswordResetSender, SmtpPasswordResetSender>();
     builder.Services.AddScoped<IPasswordMaintenance>(services =>
         CreatePasswordMaintenance(services, builder.Configuration, builder.Environment));
-    builder.Services.AddScoped<IPasswordlessState, EfPasswordlessState>();
     builder.Services.AddScoped<EfIdentityLifecycleState>();
     builder.Services.AddScoped<IIdentityLifecycleState>(services =>
         services.GetRequiredService<EfIdentityLifecycleState>());
     builder.Services.AddScoped<ITenantAuthorizationState>(services =>
         services.GetRequiredService<EfIdentityLifecycleState>());
     builder.Services.AddScoped<IEmailChangeState, EfEmailChangeState>();
-    builder.Services.AddSingleton<ILoginCodeSender, SmtpLoginCodeSender>();
     builder.Services.AddSingleton<IEmailChangeCodeSender, SmtpEmailChangeCodeSender>();
-    builder.Services.AddSingleton<IInvitationSender, SmtpInvitationSender>();
-    builder.Services.AddScoped<IPasswordlessLogin>(services =>
-        CreatePasswordlessLogin(services, builder.Configuration, builder.Environment));
     builder.Services.AddScoped<IdentityLifecycleService>(services =>
         CreateIdentityLifecycle(services, builder.Configuration, builder.Environment));
-    builder.Services.AddScoped<IInvitationLifecycle>(services =>
-        services.GetRequiredService<IdentityLifecycleService>());
     builder.Services.AddScoped<ITransferableInvitationLinks>(services =>
         CreateTransferableInvitationLinks(services, builder.Configuration, builder.Environment));
     builder.Services.AddSingleton<IInvitationConfirmationSender, SmtpInvitationConfirmationSender>();
@@ -283,8 +268,9 @@ else
         services.GetRequiredService<TenantAuthorizationService>());
     builder.Services.AddScoped<ICampMemberDirectory>(services =>
         services.GetRequiredService<TenantAuthorizationService>());
-    builder.Services.AddScoped<IPlatformAdministration>(services =>
+    builder.Services.AddScoped<ISuperAdminOrganizationAdministration>(services =>
         services.GetRequiredService<TenantAuthorizationService>());
+    builder.Services.AddScoped<IUserAdministration, UserAdministrationService>();
     builder.Services.AddDbContext<CampsDbContext>((services, options) =>
         options
             .UseNpgsql(services.GetRequiredService<NpgsqlConnection>())
@@ -431,26 +417,6 @@ app.MapTrashEndpoints();
 app.UseDefaultFiles();
 app.UseStaticFiles();
 app.MapFallbackToFile("index.html");
-
-static PasswordlessLoginService CreatePasswordlessLogin(
-    IServiceProvider services,
-    IConfiguration configuration,
-    IWebHostEnvironment environment)
-{
-    var configuredPepper = configuration["Authentication:LoginCodePepper"];
-    if (environment.IsProduction() && string.IsNullOrWhiteSpace(configuredPepper))
-    {
-        throw new InvalidOperationException("Authentication:LoginCodePepper must be configured in production.");
-    }
-
-    var pepper = SHA256.HashData(Encoding.UTF8.GetBytes(
-        configuredPepper ?? "development-only-login-code-pepper-do-not-use-in-production"));
-    return new PasswordlessLoginService(
-        services.GetRequiredService<IPasswordlessState>(),
-        services.GetRequiredService<ILoginCodeSender>(),
-        services.GetRequiredService<TimeProvider>(),
-        pepper);
-}
 
 static PasswordAuthenticationService CreatePasswordAuthentication(
     IServiceProvider services,

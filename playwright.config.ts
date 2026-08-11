@@ -11,7 +11,16 @@ const viewports = [
   { name: "desktop", use: { viewport: { width: 1440, height: 1000 } } },
 ] as const;
 
-const browsers = ["chromium", "firefox", "webkit"] as const;
+const browsers =
+  process.env.PLAYWRIGHT_GOOGLE_CHROME === "1"
+    ? ([
+        { name: "chrome", browserName: "chromium", channel: "chrome" },
+      ] as const)
+    : ([
+        { name: "chromium", browserName: "chromium" },
+        { name: "firefox", browserName: "firefox" },
+        { name: "webkit", browserName: "webkit" },
+      ] as const);
 
 export default defineConfig({
   globalSetup: "./tests/Browser/global-setup.ts",
@@ -30,10 +39,14 @@ export default defineConfig({
     screenshot: "only-on-failure",
     video: "retain-on-failure",
   },
-  projects: browsers.flatMap((browserName) =>
+  projects: browsers.flatMap((browser) =>
     viewports.map(({ name, use }) => ({
-      name: `${browserName}-${name}`,
-      use: { ...use, browserName },
+      name: `${browser.name}-${name}`,
+      use: {
+        ...use,
+        browserName: browser.browserName,
+        ...(browser.name === "chrome" ? { channel: browser.channel } : {}),
+      },
     })),
   ),
 });

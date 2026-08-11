@@ -35,7 +35,7 @@ This file is the resumable evidence ledger. Commands are run from the repository
 | I04 password JWT identity             | verified | Email/password login, asymmetric access/refresh JWTs, rotation, revoke and one-time First Login | Missing password-authentication contracts caused compile failure                    | Full verify 636.6 s; RLS/Aspire/63 browser cases green    | Identity/auth/help                        | pending   | Start I06 transferable invitations  |
 | I05 password recovery                 | verified | Reset email, password change, reauthentication, exact lockout and global account suspension     | Reset table initially lacked runtime-role grant                                     | Full verify; real Mailpit reset and refresh restart       | Identity/account/help                     | pending   | Add admin mutations with I07        |
 | I06 transferable invitations          | verified | Bearer invitation links, registration, email confirmation, reservation, revoke and rotation     | Missing registration contracts caused compile failure; new HTTP routes returned 405 | Full verify 694.2 s; RLS/Mailpit/72 browser entries green | Identity/invitation/help                  | pending   | Start I07 SuperAdmin administration |
-| I07 SuperAdmin administration         | pending  | Owner migration, SuperAdmin/OrgAdmin rights, scoped suspension, admin APIs and German UI        | pending                                                                             | pending                                                   | Identity/auth/RLS/help                    | pending   | Start after I06 is verified         |
+| I07 SuperAdmin administration         | verified | Owner migration, SuperAdmin/OrgAdmin rights, scoped suspension, admin APIs and German UI        | Last-SuperAdmin and zero-Orgadmin acceptance tests failed before services existed   | Full verify 727.7 s; 65 browser + 9 Chrome smoke          | Identity/auth/RLS/help                    | pending   | Authentication overhaul complete    |
 
 ## Current evidence
 
@@ -467,3 +467,18 @@ This file is the resumable evidence ledger. Commands are run from the repository
   passed. The complete Playwright matrix has 72 entries across Chromium, Firefox and WebKit (56 executed and 16
   deliberate project-specific skips), including the SuperAdmin invitation smoke path. No Azure deployment or push
   occurred.
+- 2026-08-11: I07 implementation replaces the Owner/PlatformAdmin transition model with SuperAdmin,
+  OrganizationAdmin and separate Camp roles. Versioned global and organization user administration now covers
+  account suspension, login unlock, SuperAdmin rights, memberships, Organization suspension and Camp assignments;
+  dedicated German pages provide search, pagination and transferable role links. The old email-address invitation
+  and `/api/v1/platform` routes are no longer mapped, existing legacy invitations are revoked during migration, and
+  the old login-challenge table is removed. First Login now writes a durable initialization marker that survives
+  account deletion. The account profile exposes separate first/last names with `If-Match`. Warning-free solution
+  build, OpenAPI generation/typecheck, 107 Identity tests, 148 API tests and 105 React tests are green at the
+  implementation checkpoint. The real Aspire/PostgreSQL/Mailpit browser stack passes 65 applicable Chromium,
+  Firefox and WebKit cases with 16 deliberate skips. The installed Google Chrome channel passes all nine tagged
+  smoke journeys across 390x844, 834x1112 and 1440x1000; Axe, keyboard and overflow checks are green, and the
+  rendered login, Orgadmin and Superadmin screenshots were visually inspected without overlays or layout defects.
+  The complete repository gate passed in 727.7 seconds with 90% backend line / 75% branch coverage and 85.37%
+  frontend line / 75.10% branch coverage, PostgreSQL RLS, Aspire, generated-client drift, PWA and help output green.
+  No Azure deployment or push occurred.

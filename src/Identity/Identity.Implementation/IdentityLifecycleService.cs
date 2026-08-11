@@ -26,7 +26,7 @@ public sealed class IdentityLifecycleService(
     {
         _ = await RequireActiveOrganizationAsync(organizationId, cancellationToken);
         var membership = await RequireActiveMembershipAsync(organizationId, actorId, cancellationToken);
-        if (membership.Role is not (TenantRole.Owner or TenantRole.OrganizationAdmin))
+        if (membership.Role is not TenantRole.OrganizationAdmin)
         {
             throw Rule("role_escalation", "Diese Rolle darf Einladungen nicht verwalten.");
         }
@@ -49,9 +49,9 @@ public sealed class IdentityLifecycleService(
         CancellationToken cancellationToken)
     {
         var actor = await RequireUserAsync(request.ActorId, cancellationToken);
-        if (!actor.IsPlatformAdmin)
+        if (!actor.IsSuperAdmin)
         {
-            throw Rule("platform_admin_required", "Nur ein Platform Admin darf eine Organization anlegen.");
+            throw Rule("super_admin_required", "Nur ein Superadmin darf eine Organization anlegen.");
         }
 
         var slug = NormalizeSlug(request.OrganizationSlug);
@@ -66,7 +66,7 @@ public sealed class IdentityLifecycleService(
         var issued = CreateInvitation(
             organization.Id,
             request.Email,
-            TenantRole.Owner,
+            TenantRole.OrganizationAdmin,
             null,
             now,
             PlatformInvitationLifetime,
@@ -184,7 +184,7 @@ public sealed class IdentityLifecycleService(
             invitation.NormalizedEmail,
             RequireText(request.DisplayName, 160));
         invitation.MarkUsed(now);
-        var organizationRole = invitation.Role is TenantRole.Owner or TenantRole.OrganizationAdmin
+        var organizationRole = invitation.Role is TenantRole.OrganizationAdmin
             ? invitation.Role
             : TenantRole.Viewer;
         var existingMembership = await state.FindMembershipAsync(
@@ -216,20 +216,24 @@ public sealed class IdentityLifecycleService(
             isNewUser);
     }
 
-    public async Task<AccountView> UpdateDisplayNameAsync(
+    public async Task<AccountView> UpdateProfileAsync(
         Guid userId,
-        string displayName,
+        string firstName,
+        string lastName,
+        long expectedVersion,
         CancellationToken cancellationToken)
     {
         var user = await RequireUserAsync(userId, cancellationToken);
-        user.Rename(RequireText(displayName, 160));
+        user.Rename(RequireText(firstName, 80), RequireText(lastName, 80), expectedVersion);
         await state.SaveUserAsync(user, cancellationToken);
         return new AccountView(
             user.Id,
             user.Email,
             user.DisplayName,
+            user.FirstName,
+            user.LastName,
             user.DeletionScheduledAt,
-            user.IsPlatformAdmin,
+            user.IsSuperAdmin,
             user.Version);
     }
 
@@ -240,8 +244,10 @@ public sealed class IdentityLifecycleService(
             user.Id,
             user.Email,
             user.DisplayName,
+            user.FirstName,
+            user.LastName,
             user.DeletionScheduledAt,
-            user.IsPlatformAdmin,
+            user.IsSuperAdmin,
             user.Version);
     }
 
@@ -274,16 +280,6 @@ public sealed class IdentityLifecycleService(
         CancellationToken cancellationToken)
     {
         var user = await RequireUserAsync(userId, cancellationToken);
-        foreach (var membership in await state.ListMembershipsAsync(userId, cancellationToken))
-        {
-            if (membership.IsActive
-                && membership.Role == TenantRole.Owner
-                && await state.CountActiveOwnersAsync(membership.OrganizationId, cancellationToken) <= 1)
-            {
-                throw Rule("last_owner", "Das Konto ist der letzte aktive Owner einer Organization.");
-            }
-        }
-
         var now = timeProvider.GetUtcNow();
         user.ScheduleDeletion(now);
         await state.SaveUserAsync(user, cancellationToken);
@@ -307,12 +303,6 @@ public sealed class IdentityLifecycleService(
         CancellationToken cancellationToken)
     {
         var membership = await RequireActiveMembershipAsync(organizationId, userId, cancellationToken);
-        if (membership.Role == TenantRole.Owner
-            && await state.CountActiveOwnersAsync(organizationId, cancellationToken) <= 1)
-        {
-            throw Rule("last_owner", "Der letzte aktive Owner kann die Organization nicht verlassen.");
-        }
-
         membership.Leave();
         await state.SaveMembershipAsync(membership, cancellationToken);
     }
@@ -326,9 +316,9 @@ public sealed class IdentityLifecycleService(
             request.OrganizationId,
             request.ActorId,
             cancellationToken);
-        if (membership.Role != TenantRole.Owner)
+        if (membership.Role is not TenantRole.OrganizationAdmin)
         {
-            throw Rule("owner_required", "Nur ein Organization Owner darf die Löschung vormerken.");
+            throw Rule("organization_admin_required", "Nur ein Orgadmin darf die Löschung vormerken.");
         }
         if (!string.Equals(organization.Slug, request.ConfirmedSlug.Trim(), StringComparison.Ordinal))
         {
@@ -359,9 +349,9 @@ public sealed class IdentityLifecycleService(
             throw Rule("organization_erasure_started", "Die endgültige Löschung hat bereits begonnen.");
         }
         var membership = await RequireActiveMembershipAsync(organizationId, actorId, cancellationToken);
-        if (membership.Role != TenantRole.Owner)
+        if (membership.Role is not TenantRole.OrganizationAdmin)
         {
-            throw Rule("owner_required", "Nur ein Organization Owner darf die Löschung abbrechen.");
+            throw Rule("organization_admin_required", "Nur ein Orgadmin darf die Löschung abbrechen.");
         }
 
         organization.CancelDeletion();
@@ -406,9 +396,9 @@ public sealed class IdentityLifecycleService(
         if (invitation.IsPlatformInvitation)
         {
             var actor = await RequireUserAsync(actorId, cancellationToken);
-            if (!actor.IsPlatformAdmin)
+            if (!actor.IsSuperAdmin)
             {
-                throw Rule("platform_admin_required", "Nur ein Platform Admin darf diese Einladung verwalten.");
+                throw Rule("super_admin_required", "Nur ein Superadmin darf diese Einladung verwalten.");
             }
             return;
         }
@@ -419,9 +409,7 @@ public sealed class IdentityLifecycleService(
 
     private static void EnsureCanInvite(TenantRole actorRole, TenantRole targetRole)
     {
-        var allowed = actorRole == TenantRole.Owner
-            || (actorRole == TenantRole.OrganizationAdmin
-                && targetRole is TenantRole.CampLead or TenantRole.Member or TenantRole.Viewer);
+        var allowed = actorRole is TenantRole.OrganizationAdmin;
         if (!allowed)
         {
             throw Rule("role_escalation", "Diese Rolle darf nicht vergeben werden.");

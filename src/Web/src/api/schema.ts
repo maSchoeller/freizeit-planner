@@ -715,245 +715,6 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/invitations/organizations/{organizationId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          organizationId: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["InvitationSummary"][];
-          };
-        };
-      };
-    };
-    put?: never;
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          organizationId: string;
-        };
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["TeamInvitationBody"];
-        };
-      };
-      responses: {
-        /** @description Created */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["InvitationView"];
-          };
-        };
-        /** @description Forbidden */
-        403: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/invitations/organizations": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["OrganizationInvitationBody"];
-        };
-      };
-      responses: {
-        /** @description Created */
-        201: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["InvitationView"];
-          };
-        };
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/invitations/{invitationId}/rotate": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          invitationId: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["InvitationView"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/invitations/{invitationId}": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post?: never;
-    delete: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path: {
-          invitationId: string;
-        };
-        cookie?: never;
-      };
-      requestBody?: never;
-      responses: {
-        /** @description No Content */
-        204: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content?: never;
-        };
-      };
-    };
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
-  "/api/v1/invitations/accept": {
-    parameters: {
-      query?: never;
-      header?: never;
-      path?: never;
-      cookie?: never;
-    };
-    get?: never;
-    put?: never;
-    post: {
-      parameters: {
-        query?: never;
-        header?: never;
-        path?: never;
-        cookie?: never;
-      };
-      requestBody: {
-        content: {
-          "application/json": components["schemas"]["AcceptInvitationBody"];
-        };
-      };
-      responses: {
-        /** @description OK */
-        200: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/json": components["schemas"]["InvitationAcceptance"];
-          };
-        };
-        /** @description Bad Request */
-        400: {
-          headers: {
-            [name: string]: unknown;
-          };
-          content: {
-            "application/problem+json": components["schemas"]["ProblemDetails"];
-          };
-        };
-      };
-    };
-    delete?: never;
-    options?: never;
-    head?: never;
-    patch?: never;
-    trace?: never;
-  };
   "/api/v1/invitations/{token}/preview": {
     parameters: {
       query?: never;
@@ -1410,6 +1171,24 @@ export interface paths {
             "application/json": components["schemas"]["AccountView"];
           };
         };
+        /** @description Precondition Failed */
+        412: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
+        /** @description Precondition Required */
+        428: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/problem+json": components["schemas"]["ProblemDetails"];
+          };
+        };
       };
     };
     trace?: never;
@@ -1825,7 +1604,179 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/platform/organizations": {
+  "/api/v1/organizations/{organizationId}/administration/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: {
+          search?: string;
+          page?: number | string;
+          pageSize?: number | string;
+        };
+        header?: never;
+        path: {
+          organizationId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationPageOfUserAdministrationView"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/administration/users/{userId}/membership": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeMembershipBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OrganizationAdministrationView"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/organizations/{organizationId}/administration/users/{userId}/camps/{campId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeCampAssignmentBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampAdministrationView"];
+          };
+        };
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/superadmin/users": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get: {
+      parameters: {
+        query?: {
+          search?: string;
+          page?: number | string;
+          pageSize?: number | string;
+        };
+        header?: never;
+        path?: never;
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["AdministrationPageOfUserAdministrationView"];
+          };
+        };
+      };
+    };
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/superadmin/organizations": {
     parameters: {
       query?: never;
       header?: never;
@@ -1847,7 +1798,7 @@ export interface paths {
             [name: string]: unknown;
           };
           content: {
-            "application/json": components["schemas"]["PlatformOrganizationView"][];
+            "application/json": components["schemas"]["SuperAdminOrganizationView"][];
           };
         };
       };
@@ -1860,7 +1811,7 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
-  "/api/v1/platform/organizations/{organizationId}/status": {
+  "/api/v1/superadmin/organizations/{organizationId}/status": {
     parameters: {
       query?: never;
       header?: never;
@@ -1908,6 +1859,217 @@ export interface paths {
         };
       };
     };
+    trace?: never;
+  };
+  "/api/v1/superadmin/users/{userId}/status": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeGlobalAccountStatusBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["UserAdministrationView"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/api/v1/superadmin/users/{userId}/superadmin": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeSuperAdminBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["UserAdministrationView"];
+          };
+        };
+      };
+    };
+    trace?: never;
+  };
+  "/api/v1/superadmin/users/{userId}/unlock": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    post: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody?: never;
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["UserAdministrationView"];
+          };
+        };
+      };
+    };
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/superadmin/users/{userId}/organizations/{organizationId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeMembershipBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["OrganizationAdministrationView"];
+          };
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  "/api/v1/superadmin/users/{userId}/organizations/{organizationId}/camps/{campId}": {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put: {
+      parameters: {
+        query?: never;
+        header?: never;
+        path: {
+          organizationId: string;
+          campId: string;
+          userId: string;
+        };
+        cookie?: never;
+      };
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ChangeCampAssignmentBody"];
+        };
+      };
+      responses: {
+        /** @description OK */
+        200: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content: {
+            "application/json": components["schemas"]["CampAdministrationView"];
+          };
+        };
+        /** @description No Content */
+        204: {
+          headers: {
+            [name: string]: unknown;
+          };
+          content?: never;
+        };
+      };
+    };
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
     trace?: never;
   };
   "/api/v1/organizations/{organizationId}/camps": {
@@ -4895,10 +5057,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
-    AcceptInvitationBody: {
-      token: null | string;
-      displayName: null | string;
-    };
     AccessTokenResponse: {
       accessToken: string;
       /** Format: date-time */
@@ -4911,18 +5069,30 @@ export interface components {
       organizationSlug: string;
       role: components["schemas"]["TenantRole"];
     };
+    AccountStatus: number;
     AccountView: {
       /** Format: uuid */
       id: string;
       email: string;
       displayName: string;
+      firstName: string;
+      lastName: string;
       /** Format: date-time */
       deletionScheduledAt: null | string;
-      isPlatformAdmin: boolean;
+      isSuperAdmin: boolean;
       /** Format: int64 */
       version: number | string;
     };
     ActivityKind: number;
+    AdministrationPageOfUserAdministrationView: {
+      items: components["schemas"]["UserAdministrationView"][];
+      /** Format: int32 */
+      page: number | string;
+      /** Format: int32 */
+      pageSize: number | string;
+      /** Format: int32 */
+      totalCount: number | string;
+    };
     /** @default 0 */
     AmbiguousLocalTimeChoice: number;
     AntiforgeryResponse: {
@@ -4958,6 +5128,14 @@ export interface components {
       title: string;
       /** Format: date-time */
       timestamp: string;
+      /** Format: int64 */
+      version: number | string;
+    };
+    CampAdministrationView: {
+      /** Format: uuid */
+      campId: string;
+      campName: string;
+      role: components["schemas"]["CampRole"];
       /** Format: int64 */
       version: number | string;
     };
@@ -5031,14 +5209,27 @@ export interface components {
       /** Format: int64 */
       version: number | string;
     };
+    ChangeCampAssignmentBody: {
+      role: null | components["schemas"]["CampRole"];
+    };
     ChangeCampStatusBody: {
       status: components["schemas"]["CampStatus"];
+    };
+    ChangeGlobalAccountStatusBody: {
+      status: components["schemas"]["AccountStatus"];
+    };
+    ChangeMembershipBody: {
+      status: components["schemas"]["MembershipStatus"];
+      role: null | components["schemas"]["OrganizationRole"];
     };
     ChangeRoleBody: {
       role: components["schemas"]["TenantRole"];
     };
     ChangeStatusBody: {
       status: components["schemas"]["OrganizationStatus"];
+    };
+    ChangeSuperAdminBody: {
+      isSuperAdmin: boolean;
     };
     CheckedBody: {
       isChecked: boolean;
@@ -5131,14 +5322,6 @@ export interface components {
       /** Format: int64 */
       expectedTargetVersion: number | string;
     };
-    InvitationAcceptance: {
-      outcome: components["schemas"]["InvitationAcceptanceOutcome"];
-      /** Format: uuid */
-      userId: null | string;
-      /** Format: uuid */
-      organizationId: null | string;
-      requiresLogin: boolean;
-    };
     InvitationAcceptanceOutcome: number;
     InvitationAcceptanceResult: {
       outcome: components["schemas"]["InvitationAcceptanceOutcome"];
@@ -5173,30 +5356,6 @@ export interface components {
       passwordConfirmation: null | string;
       firstName: null | string;
       lastName: null | string;
-    };
-    InvitationSummary: {
-      /** Format: uuid */
-      id: string;
-      email: string;
-      role: components["schemas"]["TenantRole"];
-      /** Format: uuid */
-      campId: null | string;
-      /** Format: date-time */
-      expiresAt: string;
-      isRevoked: boolean;
-      isUsed: boolean;
-    };
-    InvitationView: {
-      /** Format: uuid */
-      id: string;
-      /** Format: uuid */
-      organizationId: string;
-      email: string;
-      role: components["schemas"]["TenantRole"];
-      /** Format: uuid */
-      campId: null | string;
-      /** Format: date-time */
-      expiresAt: string;
     };
     IssuedInvitationLink: {
       /** Format: uuid */
@@ -5292,6 +5451,7 @@ export interface components {
       recipeIds: string[];
     };
     MeasurementUnit: number;
+    MembershipStatus: number;
     NameBody: {
       name: string;
     };
@@ -5309,13 +5469,19 @@ export interface components {
       targetId: string;
     };
     NoteLinkTargetType: number;
+    OrganizationAdministrationView: {
+      /** Format: uuid */
+      organizationId: string;
+      organizationName: string;
+      organizationSlug: string;
+      status: components["schemas"]["MembershipStatus"];
+      role: null | components["schemas"]["OrganizationRole"];
+      camps: components["schemas"]["CampAdministrationView"][];
+      /** Format: int64 */
+      version: number | string;
+    };
     OrganizationDeletionBody: {
       confirmedSlug: null | string;
-    };
-    OrganizationInvitationBody: {
-      email: null | string;
-      organizationName: null | string;
-      organizationSlug: null | string;
     };
     OrganizationInvitationDraft: {
       name: string;
@@ -5355,15 +5521,6 @@ export interface components {
     };
     PasswordResetRequestBody: {
       email: null | string;
-    };
-    PlatformOrganizationView: {
-      /** Format: uuid */
-      organizationId: string;
-      name: string;
-      slug: string;
-      status: components["schemas"]["OrganizationStatus"];
-      /** Format: int64 */
-      version: number | string;
     };
     ProblemDetails: {
       type?: null | string;
@@ -5518,11 +5675,14 @@ export interface components {
       scaledQuantity: components["schemas"]["Quantity"];
       note: null | string;
     };
-    TeamInvitationBody: {
-      email: null | string;
-      role: components["schemas"]["TenantRole"];
+    SuperAdminOrganizationView: {
       /** Format: uuid */
-      campId: null | string;
+      organizationId: string;
+      name: string;
+      slug: string;
+      status: components["schemas"]["OrganizationStatus"];
+      /** Format: int64 */
+      version: number | string;
     };
     TenantRole: number;
     TransferMaterialBody: {
@@ -5557,7 +5717,22 @@ export interface components {
       defaultPortions: number | string;
     };
     UpdateProfileBody: {
-      displayName: null | string;
+      firstName: null | string;
+      lastName: null | string;
+    };
+    UserAdministrationView: {
+      /** Format: uuid */
+      userId: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      accountStatus: components["schemas"]["AccountStatus"];
+      isSuperAdmin: boolean;
+      /** Format: date-time */
+      loginLockedUntil: null | string;
+      organizations: components["schemas"]["OrganizationAdministrationView"][];
+      /** Format: int64 */
+      version: number | string;
     };
   };
   responses: never;

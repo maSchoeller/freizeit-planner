@@ -72,16 +72,12 @@ internal sealed class TenantDatabaseTransactionMiddleware(RequestDelegate next)
     private static string ReadOperation(HttpRequest request)
     {
         if (HttpMethods.IsPost(request.Method)
-            && request.Path.Equals("/api/v1/invitations/accept"))
+            && request.Path.StartsWithSegments("/api/v1/invitations")
+            && request.Path.Value?.EndsWith("/accept", StringComparison.Ordinal) == true)
         {
             return "invitation_acceptance";
         }
-        if (HttpMethods.IsPost(request.Method)
-            && request.Path.Equals("/api/v1/invitations/organizations"))
-        {
-            return "platform_create_organization";
-        }
-        return request.Path.StartsWithSegments("/api/v1/platform")
+        return request.Path.StartsWithSegments("/api/v1/superadmin")
             ? "platform_admin"
             : "tenant";
     }

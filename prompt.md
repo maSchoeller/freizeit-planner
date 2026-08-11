@@ -86,7 +86,7 @@ Das Freizeit-Cockpit unterstützt haupt- und ehrenamtliche Organisationsteams vo
 - Eine Organization besitzt mehrere Camps.
 - Ein Nutzer kann mehreren Organizations und mehreren Camps angehören.
 - Inhalte eines Camps oder einer Organization dürfen niemals mandantenübergreifend sichtbar oder veränderbar sein.
-- Neue Organizations entstehen ausschließlich über eine Einladung durch einen Platform Admin.
+- Neue Organizations entstehen ausschließlich über einen von einem Superadmin erstellten Einrichtungslink.
 - Camps besitzen Name, eindeutigen Slug innerhalb der Organization, Beschreibung, Start- und Enddatum, Zeitzone und Status.
 - Datumsabhängige Ansichten unterscheiden zukünftig, laufend und vergangen.
 - Ein Camp kann aktiv oder archiviert sein.
@@ -97,18 +97,17 @@ Das Freizeit-Cockpit unterstützt haupt- und ehrenamtliche Organisationsteams vo
 
 Implementiere folgende Rollen mit serverseitig erzwungener Autorisierung:
 
-- **Platform Admin:** verwaltet nur die Plattformebene, lädt erste Organization Owner ein und kann Organizations sperren oder entsperren. Er darf keine fachlichen Mandanteninhalte durchsuchen oder einsehen.
-- **Organization Owner:** Es sind mehrere Owner möglich. Owner verwalten Owner und Organization Admins, Organization-Einstellungen, Mitglieder und Löschung. Es muss immer mindestens einen aktiven Owner geben.
-- **Organization Admin:** verwaltet Camps, Einladungen, Mitglieder und niedrigere Rollen, darf aber keine Owner- oder Admin-Rechte vergeben.
+- **SuperAdmin:** verwaltet global Benutzer, Superadmin- und Orgadmin-Rechte sowie Organizations. Ohne zusätzliche OrganizationAdmin-Zuweisung erhält er keinen Zugriff auf fachliche Mandanteninhalte.
+- **OrganizationAdmin:** verwaltet innerhalb der Organization Einstellungen, Löschung, Camps, Einladungen, Mitglieder, weitere Orgadmins und Camp-Rollen. Eine Organization darf ohne Orgadmin bestehen.
 - **Camp Lead:** verwaltet das zugewiesene Camp, Camp-Einstellungen und Zuweisungen bereits vorhandener Mitglieder.
 - **Member:** darf sämtliche Planungsinhalte der zugewiesenen Camps bearbeiten. Eine Verantwortungszuweisung schränkt diese Berechtigung nicht ein.
 - **Viewer:** darf zugewiesene Inhalte nur lesen, drucken und exportieren.
 
-Organization Owner und Organization Admins haben Zugriff auf alle Camps ihrer Organization. Camp Lead, Member und Viewer erhalten campbezogene Zuweisungen.
+OrganizationAdmins haben Zugriff auf alle Camps ihrer Organization. Camp Lead, Member und Viewer erhalten campbezogene Zuweisungen.
 
 Schütze insbesondere:
 
-- den letzten aktiven Organization Owner vor Entfernung, Herabstufung, Austritt und Kontolöschung;
+- den letzten aktiven globalen Superadmin vor Sperre und Herabstufung;
 - Rollenänderungen vor Privilegieneskalation;
 - alle Lese-, Schreib-, Such-, Export- und Dateioperationen vor IDOR und Cross-Tenant-Zugriff;
 - gesperrte Organizations vor weiterer Nutzung.
@@ -122,43 +121,42 @@ Schütze insbesondere:
 
 ## 5. Authentifizierung, Einladungen und Sitzungen
 
-### 5.1 Passwortloser Login
+### 5.1 Passwortlogin und JWT
 
 - Verwende ASP.NET Core Identity als anwendungseigene Identitätsbasis.
-- Der Login erfolgt ausschließlich per sechsstelliger SMTP-Einmalcode.
-- Speichere Einmalcodes nur kryptografisch gehasht.
-- Ein Code ist zehn Minuten gültig, nur einmal nutzbar und nach fünf Fehlversuchen ungültig.
-- Begrenze Anforderungen und Versuche pro E-Mail-Adresse und IP-Adresse.
+- Der Login erfolgt ausschließlich mit global eindeutiger E-Mail-Adresse und Passwort.
+- Passwörter sind 15 bis 128 Zeichen lang; Leerzeichen und Unicode sind erlaubt.
+- Zehn falsche Anmeldungen sperren das Konto für exakt 15 Minuten.
+- Begrenze Versuche nicht offenbarend pro normalisierter E-Mail-Adresse und IP-Adresse.
 - Antworte bei unbekannten E-Mail-Adressen generisch, um Enumeration zu verhindern.
-- Es gibt keine Passwörter und keine Social-Login-Anbieter.
+- Es gibt keine Social-Login-Anbieter.
 - Eine Standardsitzung gilt zwölf Stunden.
 - Eine explizite Option „Angemeldet bleiben“ erlaubt eine widerrufbare Sitzung von 30 Tagen.
 - Nutzer sehen ihre Sitzungen und können einzelne oder alle anderen Sitzungen widerrufen.
-- Nutze sichere Same-Origin-Cookies mit HttpOnly, Secure und angemessenem SameSite.
+- Gib ein 15 Minuten gültiges asymmetrisch signiertes Access-JWT nur an den Arbeitsspeicher des Clients aus. Das rotierende Refresh-JWT liegt als HttpOnly-, Secure-, SameSite-Strict-Cookie vor.
 - Schütze zustandsändernde Cookie-Anfragen mit Antiforgery.
 - Validiere einen serverseitig gespeicherten Session-Identifier, damit Widerruf sofort greift.
 
 ### 5.2 Einladungen
 
-- Platform-Admin-Einladungen an den ersten Organization Owner sind 48 Stunden gültig.
-- Team-Einladungen sind sieben Tage gültig.
+- Superadmin-Links sind eine Stunde, Orgadmin-Links 48 Stunden und Camp-Links sieben Tage gültig.
 - Tokens sind kryptografisch stark, nur einmal nutzbar, widerrufbar und durch Neuausstellung rotierbar.
-- Eine Einladung legt Organization und Zielrolle eindeutig fest.
-- Ein bestehender Nutzer kann sie seinem Konto hinzufügen; ein neuer Nutzer wird über den passwortlosen Flow aufgenommen.
+- Eine Einladung enthält keine E-Mail-Adresse und legt Organization sowie Zielrolle eindeutig fest.
+- Ein bestehender Nutzer kann sie seinem globalen Konto hinzufügen; ein neuer Nutzer registriert E-Mail-Adresse, Passwort, Vorname und Nachname und bestätigt seine E-Mail per Link.
 
 ### 5.3 Selbstverwaltung und Löschung
 
 Nutzer können:
 
-- Anzeigenamen ändern;
+- Vor- und Nachname ändern;
 - eine neue E-Mail-Adresse durch Verifikation übernehmen;
 - aktive Sitzungen verwalten;
 - zulässige Mitgliedschaften verlassen;
 - ihr Konto DSGVO-orientiert zur Löschung vormerken.
 
-Organization Owner können eine Mandantenlöschung nur nach frischer Einmalcode-Bestätigung und Eingabe des Organization-Slugs vormerken. Konto- und Mandantenlöschungen haben 30 Tage Karenz und sind in diesem Zeitraum durch Berechtigte widerrufbar. Danach werden fachliche Daten und Blobs dauerhaft gelöscht; verbleibende technische Auditdaten werden minimiert und pseudonymisiert.
+OrganizationAdmins können eine Mandantenlöschung nur nach frischer Passwort-Reauthentifizierung und Eingabe des Organization-Slugs vormerken. Konto- und Mandantenlöschungen haben 30 Tage Karenz und sind in diesem Zeitraum durch Berechtigte widerrufbar. Danach werden fachliche Daten und Blobs dauerhaft gelöscht; verbleibende technische Auditdaten werden minimiert und pseudonymisiert.
 
-Der erste Platform Admin wird ausschließlich über eine idempotente, externe Bootstrap-Konfiguration seiner E-Mail-Adresse angelegt. Es gibt keine öffentliche Bootstrap-Route.
+Der erste Superadmin wird ausschließlich über die einmalige öffentliche First-Login-Route `/erste-einrichtung` angelegt. Ein dauerhafter Initialisierungsmarker schließt sie nach der ersten erfolgreichen Anlage endgültig.
 
 ## 6. Funktionsumfang
 
@@ -205,7 +203,7 @@ Implementiere:
 - kompatible Einheitenumrechnung;
 - Einkaufsübernahme.
 
-Zutaten haben einen normalisierten, innerhalb einer Organization eindeutigen Namen und Autocomplete. Organization Owner und Admins können Duplikate kontrolliert zusammenführen.
+Zutaten haben einen normalisierten, innerhalb einer Organization eindeutigen Namen und Autocomplete. OrganizationAdmins können Duplikate kontrolliert zusammenführen.
 
 Ein Rezept besitzt mindestens Name, Beschreibung, Zubereitung, Basisportionen, Zutatenpositionen, optionale Ernährungs-Tags und manuelle Allergen- beziehungsweise Küchenhinweise.
 
@@ -606,7 +604,7 @@ Die lokale Entwicklung benötigt für Standardabläufe keine Cloudkonten und kei
 
 Erzeuge ausschließlich in Development und Testing einen deterministischen, realistischen Seed mit:
 
-- Platform Admin;
+- Superadmin;
 - Organization;
 - Camp über sieben Tage;
 - Nutzern für alle Rollen;
@@ -616,7 +614,7 @@ Erzeuge ausschließlich in Development und Testing einen deterministischen, real
 - Andacht mit lizenziertem Snapshot;
 - Notizen, Aktivität und erlaubten Dateimetadaten.
 
-Produktion startet ohne Beispieldaten; ausgenommen ist der explizite Platform-Admin-Bootstrap.
+Produktion startet ohne Beispieldaten und wird über die einmalige First-Login-Route initialisiert.
 
 ## 12. Azure-Zielarchitektur und Infrastructure as Code
 
@@ -669,7 +667,7 @@ Optimiere für geringe Kosten einer kleinen ehrenamtlichen Anwendung:
 - Verwende eine externe PublicBaseUrl für Links in E-Mails.
 - Parameterisiere ImprintUrl und PrivacyUrl; erfinde keine Rechtstexte.
 - Erzeuge Basisalarme für Health, erhöhte 5xx-Rate, Latenz und Datenbankprobleme.
-- Dokumentiere Restore, Migration, Rollback, Löschung, Owner-Recovery, Secret-Rotation und Incident-Grundabläufe.
+- Dokumentiere Restore, Migration, Rollback, Löschung, Administrator-Recovery, Secret-Rotation und Incident-Grundabläufe.
 
 ### 12.5 Striktes Deployment-Verbot in dieser Sitzung
 
@@ -944,7 +942,7 @@ Implementiere mindestens folgende automatisierte Szenarien.
 - Einladung neu/bestehend, Ablauf, Widerruf und Rotation.
 - Jede Rollenmatrix mit erlaubten und verbotenen Aktionen.
 - Schutz des letzten Owners.
-- Platform Admin kann keine fachlichen Inhalte lesen.
+- Superadmin kann ohne zusätzliche Orgadmin-Zuweisung keine fachlichen Inhalte lesen.
 - Gesperrte Organization ist blockiert.
 - frische Reauth und Slug-Bestätigung bei Tenant-Löschung.
 

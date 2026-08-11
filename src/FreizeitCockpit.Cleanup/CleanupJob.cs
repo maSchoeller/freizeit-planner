@@ -107,8 +107,7 @@ public sealed class CleanupJob(
 
         LogCompleted(
             logger,
-            identity.ExpiredLoginChallenges
-                + identity.ExpiredEmailChangeChallenges
+            identity.ExpiredEmailChangeChallenges
                 + identity.ExpiredInvitations
                 + identity.StaleSessions
                 + identity.StaleRateEvents,

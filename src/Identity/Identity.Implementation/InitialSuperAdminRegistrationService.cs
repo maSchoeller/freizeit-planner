@@ -23,8 +23,9 @@ public sealed class InitialSuperAdminRegistrationService(
             "The authentication token pepper must contain at least 32 bytes.",
             nameof(tokenPepper));
 
-    public Task<bool> IsAvailableAsync(CancellationToken cancellationToken) =>
-        dbContext.Users.AllAsync(_ => false, cancellationToken);
+    public async Task<bool> IsAvailableAsync(CancellationToken cancellationToken) =>
+        !await dbContext.IdentityInitialization.AnyAsync(cancellationToken)
+        && !await dbContext.Users.AnyAsync(cancellationToken);
 
     public async Task<InitialSuperAdminResult> RegisterAsync(
         InitialSuperAdminRequest request,
@@ -52,7 +53,8 @@ public sealed class InitialSuperAdminRegistrationService(
 
         try
         {
-            if (await dbContext.Users.AnyAsync(cancellationToken))
+            if (await dbContext.IdentityInitialization.AnyAsync(cancellationToken)
+                || await dbContext.Users.AnyAsync(cancellationToken))
             {
                 return InitialSuperAdminResult.Failed(InitialSuperAdminOutcome.AlreadyInitialized);
             }
@@ -71,8 +73,6 @@ public sealed class InitialSuperAdminRegistrationService(
                 LastName = lastName,
                 DisplayName = $"{firstName} {lastName}",
                 IsSuperAdmin = true,
-                // Keep legacy authorization working until the role migration removes this property.
-                IsPlatformAdmin = true,
                 LockoutEnabled = true,
                 SecurityStamp = Guid.NewGuid().ToString("N"),
                 ConcurrencyStamp = Guid.NewGuid().ToString("N")
@@ -88,6 +88,11 @@ public sealed class InitialSuperAdminRegistrationService(
                 now,
                 refreshExpiresAt));
             dbContext.Users.Add(user);
+            dbContext.IdentityInitialization.Add(new IdentityInitializationEntity
+            {
+                Id = 1,
+                CompletedAt = now
+            });
             dbContext.LoginSessions.Add(new LoginSessionEntity
             {
                 Id = sessionId,

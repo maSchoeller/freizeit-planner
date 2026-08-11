@@ -115,22 +115,20 @@ namespace Spiritual.Implementation.Migrations
                         nullif(current_setting('app.user_id', true), '')::uuid IS NOT NULL
                         AND nullif(current_setting('app.organization_id', true), '')::uuid = target_organization_id
                         AND nullif(current_setting('app.camp_id', true), '')::uuid = target_camp_id
-                        AND NOT EXISTS (
-                            SELECT 1
-                            FROM identity.users AS users
-                            WHERE users."Id" = nullif(current_setting('app.user_id', true), '')::uuid
-                              AND users."IsPlatformAdmin")
                         AND EXISTS (
                             SELECT 1
                             FROM identity.organizations AS organizations
                             JOIN identity.memberships AS memberships
                               ON memberships.organization_id = organizations."Id"
+                            JOIN identity.users AS users
+                              ON users."Id" = memberships.user_id
                             WHERE organizations."Id" = target_organization_id
                               AND organizations."Status" = 0
+                              AND users."AccountStatus" = 0
                               AND memberships.user_id = nullif(current_setting('app.user_id', true), '')::uuid
-                              AND memberships."IsActive"
+                              AND memberships."Status" = 0
                               AND (
-                                  memberships."Role" IN (0, 1)
+                                  memberships."OrganizationRole" = 0
                                   OR EXISTS (
                                       SELECT 1
                                       FROM identity.camp_assignments AS assignments
@@ -140,7 +138,7 @@ namespace Spiritual.Implementation.Migrations
                                         AND assignments."IsActive"
                                         AND (
                                             NOT require_write
-                                            OR assignments."Role" IN (2, 3)))));
+                                            OR assignments."CampRole" IN (0, 1)))));
                 $function$;
 
                 ALTER TABLE spiritual.devotions ENABLE ROW LEVEL SECURITY;

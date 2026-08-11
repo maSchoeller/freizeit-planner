@@ -21,11 +21,6 @@ public sealed class IdentityMaintenanceService(
         }
 
         var now = timeProvider.GetUtcNow();
-        var loginChallenges = await dbContext.LoginChallenges
-            .Where(item => item.ExpiresAt <= now || item.UsedAt != null)
-            .OrderBy(item => item.ExpiresAt)
-            .Take(batchSize)
-            .ToArrayAsync(cancellationToken);
         var emailChallenges = await dbContext.EmailChangeChallenges
             .Where(item => item.ExpiresAt <= now || item.UsedAt != null)
             .OrderBy(item => item.ExpiresAt)
@@ -69,7 +64,6 @@ public sealed class IdentityMaintenanceService(
             .Take(batchSize)
             .ToArrayAsync(cancellationToken);
 
-        dbContext.RemoveRange(loginChallenges);
         dbContext.RemoveRange(emailChallenges);
         dbContext.RemoveRange(invitations);
         dbContext.RemoveRange(transferableInvitations);
@@ -79,7 +73,6 @@ public sealed class IdentityMaintenanceService(
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return new IdentityCleanupResult(
-            loginChallenges.Length,
             emailChallenges.Length,
             invitations.Length + transferableInvitations.Length,
             sessions.Length,
@@ -124,8 +117,6 @@ public sealed class IdentityMaintenanceService(
         {
             dbContext.LoginSessions.RemoveRange(
                 dbContext.LoginSessions.Where(item => claimedUserIds.Contains(item.UserId)));
-            dbContext.LoginChallenges.RemoveRange(
-                dbContext.LoginChallenges.Where(item => claimedUserIds.Contains(item.UserId)));
             dbContext.EmailChangeChallenges.RemoveRange(
                 dbContext.EmailChangeChallenges.Where(item => claimedUserIds.Contains(item.UserId)));
         }
@@ -174,8 +165,6 @@ public sealed class IdentityMaintenanceService(
             dbContext.CampAssignments.Where(item => item.UserId == userId));
         dbContext.Memberships.RemoveRange(
             dbContext.Memberships.Where(item => item.UserId == userId));
-        dbContext.LoginChallenges.RemoveRange(
-            dbContext.LoginChallenges.Where(item => item.UserId == userId));
         dbContext.LoginSessions.RemoveRange(
             dbContext.LoginSessions.Where(item => item.UserId == userId));
         dbContext.EmailChangeChallenges.RemoveRange(

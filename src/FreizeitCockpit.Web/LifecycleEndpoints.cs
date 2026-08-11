@@ -8,27 +8,6 @@ internal static class LifecycleEndpoints
     public static IEndpointRouteBuilder MapLifecycleEndpoints(this IEndpointRouteBuilder endpoints)
     {
         var invitations = endpoints.MapGroup("/api/v1/invitations");
-        invitations.MapGet("/organizations/{organizationId:guid}", ListInvitationsAsync)
-            .Produces<IReadOnlyList<InvitationSummary>>()
-            .RequireAuthorization();
-        invitations.MapPost("/organizations", CreateOrganizationInvitationAsync)
-            .Produces<InvitationView>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .RequireAuthorization();
-        invitations.MapPost("/organizations/{organizationId:guid}", CreateTeamInvitationAsync)
-            .Produces<InvitationView>(StatusCodes.Status201Created)
-            .ProducesProblem(StatusCodes.Status403Forbidden)
-            .RequireAuthorization();
-        invitations.MapPost("/{invitationId:guid}/rotate", RotateInvitationAsync)
-            .Produces<InvitationView>()
-            .RequireAuthorization();
-        invitations.MapDelete("/{invitationId:guid}", RevokeInvitationAsync)
-            .Produces(StatusCodes.Status204NoContent)
-            .RequireAuthorization();
-        invitations.MapPost("/accept", AcceptInvitationAsync)
-            .Produces<InvitationAcceptance>()
-            .ProducesProblem(StatusCodes.Status400BadRequest)
-            .AllowAnonymous();
         invitations.MapGet("/{token}/preview", PreviewTransferableInvitationAsync)
             .Produces<InvitationPreview>()
             .Produces(StatusCodes.Status404NotFound)
@@ -65,7 +44,10 @@ internal static class LifecycleEndpoints
         account.MapGet("/", GetAccountAsync).Produces<AccountView>();
         account.MapGet("/memberships", ListMembershipsAsync)
             .Produces<IReadOnlyList<AccountMembershipView>>();
-        account.MapPatch("/profile", UpdateProfileAsync).Produces<AccountView>();
+        account.MapPatch("/profile", UpdateProfileAsync)
+            .Produces<AccountView>()
+            .ProducesProblem(StatusCodes.Status412PreconditionFailed)
+            .ProducesProblem(StatusCodes.Status428PreconditionRequired);
         account.MapPost("/email-change", RequestEmailChangeAsync).Produces(StatusCodes.Status204NoContent);
         account.MapPost("/email-change/confirm", ConfirmEmailChangeAsync).Produces<EmailChangeResult>();
         account.MapPost("/deletion", ScheduleAccountDeletionAsync).Produces<DeletionSchedule>();
@@ -432,13 +414,21 @@ internal static class LifecycleEndpoints
         IAccountLifecycle lifecycle,
         CancellationToken cancellationToken)
     {
-        return await ExecuteAccountMutationAsync(
-            context,
-            antiforgery,
-            userId => lifecycle.UpdateDisplayNameAsync(
-                userId,
-                body.DisplayName ?? string.Empty,
-                cancellationToken));
+        if (await ValidateMutationAsync(context, antiforgery) is { } failure) return failure;
+        if (!TryGetActor(context.User, out var actorId)) return Results.Unauthorized();
+        if (!PlanningEndpointSupport.TryReadVersion(context.Request, out var expectedVersion))
+            return PlanningEndpointSupport.PreconditionRequired();
+        return await ExecuteAsync(async () =>
+        {
+            var account = await lifecycle.UpdateProfileAsync(
+                actorId,
+                body.FirstName ?? string.Empty,
+                body.LastName ?? string.Empty,
+                expectedVersion,
+                cancellationToken);
+            PlanningEndpointSupport.WriteEtag(context.Response, account.Version);
+            return Results.Ok(account);
+        });
     }
 
     private static async Task<IResult> ScheduleAccountDeletionAsync(
@@ -601,11 +591,11 @@ internal static class LifecycleEndpoints
             {
                 "invitation_rate_limited" => StatusCodes.Status429TooManyRequests,
                 "email_change_rate_limited" => StatusCodes.Status429TooManyRequests,
-                "platform_admin_required" or "owner_required" or "role_escalation" or "membership_required" =>
+                "super_admin_required" or "organization_admin_required" or "role_escalation" or "membership_required" =>
                     StatusCodes.Status403Forbidden,
                 "invitation_not_found" or "organization_not_found" or "user_not_found" =>
                     StatusCodes.Status404NotFound,
-                "last_owner" or "organization_slug_conflict" or "email_conflict" => StatusCodes.Status409Conflict,
+                "organization_slug_conflict" or "email_conflict" => StatusCodes.Status409Conflict,
                 "version_conflict" => StatusCodes.Status412PreconditionFailed,
                 _ => StatusCodes.Status400BadRequest
             };
@@ -723,7 +713,7 @@ internal static class LifecycleEndpoints
 
     private sealed record InvitationConfirmationBody(string? Token);
 
-    private sealed record UpdateProfileBody(string? DisplayName);
+    private sealed record UpdateProfileBody(string? FirstName, string? LastName);
 
     private sealed record RequestEmailChangeBody(string? Email);
 

@@ -5,7 +5,7 @@
 - Invariants: slug unique per Organization; IANA zone defaults to Europe/Berlin; instants use UTC and all-day entries
   local half-open date ranges; overlap is allowed/informational; archived camps are read-only except reactivation;
   DefaultPortions is positive; every existing-aggregate mutation checks numeric Version.
-- Roles: Owner/Admin see all camps; CampLead manages assigned camp; Member edits; Viewer reads/prints/exports.
+- Roles: Orgadmins see all camps; CampLead manages assigned camp; Member edits; Viewer reads/prints/exports.
 - Contracts: `ICampManagement` owns camp list/lifecycle, `ICampPlanningDefaults` exposes the narrow catering default,
   `ISchedulePlanning` owns agenda CRUD, and `IScheduleReferenceAccess` validates stable references for atomic
   Catering/Spiritual workflows. Contract views expose numeric Version for HTTP ETags. They never contain Meal or
@@ -17,7 +17,7 @@
 - Data/schema: `CampsDbContext` owns `camps.camps`, `camps.schedule_entries`, and
   `camps.schedule_responsibilities`. Every row carries `organization_id`; schedule/responsibility rows also carry
   `camp_id`. There are no foreign keys to other module schemas. Forced PostgreSQL RLS uses Identity security-definer
-  access functions and keeps Platform Admin, foreign Organization and unassigned Camp rows invisible.
+  access functions and keeps Superadmin, foreign Organization and unassigned Camp rows invisible.
 - Authorization: application checks use `Identity.Contracts.ITenantAccessControl`; responsibility candidates must
   themselves have Camp read access. CampLead can manage its Camp, Member can edit schedule content, and Viewer is
   read-only. Archived Camp schedule writes and LinkForWrite reference checks fail with `camp_archived`.
@@ -33,7 +33,7 @@
   readers obtain a fresh actor-bound grant before opening a file; Camp writers upload with antiforgery and move files
   to the shared 30-day trash with the attachment `If-Match`. Archived Camps expose these files read-only.
 - Lifecycle UI: the Organization Camp list resolves the tenant through the signed-in account memberships, groups
-  Camps by upcoming/ongoing/past, and links only readable results. Owner/Admin creation uses antiforgery; settings
+  Camps by upcoming/ongoing/past, and links only readable results. Orgadmins creation uses antiforgery; settings
   update, archive, and reactivate use antiforgery plus the current numeric Version in `If-Match`. Archived fields are
   disabled in the browser while the API remains authoritative.
 - Workspace runtime: speaking Organization/Camp slugs are resolved through the signed-in memberships and

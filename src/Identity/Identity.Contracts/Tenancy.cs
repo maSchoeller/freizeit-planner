@@ -35,9 +35,11 @@ public interface IAccountLifecycle
         Guid userId,
         CancellationToken cancellationToken);
 
-    Task<AccountView> UpdateDisplayNameAsync(
+    Task<AccountView> UpdateProfileAsync(
         Guid userId,
-        string displayName,
+        string firstName,
+        string lastName,
+        long expectedVersion,
         CancellationToken cancellationToken);
 
     Task<DeletionSchedule> ScheduleAccountDeletionAsync(Guid userId, CancellationToken cancellationToken);
@@ -113,7 +115,6 @@ public interface IDataErasure
 }
 
 public sealed record IdentityCleanupResult(
-    int ExpiredLoginChallenges,
     int ExpiredEmailChangeChallenges,
     int ExpiredInvitations,
     int StaleSessions,
@@ -173,8 +174,10 @@ public sealed record AccountView(
     Guid Id,
     string Email,
     string DisplayName,
+    string FirstName,
+    string LastName,
     DateTimeOffset? DeletionScheduledAt,
-    bool IsPlatformAdmin,
+    bool IsSuperAdmin,
     long Version);
 
 public sealed record AccountMembershipView(
@@ -199,11 +202,10 @@ public sealed record EmailChangeResult(EmailChangeOutcome Outcome, string? Email
 
 public enum TenantRole
 {
-    Owner,
-    OrganizationAdmin,
-    CampLead,
-    Member,
-    Viewer
+    OrganizationAdmin = 1,
+    CampLead = 2,
+    Member = 3,
+    Viewer = 4
 }
 
 public enum OrganizationStatus

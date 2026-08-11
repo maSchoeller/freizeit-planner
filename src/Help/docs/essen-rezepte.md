@@ -6,7 +6,7 @@ zum Camp.
 
 ## Rezept anlegen
 
-Owner und Organisations-Admins wählen **Rezept anlegen** und erfassen Name, Beschreibung, Zubereitung und
+Orgadmins wählen **Rezept anlegen** und erfassen Name, Beschreibung, Zubereitung und
 Basisportionen. Suche eine vorhandene Zutat mit mindestens zwei Zeichen und füge sie dem Rezept hinzu. Jede
 Zutatenposition benötigt eine positive Dezimalmenge und eine Einheit:
 
@@ -22,7 +22,7 @@ Rezeptversion an.
 ## Rezept öffnen und überarbeiten
 
 Mit **Rezept öffnen** siehst du die vollständige aktuelle Version: Beschreibung, Zubereitung, Basisportionen,
-Zutatenmengen, Ernährungs-Tags sowie Allergen- und Küchenhinweise. Owner und Organisations-Admins können anschließend
+Zutatenmengen, Ernährungs-Tags sowie Allergen- und Küchenhinweise. Orgadmins können anschließend
 **Rezept bearbeiten** wählen. Alle bisherigen Angaben werden in das Formular übernommen; Zutaten lassen sich dort
 ergänzen, ändern oder entfernen.
 
@@ -34,7 +34,7 @@ prüfe deine Änderungen, bevor du sie noch einmal speicherst.
 ## Dateien am Rezept
 
 Im geöffneten Rezept zeigt **Dateien** alle bereits hinterlegten Anhänge und die Belegung der gemeinsamen
-100-MiB-Rezeptbibliotheksquote. Owner und Organisations-Admins können PDF-, JPEG-, PNG- oder WebP-Dateien bis
+100-MiB-Rezeptbibliotheksquote. Orgadmins können PDF-, JPEG-, PNG- oder WebP-Dateien bis
 höchstens zehn MiB auswählen und hochladen. Andere Formate werden nicht akzeptiert.
 
 **Dateiname öffnen** fordert zuerst eine kurzlebige, nur für dein Konto gültige Leseberechtigung an. Bilder werden
@@ -43,7 +43,7 @@ keine Malware-Prüfung durch. Lade deshalb ausschließlich Dateien aus vertrauen
 
 ## Zutaten verwalten
 
-Owner und Organisations-Admins öffnen **Zutaten verwalten**. Neue Namen werden vereinheitlicht; Schreibweise,
+Orgadmins öffnen **Zutaten verwalten**. Neue Namen werden vereinheitlicht; Schreibweise,
 Unicode-Varianten oder mehrfach gesetzte Leerzeichen erzeugen deshalb keine unbemerkten Duplikate. Beim Umbenennen
 wird die angezeigte Version geprüft. Ist die Zutat inzwischen geändert worden, lade den aktuellen Stand und prüfe
 deine Änderung erneut.

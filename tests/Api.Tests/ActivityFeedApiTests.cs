@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using System.Globalization;
 using System.Text.Json;
 using Activity.Contracts;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Microsoft.AspNetCore.Hosting;
@@ -20,19 +19,14 @@ public sealed class ActivityFeedApiTests
     [Fact]
     public async Task ActivityFeedIncludesTheCurrentActorDisplayNameAndObjectType()
     {
-        var sender = new CapturingSender();
         var activity = new ActivityFake();
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<IActivityJournal>();
                 services.RemoveAll<ICampMemberDirectory>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<IActivityJournal>(activity);
                 services.AddSingleton<ICampMemberDirectory>(activity);
             });
@@ -44,7 +38,7 @@ public sealed class ActivityFeedApiTests
             HandleCookies = true
         });
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, sender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
             $"/api/v1/organizations/{activity.OrganizationId}/camps/{activity.CampId}/activity?limit=5",
@@ -60,7 +54,6 @@ public sealed class ActivityFeedApiTests
 
     private static Task LoginAsync(
         HttpClient client,
-        CapturingSender sender,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -86,18 +79,6 @@ public sealed class ActivityFeedApiTests
     }
 
     private sealed record AntiforgeryResponse(string Token);
-
-    private sealed class CapturingSender : ILoginCodeSender
-    {
-        public List<string> Codes { get; } = [];
-
-        public Task SendAsync(string email, string code, DateTimeOffset expiresAt,
-            CancellationToken cancellationToken)
-        {
-            Codes.Add(code);
-            return Task.CompletedTask;
-        }
-    }
 
     private sealed class ActivityFake : IActivityJournal, ICampMemberDirectory
     {

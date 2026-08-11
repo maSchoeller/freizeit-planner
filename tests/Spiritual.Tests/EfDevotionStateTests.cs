@@ -83,12 +83,12 @@ public sealed class EfDevotionStateTests
         public Task<TenantAccessDecision> AuthorizeOrganizationAsync(
             OrganizationAccessRequest request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(TenantAccessDecision.Permit(TenantRole.Owner));
+            Task.FromResult(TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
 
         public Task<TenantAccessDecision> AuthorizeCampAsync(
             CampAccessRequest request,
             CancellationToken cancellationToken) =>
-            Task.FromResult(TenantAccessDecision.Permit(TenantRole.Owner));
+            Task.FromResult(TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
     }
 
     private sealed class ActiveCampContext : IDevotionCampContext

@@ -33,7 +33,7 @@ function membershipsResponse() {
         organizationId,
         organizationName: "Sonnenhöhe e. V.",
         organizationSlug: "sonnenhoehe",
-        role: 0,
+        role: 1,
       },
     ]),
     { status: 200, headers: { "Content-Type": "application/json" } },

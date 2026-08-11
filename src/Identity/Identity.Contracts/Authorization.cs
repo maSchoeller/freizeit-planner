@@ -42,9 +42,9 @@ public interface ICampMemberDirectory
         CancellationToken cancellationToken);
 }
 
-public interface IPlatformAdministration
+public interface ISuperAdminOrganizationAdministration
 {
-    Task<IReadOnlyList<PlatformOrganizationView>> ListOrganizationsAsync(
+    Task<IReadOnlyList<SuperAdminOrganizationView>> ListOrganizationsAsync(
         Guid actorId,
         CancellationToken cancellationToken);
 
@@ -137,7 +137,7 @@ public sealed record OrganizationStatusView(
     OrganizationStatus Status,
     long Version);
 
-public sealed record PlatformOrganizationView(
+public sealed record SuperAdminOrganizationView(
     Guid OrganizationId,
     string Name,
     string Slug,

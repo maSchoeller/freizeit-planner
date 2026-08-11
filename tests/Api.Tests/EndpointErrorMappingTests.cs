@@ -18,14 +18,12 @@ public sealed class EndpointErrorMappingTests
     {
         { "invitation_rate_limited", StatusCodes.Status429TooManyRequests },
         { "email_change_rate_limited", StatusCodes.Status429TooManyRequests },
-        { "platform_admin_required", StatusCodes.Status403Forbidden },
-        { "owner_required", StatusCodes.Status403Forbidden },
+        { "super_admin_required", StatusCodes.Status403Forbidden },
         { "role_escalation", StatusCodes.Status403Forbidden },
         { "membership_required", StatusCodes.Status403Forbidden },
         { "invitation_not_found", StatusCodes.Status404NotFound },
         { "organization_not_found", StatusCodes.Status404NotFound },
         { "user_not_found", StatusCodes.Status404NotFound },
-        { "last_owner", StatusCodes.Status409Conflict },
         { "organization_slug_conflict", StatusCodes.Status409Conflict },
         { "email_conflict", StatusCodes.Status409Conflict },
         { "invalid_request", StatusCodes.Status400BadRequest }
@@ -34,11 +32,10 @@ public sealed class EndpointErrorMappingTests
     public static TheoryData<string, int> AdministrationErrors => new()
     {
         { "version_conflict", StatusCodes.Status412PreconditionFailed },
-        { "last_owner", StatusCodes.Status409Conflict },
         { "organization_not_found", StatusCodes.Status404NotFound },
         { "user_not_found", StatusCodes.Status404NotFound },
         { "camp_assignment_not_found", StatusCodes.Status404NotFound },
-        { "platform_admin_required", StatusCodes.Status403Forbidden },
+        { "super_admin_required", StatusCodes.Status403Forbidden },
         { "role_escalation", StatusCodes.Status403Forbidden },
         { "membership_management_denied", StatusCodes.Status403Forbidden },
         { "membership_required", StatusCodes.Status403Forbidden },

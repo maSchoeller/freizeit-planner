@@ -11,6 +11,10 @@ import { PwaUpdatePrompt } from "./PwaUpdatePrompt";
 import { OnlineOnly } from "./OnlineOnly";
 import { FirstLoginPage } from "./FirstLoginPage";
 import { PasswordResetPage } from "./PasswordResetPage";
+import {
+  OrganizationUsersPage,
+  SuperAdminUsersPage,
+} from "./UserAdministrationPage";
 
 export function App() {
   return (
@@ -90,7 +94,7 @@ export function App() {
           }
         />
         <Route
-          path="/plattform/organisationen"
+          path="/superadmin/organisationen"
           element={
             <OnlineOnly>
               <PlatformOrganizationsPage />
@@ -98,10 +102,18 @@ export function App() {
           }
         />
         <Route
-          path="/superadmin/organisationen"
+          path="/superadmin/benutzer"
           element={
             <OnlineOnly>
-              <PlatformOrganizationsPage />
+              <SuperAdminUsersPage />
+            </OnlineOnly>
+          }
+        />
+        <Route
+          path="/o/:organizationSlug/verwaltung/benutzer"
+          element={
+            <OnlineOnly>
+              <OrganizationUsersPage />
             </OnlineOnly>
           }
         />

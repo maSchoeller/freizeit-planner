@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Globalization;
 using Camps.Contracts;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Microsoft.AspNetCore.Authentication;
@@ -26,11 +25,10 @@ public sealed class AtomicPlanningTransactionTests
         var connectionString = Environment.GetEnvironmentVariable("FREIZEIT_ATOMIC_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString)) return;
 
-        var sender = new CapturingSender();
-        using var factory = CreateFactory(connectionString, sender);
+        using var factory = CreateFactory(connectionString);
         using var client = CreateClient(factory);
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, sender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         using var response = await client.GetAsync(
             "/api/v1/organizations/20000000-0000-0000-0000-000000000001/camps/"
@@ -52,12 +50,11 @@ public sealed class AtomicPlanningTransactionTests
         var connectionString = Environment.GetEnvironmentVariable("FREIZEIT_ATOMIC_TEST_CONNECTION");
         if (string.IsNullOrWhiteSpace(connectionString)) return;
 
-        var sender = new CapturingSender();
         using var logs = new ExceptionLoggerProvider();
-        using var factory = CreateFactory(connectionString, sender, logs);
+        using var factory = CreateFactory(connectionString, logs);
         using var client = CreateClient(factory);
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, sender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         var suffix = Guid.NewGuid().ToString("N")[..8];
         var organizationId = Guid.Parse("20000000-0000-0000-0000-000000000001");
@@ -137,7 +134,6 @@ public sealed class AtomicPlanningTransactionTests
 
     private static WebApplicationFactory<Program> CreateFactory(
         string connectionString,
-        CapturingSender sender,
         ILoggerProvider? loggerProvider = null) =>
         new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
@@ -157,10 +153,6 @@ public sealed class AtomicPlanningTransactionTests
                     .AddScheme<AuthenticationSchemeOptions, TestingAuthenticationHandler>(
                         TestingAuthenticationHandler.SchemeName,
                         _ => { });
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
             });
         });
 
@@ -174,7 +166,6 @@ public sealed class AtomicPlanningTransactionTests
 
     private static Task LoginAsync(
         HttpClient client,
-        CapturingSender sender,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -206,21 +197,6 @@ public sealed class AtomicPlanningTransactionTests
     }
 
     private sealed record AntiforgeryResponse(string Token);
-
-    private sealed class CapturingSender : ILoginCodeSender
-    {
-        public List<string> Codes { get; } = [];
-
-        public Task SendAsync(
-            string email,
-            string code,
-            DateTimeOffset expiresAt,
-            CancellationToken cancellationToken)
-        {
-            Codes.Add(code);
-            return Task.CompletedTask;
-        }
-    }
 
     private sealed class ExceptionLoggerProvider : ILoggerProvider
     {

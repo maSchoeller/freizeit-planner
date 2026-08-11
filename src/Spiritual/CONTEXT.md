@@ -20,7 +20,7 @@
   linked Devotion in one local Npgsql transaction and defaults an empty responsibility selection to the actor.
 - Persistence: `SpiritualDbContext` stores versioned devotions and append-only Bible snapshots in schema `spiritual`.
   Both tables carry `organization_id` and `camp_id`; forced PostgreSQL RLS uses request-local Identity context, denies
-  Platform Admin content access, and grants the runtime role no snapshot update/delete privilege.
+  Superadmin content access, and grants the runtime role no snapshot update/delete privilege.
 - Provider metadata checked 2026-08-07: Free Use Bible API documents chapter JSON at
   `https://bible.helloao.org/api/{translation}/{book}/{chapter}.json`. Current upstream IDs are `deu_sch`, `deu_l12`,
   `deu_elo`, and `deu_tkw`, privately mapped to stable IDs `deu1951`, `deu1912`, `deuelo`, and `deutkw`.

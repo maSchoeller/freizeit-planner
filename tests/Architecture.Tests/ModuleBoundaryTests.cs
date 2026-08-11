@@ -14,7 +14,7 @@ public sealed class ModuleBoundaryTests
         typeof(Camps.Implementation.CampPlanningService).Assembly,
         typeof(Catering.Implementation.CateringService).Assembly,
         typeof(Files.Implementation.AttachmentService).Assembly,
-        typeof(Identity.Implementation.PasswordlessLoginService).Assembly,
+        typeof(Identity.Implementation.PasswordAuthenticationService).Assembly,
         typeof(Knowledge.Implementation.KnowledgeService).Assembly,
         typeof(Logistics.Implementation.LogisticsPlanningService).Assembly,
         typeof(Spiritual.Implementation.DevotionPlanningService).Assembly

@@ -19,7 +19,8 @@ type Membership = components["schemas"]["AccountMembershipView"];
 export function AccountPage() {
   const [account, setAccount] = useState<Account | null>(null);
   const [memberships, setMemberships] = useState<Membership[]>([]);
-  const [displayName, setDisplayName] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
   const [emailCodeRequested, setEmailCodeRequested] = useState(false);
@@ -57,7 +58,8 @@ export function AccountPage() {
         const membershipResult =
           (await membershipResponse.json()) as Membership[];
         setAccount(accountResult);
-        setDisplayName(accountResult.displayName);
+        setFirstName(accountResult.firstName);
+        setLastName(accountResult.lastName);
         setMemberships(membershipResult);
       })
       .catch((caught: unknown) => {
@@ -75,8 +77,11 @@ export function AccountPage() {
     event.preventDefault();
     await mutate("profile", async (token) => {
       const result = await api.PATCH("/api/v1/account/profile", {
-        headers: { "X-CSRF-TOKEN": token },
-        body: { displayName },
+        headers: {
+          "X-CSRF-TOKEN": token,
+          "If-Match": `"${account?.version ?? 0}"`,
+        },
+        body: { firstName, lastName },
       });
       if (!result.data)
         throw new Error(
@@ -279,15 +284,29 @@ export function AccountPage() {
               <h2 id="profile-heading">Profil</h2>
               <p className="muted">Anmeldung: {account.email}</p>
               <form onSubmit={(event) => void saveProfile(event)}>
-                <div className="field">
-                  <label htmlFor="account-name">Anzeigename</label>
-                  <input
-                    id="account-name"
-                    required
-                    maxLength={160}
-                    value={displayName}
-                    onChange={(event) => setDisplayName(event.target.value)}
-                  />
+                <div className="field-row">
+                  <div className="field">
+                    <label htmlFor="account-first-name">Vorname</label>
+                    <input
+                      id="account-first-name"
+                      autoComplete="given-name"
+                      required
+                      maxLength={80}
+                      value={firstName}
+                      onChange={(event) => setFirstName(event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <label htmlFor="account-last-name">Nachname</label>
+                    <input
+                      id="account-last-name"
+                      autoComplete="family-name"
+                      required
+                      maxLength={80}
+                      value={lastName}
+                      onChange={(event) => setLastName(event.target.value)}
+                    />
+                  </div>
                 </div>
                 <button
                   className="primary-action"
@@ -296,7 +315,7 @@ export function AccountPage() {
                 >
                   {busy === "profile"
                     ? "Wird gespeichert …"
-                    : "Anzeigename speichern"}
+                    : "Namen speichern"}
                 </button>
               </form>
               <p>
@@ -310,10 +329,10 @@ export function AccountPage() {
               >
                 {busy === "logout" ? "Wird abgemeldet …" : "Abmelden"}
               </button>
-              {account.isPlatformAdmin ? (
+              {account.isSuperAdmin ? (
                 <p>
-                  <Link to="/plattform/organisationen">
-                    Organizations auf Plattformebene verwalten
+                  <Link to="/superadmin/organisationen">
+                    Superadmin-Verwaltung öffnen
                   </Link>
                 </p>
               ) : null}
@@ -469,9 +488,9 @@ export function AccountPage() {
                         <Link to={`/o/${membership.organizationSlug}/camps`}>
                           Camps anzeigen
                         </Link>
-                        {membership.role === 0 || membership.role === 1 ? (
+                        {membership.role === 1 ? (
                           <Link
-                            to={`/o/${membership.organizationSlug}/einstellungen/mitglieder?organizationId=${membership.organizationId}`}
+                            to={`/o/${membership.organizationSlug}/verwaltung/benutzer`}
                           >
                             Mitglieder verwalten
                           </Link>
@@ -516,8 +535,8 @@ export function AccountPage() {
               ) : confirmDeletion ? (
                 <div className="confirmation-panel">
                   <p>
-                    Dein Konto wird 30 Tage vorgemerkt. Als letzter Owner ist
-                    die Vormerkung nicht möglich.
+                    Dein Konto wird 30 Tage vorgemerkt. Organizationen können
+                    dabei bewusst ohne Orgadmin verbleiben.
                   </p>
                   <div className="login-actions">
                     <button
@@ -558,8 +577,7 @@ function roleLabel(role: Membership["role"]): string {
   return (
     (
       {
-        0: "Owner",
-        1: "Organisations-Admin",
+        1: "Orgadmin",
         2: "Camp-Leitung",
         3: "Mitglied",
         4: "Lesender Zugriff",

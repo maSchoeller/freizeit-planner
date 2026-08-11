@@ -7,7 +7,6 @@ using Activity.Contracts;
 using Camps.Contracts;
 using Catering.Contracts;
 using Files.Contracts;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Knowledge.Contracts;
@@ -64,9 +63,10 @@ public sealed class PlanningReadEndpointApiTests
         "/api/v1/account",
         "/api/v1/account/memberships",
         "/api/v1/auth/sessions",
-        $"/api/v1/invitations/organizations/{OrganizationId}",
         $"/api/v1/organizations/{OrganizationId}/members",
-        "/api/v1/platform/organizations"
+        "/api/v1/superadmin/users",
+        "/api/v1/superadmin/organizations",
+        $"/api/v1/organizations/{OrganizationId}/administration/users"
     };
 
     [Theory]
@@ -162,11 +162,7 @@ public sealed class PlanningReadEndpointApiTests
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                Replace<IPasswordlessState>(services, PasswordlessTestState.WithMiriam());
-                Replace<ILoginCodeSender>(services, sender);
                 Replace<IEmailChangeCodeSender>(services);
-                Replace<IInvitationSender>(services);
-                Replace<IInvitationLifecycle>(services);
                 Replace<ITransferableInvitationLinks>(services);
                 Replace<IInvitationRegistration>(services);
                 Replace<IAccountLifecycle>(services);
@@ -176,7 +172,8 @@ public sealed class PlanningReadEndpointApiTests
                 Replace<ITenantAccessControl>(services);
                 Replace<ITenantAdministration>(services);
                 Replace<ICampMemberDirectory>(services);
-                Replace<IPlatformAdministration>(services);
+                Replace<ISuperAdminOrganizationAdministration>(services);
+                Replace<IUserAdministration>(services);
                 Replace<ICampManagement>(services);
                 Replace<ICampPlanningDefaults>(services);
                 Replace<ISchedulePlanning>(services);
@@ -323,7 +320,7 @@ public sealed class PlanningReadEndpointApiTests
 
     private sealed record AntiforgeryResponse(string Token);
 
-    private sealed class CapturingSender : ILoginCodeSender
+    private sealed class CapturingSender
     {
         public List<string> Codes { get; } = [];
 

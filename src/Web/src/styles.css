@@ -1529,6 +1529,140 @@ button:disabled {
   outline: 3px solid #f3b61f;
   outline-offset: 2px;
 }
+.admin-toolbar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-block: 1.5rem;
+}
+.admin-toolbar form,
+.admin-toolbar form > div {
+  display: flex;
+  gap: 0.65rem;
+}
+.admin-toolbar form {
+  flex-direction: column;
+  align-items: stretch;
+}
+.admin-toolbar input {
+  min-height: 3rem;
+  min-width: min(24rem, 62vw);
+  padding-inline: 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  font: inherit;
+}
+.admin-user-list {
+  display: grid;
+  gap: 0.9rem;
+  padding: 0;
+  list-style: none;
+}
+.admin-user-list > li {
+  display: grid;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+.admin-user-heading,
+.admin-actions,
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+.admin-user-heading > div {
+  display: grid;
+  min-width: 0;
+}
+.admin-user-heading span,
+.copy-value {
+  overflow-wrap: anywhere;
+}
+.admin-organization-choice,
+.camp-role-grid label,
+.invitation-options label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+.admin-organization-choice {
+  max-width: 30rem;
+  margin-block: 1rem;
+}
+.admin-organization-choice select,
+.camp-role-grid select,
+.invitation-options select {
+  min-height: 3rem;
+  padding-inline: 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  background: #fff;
+  font: inherit;
+}
+.invitation-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-block: 1rem;
+}
+.camp-role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+.organization-invitation-form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-block: 1.5rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 0.75rem;
+  background: #fff;
+}
+.organization-invitation-form h2 {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.organization-invitation-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-weight: 700;
+}
+.organization-invitation-form input {
+  min-height: 3rem;
+  padding-inline: 0.75rem;
+  border: 1px solid #88aaa6;
+  border-radius: 0.55rem;
+  font: inherit;
+}
+.organization-invitation-form button {
+  grid-column: 1 / -1;
+  justify-self: start;
+}
+.status-badge {
+  padding: 0.25rem 0.6rem;
+  border-radius: 999px;
+  color: var(--petrol-900);
+  background: #d9f2e9;
+  font-size: 0.85rem;
+  font-weight: 750;
+}
+.status-badge.warning {
+  background: #fde6dc;
+}
+.pagination {
+  justify-content: center;
+  margin-block: 1.5rem;
+}
 @media (max-width: 600px) {
   .camp-card,
   .camp-form-grid {
@@ -1562,6 +1696,25 @@ button:disabled {
   .management-list select,
   .management-list button {
     width: 100%;
+  }
+  .admin-toolbar,
+  .admin-toolbar form > div,
+  .admin-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .admin-toolbar input,
+  .admin-toolbar button,
+  .admin-actions button {
+    width: 100%;
+    min-width: 0;
+  }
+  .organization-invitation-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .organization-invitation-form h2,
+  .organization-invitation-form button {
+    grid-column: auto;
   }
 }
 .login-help {

@@ -214,8 +214,11 @@ BEGIN
     IF (SELECT count(*) FROM identity.organizations) <> 2 THEN
         RAISE EXCEPTION 'platform organization metadata list unavailable';
     END IF;
-    IF (SELECT count(*) FROM identity.memberships) <> 0 THEN
-        RAISE EXCEPTION 'platform admin gained membership access';
+    IF (SELECT count(*) FROM identity.memberships) <> 6 THEN
+        RAISE EXCEPTION 'superadmin membership administration view is incomplete';
+    END IF;
+    IF (SELECT count(*) FROM identity.camp_assignments) <> 3 THEN
+        RAISE EXCEPTION 'superadmin camp-assignment administration view is incomplete';
     END IF;
 END
 $assert$;
@@ -250,11 +253,15 @@ BEGIN;
 SET LOCAL ROLE freizeit_app;
 SELECT set_config('app.user_id', '10000000-0000-0000-0000-000000000006', true);
 SELECT set_config('app.organization_id', '20000000-0000-0000-0000-000000000001', true);
+SELECT set_config('app.camp_id', '30000000-0000-0000-0000-000000000001', true);
 SELECT set_config('app.operation', 'tenant', true);
 DO $assert$
 BEGIN
-    IF (SELECT count(*) FROM identity.organizations) <> 0 THEN
-        RAISE EXCEPTION 'platform admin gained tenant content access';
+    IF (SELECT count(*) FROM identity.organizations) <> 1 THEN
+        RAISE EXCEPTION 'superadmin explicit organization membership was ignored';
+    END IF;
+    IF (SELECT count(*) FROM activity.activity_events) <> 0 THEN
+        RAISE EXCEPTION 'superadmin gained camp content access without a camp assignment';
     END IF;
 END
 $assert$;

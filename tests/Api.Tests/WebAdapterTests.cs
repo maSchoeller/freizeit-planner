@@ -113,9 +113,8 @@ public sealed class WebAdapterTests
     }
 
     [Theory]
-    [InlineData("POST", "/api/v1/invitations/accept", "invitation_acceptance")]
-    [InlineData("POST", "/api/v1/invitations/organizations", "platform_create_organization")]
-    [InlineData("GET", "/api/v1/platform/organizations", "platform_admin")]
+    [InlineData("POST", "/api/v1/invitations/example-token/accept", "invitation_acceptance")]
+    [InlineData("GET", "/api/v1/superadmin/organizations", "platform_admin")]
     [InlineData("GET", "/api/v1/organizations/x", "tenant")]
     public void TransactionMiddlewareClassifiesDatabaseOperation(
         string method, string path, string expected)
@@ -243,13 +242,13 @@ public sealed class WebAdapterTests
         public Task<TenantAccessDecision> AuthorizeOrganizationAsync(
             OrganizationAccessRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(allowed
-                ? TenantAccessDecision.Permit(TenantRole.Owner)
+                ? TenantAccessDecision.Permit(TenantRole.OrganizationAdmin)
                 : TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied));
 
         public Task<TenantAccessDecision> AuthorizeCampAsync(
             CampAccessRequest request, CancellationToken cancellationToken) =>
             Task.FromResult(allowed
-                ? TenantAccessDecision.Permit(TenantRole.Owner)
+                ? TenantAccessDecision.Permit(TenantRole.OrganizationAdmin)
                 : TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied));
     }
 

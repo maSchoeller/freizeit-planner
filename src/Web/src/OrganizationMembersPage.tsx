@@ -13,11 +13,10 @@ type Member = components["schemas"]["OrganizationMemberView"];
 type TenantRole = components["schemas"]["TenantRole"];
 
 const roles: ReadonlyArray<{ value: TenantRole; label: string }> = [
-  { value: 0, label: "Owner" },
-  { value: 1, label: "Organization Admin" },
-  { value: 2, label: "Camp Lead" },
-  { value: 3, label: "Member" },
-  { value: 4, label: "Viewer" },
+  { value: 1, label: "Orgadmin" },
+  { value: 2, label: "Camp-Leitung" },
+  { value: 3, label: "Mitglied" },
+  { value: 4, label: "Lesender Zugriff" },
 ];
 
 export function OrganizationMembersPage() {
@@ -145,8 +144,8 @@ export function OrganizationMembersPage() {
       <p className="eyebrow">Organization-Einstellungen</p>
       <h1>Mitglieder verwalten</h1>
       <p>
-        Rollen gelten serverseitig. Der letzte aktive Owner bleibt immer
-        geschützt.
+        Rollen gelten serverseitig. Eine Organization darf bewusst ohne Orgadmin
+        bestehen.
       </p>
       {loading ? <p role="status">Mitglieder werden geladen …</p> : null}
       {error ? (

@@ -13,7 +13,7 @@ public sealed class InvitationLifecycleTests
 
         var invitation = await fixture.Service.CreateOrganizationInvitationAsync(
             new OrganizationInvitationRequest(
-                fixture.PlatformAdminId,
+                fixture.SuperAdminId,
                 "team@example.test",
                 "CVJM Sonnenhöhe",
                 "sonnenhoehe",
@@ -21,7 +21,7 @@ public sealed class InvitationLifecycleTests
             TestContext.Current.CancellationToken);
 
         Assert.Equal(fixture.Clock.GetUtcNow().AddHours(48), invitation.ExpiresAt);
-        Assert.Equal(TenantRole.Owner, invitation.Role);
+        Assert.Equal(TenantRole.OrganizationAdmin, invitation.Role);
         Assert.DoesNotContain(invitation.Token, fixture.State.StoredInvitationHashes);
     }
 
@@ -99,12 +99,12 @@ public sealed class InvitationLifecycleTests
             cancellationToken);
 
         var accepted = await fixture.Service.AcceptInvitationAsync(
-            new AcceptInvitationRequest(invitation.Token, "Organization Owner"),
+            new AcceptInvitationRequest(invitation.Token, "Organization Admin"),
             cancellationToken);
 
         Assert.Equal(InvitationAcceptanceOutcome.Accepted, accepted.Outcome);
         Assert.Equal(
-            TenantRole.Owner,
+            TenantRole.OrganizationAdmin,
             (await fixture.State.FindMembershipAsync(
                 fixture.OrganizationId,
                 fixture.OwnerId,
@@ -114,29 +114,22 @@ public sealed class InvitationLifecycleTests
     }
 
     [Fact]
-    public async Task LastOwnerCannotLeaveOrDeleteAccountAndDeletionHasThirtyDayGrace()
+    public async Task OrganizationMayRemainWithoutAdminAndDeletionHasThirtyDayGrace()
     {
         var fixture = LifecycleFixture.CreateWithOrganization();
         var cancellationToken = TestContext.Current.CancellationToken;
 
-        var leaveError = await Assert.ThrowsAsync<IdentityRuleException>(() =>
-            fixture.Service.LeaveOrganizationAsync(
-                fixture.OwnerId,
-                fixture.OrganizationId,
-                cancellationToken));
-        var deletionError = await Assert.ThrowsAsync<IdentityRuleException>(() =>
-            fixture.Service.ScheduleAccountDeletionAsync(fixture.OwnerId, cancellationToken));
-
-        fixture.State.Memberships.Add(new MembershipRecord(
+        await fixture.Service.LeaveOrganizationAsync(
+            fixture.OwnerId,
             fixture.OrganizationId,
-            Guid.NewGuid(),
-            TenantRole.Owner));
+            cancellationToken);
         var schedule = await fixture.Service.ScheduleAccountDeletionAsync(
             fixture.OwnerId,
             cancellationToken);
 
-        Assert.Equal("last_owner", leaveError.ErrorCode);
-        Assert.Equal("last_owner", deletionError.ErrorCode);
+        Assert.False(Assert.Single(
+            fixture.State.Memberships,
+            item => item.UserId == fixture.OwnerId).IsActive);
         Assert.Equal(schedule.ScheduledAt.AddDays(30), schedule.PurgeAt);
         await fixture.Service.CancelAccountDeletionAsync(fixture.OwnerId, cancellationToken);
         Assert.Null((await fixture.State.FindUserAsync(fixture.OwnerId, cancellationToken))?.DeletionScheduledAt);
@@ -195,7 +188,7 @@ public sealed class InvitationLifecycleTests
             user.Email,
             user.NormalizedEmail,
             user.DisplayName,
-            user.IsPlatformAdmin,
+            user.IsSuperAdmin,
             fixture.Clock.GetUtcNow().AddDays(-30),
             fixture.Clock.GetUtcNow()));
         var organization = Assert.Single(
@@ -270,18 +263,18 @@ public sealed class InvitationLifecycleTests
                 cancellationToken));
         var conflict = await Assert.ThrowsAsync<IdentityRuleException>(() =>
             fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
-                fixture.PlatformAdminId, "team@example.test", "Doppelt", "sonnenhoehe", "192.0.2.1"),
+                fixture.SuperAdminId, "team@example.test", "Doppelt", "sonnenhoehe", "192.0.2.1"),
                 cancellationToken));
         var slug = await Assert.ThrowsAsync<IdentityRuleException>(() =>
             fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
-                fixture.PlatformAdminId, "team@example.test", "Ungültig", "-ungültig", "192.0.2.1"),
+                fixture.SuperAdminId, "team@example.test", "Ungültig", "-ungültig", "192.0.2.1"),
                 cancellationToken));
         var email = await Assert.ThrowsAsync<IdentityRuleException>(() =>
             fixture.Service.CreateOrganizationInvitationAsync(new OrganizationInvitationRequest(
-                fixture.PlatformAdminId, "keine-email", "Ungültig", "gueltig", "192.0.2.1"),
+                fixture.SuperAdminId, "keine-email", "Ungültig", "gueltig", "192.0.2.1"),
                 cancellationToken));
 
-        Assert.Equal("platform_admin_required", notAdmin.ErrorCode);
+        Assert.Equal("super_admin_required", notAdmin.ErrorCode);
         Assert.Equal("organization_slug_conflict", conflict.ErrorCode);
         Assert.Equal("slug_invalid", slug.ErrorCode);
         Assert.Equal("email_invalid", email.ErrorCode);
@@ -359,13 +352,15 @@ public sealed class InvitationLifecycleTests
     }
 
     [Fact]
-    public async Task AccountViewsSkipInactiveAndMissingOrganizationsAndAllowNonOwnerLeave()
+    public async Task AccountViewsExposeSeparateNamesAndAllowMemberLeave()
     {
         var fixture = LifecycleFixture.CreateWithOrganization();
         var cancellationToken = TestContext.Current.CancellationToken;
-        var account = await fixture.Service.UpdateDisplayNameAsync(
-            fixture.OwnerId, "  Miriam Muster  ", cancellationToken);
+        var account = await fixture.Service.UpdateProfileAsync(
+            fixture.OwnerId, "  Miriam  ", "  Muster  ", 1, cancellationToken);
         Assert.Equal("Miriam Muster", account.DisplayName);
+        Assert.Equal("Miriam", account.FirstName);
+        Assert.Equal("Muster", account.LastName);
         Assert.Equal(account, await fixture.Service.GetAccountAsync(fixture.OwnerId, cancellationToken));
 
         var inactiveOrganizationId = Guid.NewGuid();
@@ -400,12 +395,12 @@ public sealed class InvitationLifecycleTests
             fixture.Service.CancelOrganizationDeletionAsync(fixture.OwnerId, Guid.NewGuid(), cancellationToken));
 
         Assert.Equal("fresh_reauthentication_required", future.ErrorCode);
-        Assert.Equal("owner_required", nonOwner.ErrorCode);
+        Assert.Equal("organization_admin_required", nonOwner.ErrorCode);
         Assert.Equal("organization_not_found", missing.ErrorCode);
     }
 
     private sealed record LifecycleFixture(
-        Guid PlatformAdminId,
+        Guid SuperAdminId,
         Guid OwnerId,
         Guid OrganizationId,
         Guid CampId,
@@ -449,7 +444,7 @@ public sealed class InvitationLifecycleTests
                 ownerId,
                 "owner@example.test",
                 "OWNER@EXAMPLE.TEST",
-                "Organization Owner"));
+                "Organization Admin"));
             fixture.State.Organizations.Add(new OrganizationRecord(
                 organizationId,
                 "CVJM Sonnenhöhe",
@@ -457,7 +452,7 @@ public sealed class InvitationLifecycleTests
             fixture.State.Memberships.Add(new MembershipRecord(
                 organizationId,
                 ownerId,
-                TenantRole.Owner));
+                TenantRole.OrganizationAdmin));
             return fixture with
             {
                 OwnerId = ownerId,
@@ -473,7 +468,7 @@ public sealed class InvitationLifecycleTests
         {
             return Service.CreateOrganizationInvitationAsync(
                 new OrganizationInvitationRequest(
-                    PlatformAdminId,
+                    SuperAdminId,
                     email,
                     $"Organization {slug}",
                     slug,
@@ -537,13 +532,13 @@ public sealed class InvitationLifecycleTests
             ValueTask.FromResult<IReadOnlyList<MembershipRecord>>(
                 Memberships.Where(item => item.UserId == userId).ToArray());
 
-        public ValueTask<int> CountActiveOwnersAsync(
+        public ValueTask<int> CountActiveOrganizationAdminsAsync(
             Guid organizationId,
             CancellationToken cancellationToken) =>
             ValueTask.FromResult(Memberships.Count(item =>
                 item.OrganizationId == organizationId
                 && item.IsActive
-                && item.Role == TenantRole.Owner));
+                && item.Role == TenantRole.OrganizationAdmin));
 
         public ValueTask SaveMembershipAsync(
             MembershipRecord membership,

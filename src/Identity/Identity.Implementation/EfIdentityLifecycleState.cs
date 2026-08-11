@@ -17,10 +17,12 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.Email!,
                 item.NormalizedEmail!,
                 item.DisplayName,
-                item.IsPlatformAdmin,
+                item.IsSuperAdmin,
                 item.DeletionScheduledAt,
                 item.ErasureStartedAt,
-                item.Version))
+                item.Version,
+                item.FirstName,
+                item.LastName))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -35,10 +37,12 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
                 item.Email!,
                 item.NormalizedEmail!,
                 item.DisplayName,
-                item.IsPlatformAdmin,
+                item.IsSuperAdmin,
                 item.DeletionScheduledAt,
                 item.ErasureStartedAt,
-                item.Version))
+                item.Version,
+                item.FirstName,
+                item.LastName))
             .SingleOrDefaultAsync(cancellationToken);
     }
 
@@ -182,14 +186,14 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
             .SingleOrDefaultAsync(cancellationToken);
     }
 
-    public async ValueTask<int> CountActiveOwnersAsync(
+    public async ValueTask<int> CountActiveOrganizationAdminsAsync(
         Guid organizationId,
         CancellationToken cancellationToken)
     {
         return await dbContext.Memberships.CountAsync(
             item => item.OrganizationId == organizationId
                 && item.IsActive
-                && item.Role == Identity.Contracts.TenantRole.Owner,
+                && item.Role == Identity.Contracts.TenantRole.OrganizationAdmin,
             cancellationToken);
     }
 
@@ -450,7 +454,9 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
         NormalizedEmail = user.NormalizedEmail,
         EmailConfirmed = true,
         DisplayName = user.DisplayName,
-        IsPlatformAdmin = user.IsPlatformAdmin,
+        FirstName = user.FirstName,
+        LastName = user.LastName,
+        IsSuperAdmin = user.IsSuperAdmin,
         DeletionScheduledAt = user.DeletionScheduledAt,
         ErasureStartedAt = user.ErasureStartedAt,
         SecurityStamp = Guid.NewGuid().ToString("N"),
@@ -460,6 +466,8 @@ public sealed class EfIdentityLifecycleState(IdentityDbContext dbContext) :
     private void ApplyUser(ApplicationUser entity, LifecycleUser user)
     {
         entity.DisplayName = user.DisplayName;
+        entity.FirstName = user.FirstName;
+        entity.LastName = user.LastName;
         entity.DeletionScheduledAt = user.DeletionScheduledAt;
         dbContext.Entry(entity).Property(item => item.Version).OriginalValue = user.Version - 1;
         entity.Version = user.Version;

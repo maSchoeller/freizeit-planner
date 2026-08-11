@@ -229,7 +229,6 @@ public sealed class InvitationRegistrationService(
         if (invitation.IsSuperAdmin)
         {
             user.IsSuperAdmin = true;
-            user.IsPlatformAdmin = true;
             return ToGrant(invitation);
         }
 
@@ -259,15 +258,21 @@ public sealed class InvitationRegistrationService(
             {
                 OrganizationId = organizationId.Value,
                 UserId = user.Id,
-                Role = organizationRole ? TenantRole.OrganizationAdmin : TenantRole.Viewer
+                Role = organizationRole ? TenantRole.OrganizationAdmin : TenantRole.Viewer,
+                Status = MembershipStatus.Active,
+                OrganizationRole = organizationRole ? OrganizationRole.OrganizationAdmin : null
             };
             dbContext.Memberships.Add(membership);
         }
         else
         {
             membership.IsActive = true;
-            if (organizationRole && membership.Role is not TenantRole.Owner)
+            membership.Status = MembershipStatus.Active;
+            if (organizationRole)
+            {
                 membership.Role = TenantRole.OrganizationAdmin;
+                membership.OrganizationRole = OrganizationRole.OrganizationAdmin;
+            }
             membership.Version++;
         }
 
@@ -283,13 +288,15 @@ public sealed class InvitationRegistrationService(
                     OrganizationId = organizationId.Value,
                     CampId = campId,
                     UserId = user.Id,
-                    Role = ToTenantRole(campRole)
+                    Role = ToTenantRole(campRole),
+                    CampRole = campRole
                 });
             }
             else
             {
                 assignment.OrganizationId = organizationId.Value;
                 assignment.Role = ToTenantRole(campRole);
+                assignment.CampRole = campRole;
                 assignment.IsActive = true;
                 assignment.Version++;
             }

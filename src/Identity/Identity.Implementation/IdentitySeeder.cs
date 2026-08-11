@@ -22,7 +22,7 @@ public static class IdentitySeeder
             CreateUser(Guid.Parse("10000000-0000-0000-0000-000000000003"), "camp-lead@example.test", "Camp-Leitung"),
             CreateUser(Guid.Parse("10000000-0000-0000-0000-000000000004"), "member@example.test", "Teammitglied"),
             CreateUser(Guid.Parse("10000000-0000-0000-0000-000000000005"), "viewer@example.test", "Lesender Zugriff"),
-            CreateUser(Guid.Parse("10000000-0000-0000-0000-000000000006"), "platform-admin@example.test", "Platform Admin", true)
+            CreateUser(Guid.Parse("10000000-0000-0000-0000-000000000006"), "superadmin@example.test", "Superadmin", true)
         };
         foreach (var user in users)
         {
@@ -51,36 +51,43 @@ public static class IdentitySeeder
             {
                 OrganizationId = organizationId,
                 UserId = users[0].Id,
-                Role = TenantRole.Owner,
-                IsActive = true
+                Role = TenantRole.OrganizationAdmin,
+                IsActive = true,
+                Status = MembershipStatus.Active,
+                OrganizationRole = OrganizationRole.OrganizationAdmin
             },
             new MembershipEntity
             {
                 OrganizationId = organizationId,
                 UserId = users[1].Id,
                 Role = TenantRole.OrganizationAdmin,
-                IsActive = true
+                IsActive = true,
+                Status = MembershipStatus.Active,
+                OrganizationRole = OrganizationRole.OrganizationAdmin
             },
             new MembershipEntity
             {
                 OrganizationId = organizationId,
                 UserId = users[2].Id,
                 Role = TenantRole.Viewer,
-                IsActive = true
+                IsActive = true,
+                Status = MembershipStatus.Active
             },
             new MembershipEntity
             {
                 OrganizationId = organizationId,
                 UserId = users[3].Id,
                 Role = TenantRole.Viewer,
-                IsActive = true
+                IsActive = true,
+                Status = MembershipStatus.Active
             },
             new MembershipEntity
             {
                 OrganizationId = organizationId,
                 UserId = users[4].Id,
                 Role = TenantRole.Viewer,
-                IsActive = true
+                IsActive = true,
+                Status = MembershipStatus.Active
             }
         };
         foreach (var membership in organizationRoles)
@@ -101,21 +108,24 @@ public static class IdentitySeeder
                 OrganizationId = organizationId,
                 CampId = campId,
                 UserId = users[2].Id,
-                Role = TenantRole.CampLead
+                Role = TenantRole.CampLead,
+                CampRole = CampRole.CampLead
             },
             new CampAssignmentEntity
             {
                 OrganizationId = organizationId,
                 CampId = campId,
                 UserId = users[3].Id,
-                Role = TenantRole.Member
+                Role = TenantRole.Member,
+                CampRole = CampRole.Member
             },
             new CampAssignmentEntity
             {
                 OrganizationId = organizationId,
                 CampId = campId,
                 UserId = users[4].Id,
-                Role = TenantRole.Viewer
+                Role = TenantRole.Viewer,
+                CampRole = CampRole.Viewer
             }
         };
         foreach (var assignment in campRoles)
@@ -135,7 +145,7 @@ public static class IdentitySeeder
         Guid id,
         string email,
         string displayName,
-        bool isPlatformAdmin = false) => new()
+        bool isSuperAdmin = false) => new()
         {
             Id = id,
             UserName = email,
@@ -144,8 +154,9 @@ public static class IdentitySeeder
             NormalizedEmail = email.ToUpperInvariant(),
             EmailConfirmed = true,
             DisplayName = displayName,
-            IsPlatformAdmin = isPlatformAdmin,
-            IsSuperAdmin = isPlatformAdmin,
+            FirstName = displayName,
+            LastName = string.Empty,
+            IsSuperAdmin = isSuperAdmin,
             SecurityStamp = id.ToString("N")
         };
 }

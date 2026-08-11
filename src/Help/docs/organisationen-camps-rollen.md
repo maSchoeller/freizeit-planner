@@ -15,25 +15,27 @@ Ein Link ist ein Zugangsschlüssel. Teile ihn nur mit der vorgesehenen Person un
 Hände geraten sein könnte. Zustände wie **abgelaufen**, **verwendet**, **widerrufen** oder **reserviert** werden auf
 der Einladungsseite verständlich erklärt.
 
-Owner und Organisations-Admins sehen alle Camps der Organisation. Camp-Leitungen, Mitglieder und Personen mit
+Orgadmins sehen alle Camps der Organisation. Camp-Leitungen, Mitglieder und Personen mit
 Lesezugriff werden einzelnen Camps zugeordnet. Eine Camp-Einladung verringert niemals eine bereits höhere
 Organisationsrolle.
 
 ## Rollen
 
-- **Owner** verwalten Organisationseinstellungen, Owner, Admins, Mitglieder und Löschung.
-- **Organisations-Admins** verwalten Camps, Einladungen und niedrigere Rollen.
+- **Superadmins** verwalten organisationsübergreifend Konten, Organizations und Rechte. Camp-Inhalte sehen sie erst
+  mit einer zusätzlichen Orgadmin-Zuweisung.
+- **Orgadmins** verwalten innerhalb ihrer Organisation Einstellungen, Löschung, Camps, Mitglieder, weitere
+  Orgadmins, Einladungen und Camp-Zuweisungen.
 - **Camp-Leitungen** verwalten ihre zugewiesenen Camps.
 - **Mitglieder** bearbeiten Planungsinhalte ihrer Camps.
 - **Lesender Zugriff** erlaubt Lesen, Drucken und Exportieren.
 
-Es bleibt immer mindestens ein aktiver Owner. Die Organisation kann nur ein Owner nach einer frischen Anmeldung und
-der exakten Eingabe des Organisations-Slugs zur Löschung vormerken; auch hier gilt eine Karenz von 30 Tagen.
+Eine Organisation darf bewusst ohne Orgadmin bestehen. Ein Orgadmin kann sie nach einer frischen Anmeldung und der
+exakten Eingabe des Organisations-Slugs zur Löschung vormerken; dabei gilt eine Karenz von 30 Tagen.
 
 ## Camps anlegen und verwalten
 
 Öffne unter **Mein Konto → Organisationen** die Camp-Liste einer Organisation. Dort stehen zukünftige, laufende und
-vergangene Camps getrennt. Owner und Organisations-Admins können **Camp anlegen** wählen und Name, eindeutigen Slug,
+vergangene Camps getrennt. Orgadmins können **Camp anlegen** wählen und Name, eindeutigen Slug,
 Beschreibung, Zeitraum, IANA-Zeitzone und Standardportionen festlegen.
 
 ![Camp-Liste mit leerem Zustand und der Aktion „Camp anlegen“](/screenshots/freizeiten-desktop.png)
@@ -55,15 +57,16 @@ die jüngsten Aktivitäten zusammen. Bei bereits beendeten Camps wird der letzte
 
 ## Mitglieder verwalten
 
-Owner und Organisations-Admins öffnen unter **Mein Konto → Organisationen** die Mitgliederverwaltung. Eine Rolle
+Orgadmins öffnen unter **Mein Konto → Organisationen** die Benutzerverwaltung. Eine Rolle
 wird direkt in der Zeile der Person geändert; **Entfernen** beendet deren Mitgliedschaft. Zwischenzeitliche
-Änderungen werden erkannt und müssen nach erneutem Laden wiederholt werden. Organisations-Admins können weder Owner
-noch weitere Organisations-Admins ernennen, ändern oder entfernen. Camp-Leitungen dürfen bereits vorhandene
-Mitglieder nur ihrem eigenen Camp zuweisen.
+Änderungen werden erkannt und müssen nach erneutem Laden wiederholt werden. Orgadmins können weitere Orgadmins
+ernennen, sperren und entfernen sowie Mitglieder konkreten Camps zuweisen. Camp-Leitungen dürfen vorhandene
+Mitglieder nur im eigenen Camp verwalten.
 
-## Plattformverwaltung
+## Superadmin-Verwaltung
 
-Platform Admins finden unter **Mein Konto** die Plattformverwaltung. Sie sehen Namen, Slug und Status der
-Organizations und können eine Organization sperren oder entsperren. Eine Sperre blockiert die weitere Nutzung. Die
-Plattformverwaltung zeigt bewusst keine Mitglieder, Camps oder Planungsinhalte an; Platform Admins können diese
-fachlichen Mandanteninhalte auch nicht über direkte Links aufrufen.
+Superadmins finden unter **Mein Konto** die Benutzer- und Organisationsverwaltung. Sie können Konten global sperren,
+temporäre Anmeldesperren aufheben, Superadmin- und Orgadmin-Rechte vergeben sowie Organizations sperren oder
+entsperren. Eine globale Kontosperre beendet alle Sitzungen sofort; eine Organisationssperre wirkt nur innerhalb
+dieser Organization. Ohne zusätzliche Orgadmin-Zuweisung bleiben fachliche Camp-Inhalte auch für Superadmins
+unzugänglich. Der letzte aktive Superadmin kann weder gesperrt noch herabgestuft werden.

@@ -4,8 +4,9 @@
 
 The Web host never migrates. `FreizeitCockpit.Migrator` obtains one PostgreSQL advisory lock and applies module
 migrations in the documented Identity, Camps, Catering, Spiritual, Knowledge, Logistics, Files, Activity order.
-Only Development receives deterministic sample data; the externally configured Platform Admin bootstrap remains
-idempotent. `FreizeitCockpit.Cleanup` is a one-shot process and fails when a retryable retention area remains.
+Only Development receives deterministic sample data. A new non-Development database stays empty until the one-time
+First Login creates the initial SuperAdmin and durable initialization marker. `FreizeitCockpit.Cleanup` is a one-shot
+process and fails when a retryable retention area remains.
 
 Web and jobs authenticate with separate user-assigned managed identities. The application then narrows database
 permissions with non-login group roles:

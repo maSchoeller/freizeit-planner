@@ -7,8 +7,7 @@ namespace Identity.Tests;
 public sealed class TenantAuthorizationTests
 {
     [Theory]
-    [InlineData(TenantRole.Owner, OrganizationAction.ManageSettings, true)]
-    [InlineData(TenantRole.OrganizationAdmin, OrganizationAction.ManageSettings, false)]
+    [InlineData(TenantRole.OrganizationAdmin, OrganizationAction.ManageSettings, true)]
     [InlineData(TenantRole.OrganizationAdmin, OrganizationAction.ManageCamps, true)]
     [InlineData(TenantRole.CampLead, OrganizationAction.ManageCamps, false)]
     [InlineData(TenantRole.Viewer, OrganizationAction.Read, true)]
@@ -51,27 +50,30 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task PlatformAdminAndUnavailableOrganizationCannotReadTenantContent()
+    public async Task SuperAdminNeedsExplicitMembershipAndUnavailableOrganizationCannotBeRead()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         fixture.State.Users[0] = new LifecycleUser(
             fixture.ActorId,
             "platform@example.test",
             "PLATFORM@EXAMPLE.TEST",
-            "Platform Admin",
+            "Superadmin",
             true);
-        var platformDecision = await fixture.Service.AuthorizeOrganizationAsync(
+        var explicitMembership = await fixture.Service.AuthorizeOrganizationAsync(
             new OrganizationAccessRequest(
                 fixture.ActorId,
                 fixture.OrganizationId,
                 OrganizationAction.Read),
             TestContext.Current.CancellationToken);
 
-        fixture.State.Users[0] = new LifecycleUser(
-            fixture.ActorId,
-            "owner@example.test",
-            "OWNER@EXAMPLE.TEST",
-            "Owner");
+        fixture.State.Memberships[0].Remove(fixture.State.Memberships[0].Version);
+        var implicitAccess = await fixture.Service.AuthorizeOrganizationAsync(
+            new OrganizationAccessRequest(
+                fixture.ActorId,
+                fixture.OrganizationId,
+                OrganizationAction.Read),
+            TestContext.Current.CancellationToken);
+        fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         fixture.State.Organizations[0].Suspend();
         var suspendedDecision = await fixture.Service.AuthorizeOrganizationAsync(
             new OrganizationAccessRequest(
@@ -89,8 +91,9 @@ public sealed class TenantAuthorizationTests
                 OrganizationAction.Read),
             TestContext.Current.CancellationToken);
 
-        Assert.False(platformDecision.Allowed);
-        Assert.Equal(TenantAccessDenial.PlatformScopeOnly, platformDecision.Denial);
+        Assert.True(explicitMembership.Allowed);
+        Assert.False(implicitAccess.Allowed);
+        Assert.Equal(TenantAccessDenial.MembershipRequired, implicitAccess.Denial);
         Assert.False(suspendedDecision.Allowed);
         Assert.Equal(TenantAccessDenial.OrganizationSuspended, suspendedDecision.Denial);
         Assert.False(erasingDecision.Allowed);
@@ -120,34 +123,36 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task LastOwnerCannotBeRemovedOrDemotedAndAdminCannotEscalateRoles()
+    public async Task OrganizationAdminMayManageOtherAdminsAndLeaveNoAdminBehind()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         var cancellationToken = TestContext.Current.CancellationToken;
-        var lastOwner = await Assert.ThrowsAsync<IdentityRuleException>(() =>
-            fixture.Service.ChangeOrganizationRoleAsync(
+        var changed = await fixture.Service.ChangeOrganizationRoleAsync(
                 new OrganizationRoleChange(
                     fixture.ActorId,
                     fixture.OrganizationId,
                     fixture.ActorId,
                     TenantRole.Member,
                     1),
-                cancellationToken));
+                cancellationToken);
 
         var adminId = fixture.AddMember(TenantRole.OrganizationAdmin);
         var targetId = fixture.AddMember(TenantRole.Member);
-        var escalation = await Assert.ThrowsAsync<IdentityRuleException>(() =>
-            fixture.Service.ChangeOrganizationRoleAsync(
+        var promoted = await fixture.Service.ChangeOrganizationRoleAsync(
                 new OrganizationRoleChange(
                     adminId,
                     fixture.OrganizationId,
                     targetId,
                     TenantRole.OrganizationAdmin,
                     1),
-                cancellationToken));
+                cancellationToken);
+        await fixture.Service.RemoveOrganizationMemberAsync(
+            new OrganizationMemberRemoval(adminId, fixture.OrganizationId, targetId, promoted.Version),
+            cancellationToken);
 
-        Assert.Equal("last_owner", lastOwner.ErrorCode);
-        Assert.Equal("role_escalation", escalation.ErrorCode);
+        Assert.Equal(TenantRole.Member, changed.Role);
+        Assert.Equal(TenantRole.OrganizationAdmin, promoted.Role);
+        Assert.False(Assert.Single(fixture.State.Memberships, item => item.UserId == targetId).IsActive);
     }
 
     [Fact]
@@ -185,7 +190,7 @@ public sealed class TenantAuthorizationTests
     public async Task ResponsibilityDirectoryReturnsOnlyActiveCampReadersWithoutEmail()
     {
         var fixture = AuthorizationFixture.Create(TenantRole.Member, TenantRole.Member);
-        var ownerId = fixture.AddMember(TenantRole.Owner);
+        var ownerId = fixture.AddMember(TenantRole.OrganizationAdmin);
         var assignedId = fixture.AddMember(TenantRole.Member);
         fixture.State.Assignments.Add(new CampAssignmentRecord(
             fixture.OrganizationId,
@@ -208,14 +213,14 @@ public sealed class TenantAuthorizationTests
     }
 
     [Fact]
-    public async Task PlatformAdminCanListAndSuspendOrganizationsButTenantUserCannot()
+    public async Task SuperAdminCanListAndSuspendOrganizationsButTenantUserCannot()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         fixture.State.Users[0] = new LifecycleUser(
             fixture.ActorId,
             "platform@example.test",
             "PLATFORM@EXAMPLE.TEST",
-            "Platform Admin",
+            "Superadmin",
             true);
         var cancellationToken = TestContext.Current.CancellationToken;
 
@@ -234,13 +239,13 @@ public sealed class TenantAuthorizationTests
             fixture.ActorId,
             "owner@example.test",
             "OWNER@EXAMPLE.TEST",
-            "Owner");
+            "Orgadmin");
         var denied = await Assert.ThrowsAsync<IdentityRuleException>(() =>
             fixture.Service.ListOrganizationsAsync(fixture.ActorId, cancellationToken));
 
         Assert.Single(organizations);
         Assert.Equal(OrganizationStatus.Suspended, status.Status);
-        Assert.Equal("platform_admin_required", denied.ErrorCode);
+        Assert.Equal("super_admin_required", denied.ErrorCode);
     }
 
     [Fact]
@@ -277,9 +282,9 @@ public sealed class TenantAuthorizationTests
     [Fact]
     public async Task OwnerCanManageNonLastMembersAndCampAssignments()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         var cancellationToken = TestContext.Current.CancellationToken;
-        _ = fixture.AddMember(TenantRole.Owner);
+        _ = fixture.AddMember(TenantRole.OrganizationAdmin);
         var memberId = fixture.AddMember(TenantRole.Member);
 
         var changed = await fixture.Service.ChangeOrganizationRoleAsync(
@@ -306,11 +311,11 @@ public sealed class TenantAuthorizationTests
     public async Task CampAssignmentRulesRejectScopeVersionEscalationAndMissingTargets()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
-        var owner = AuthorizationFixture.Create(TenantRole.Owner);
+        var owner = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         var memberId = owner.AddMember(TenantRole.Member);
         var invalidScope = await Assert.ThrowsAsync<IdentityRuleException>(() => owner.Service.AssignCampMemberAsync(
             new CampMemberAssignment(owner.ActorId, owner.OrganizationId, owner.CampId,
-                memberId, TenantRole.Owner, null), cancellationToken));
+                memberId, TenantRole.OrganizationAdmin, null), cancellationToken));
         var version = await Assert.ThrowsAsync<IdentityRuleException>(() => owner.Service.AssignCampMemberAsync(
             new CampMemberAssignment(owner.ActorId, owner.OrganizationId, owner.CampId,
                 memberId, TenantRole.Member, 1), cancellationToken));
@@ -339,9 +344,9 @@ public sealed class TenantAuthorizationTests
     [Fact]
     public async Task PlatformStatusChangesRejectMissingAndErasingOrganizations()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         fixture.State.Users[0] = new LifecycleUser(
-            fixture.ActorId, "platform@example.test", "PLATFORM@EXAMPLE.TEST", "Platform Admin", true);
+            fixture.ActorId, "superadmin@example.test", "SUPERADMIN@EXAMPLE.TEST", "Superadmin", true);
         var cancellationToken = TestContext.Current.CancellationToken;
         var missing = await Assert.ThrowsAsync<IdentityRuleException>(() =>
             fixture.Service.ChangeOrganizationStatusAsync(new OrganizationStatusChange(
@@ -358,7 +363,7 @@ public sealed class TenantAuthorizationTests
     [Fact]
     public async Task MemberListingOmitsMembershipWithoutUserRecord()
     {
-        var fixture = AuthorizationFixture.Create(TenantRole.Owner);
+        var fixture = AuthorizationFixture.Create(TenantRole.OrganizationAdmin);
         fixture.State.Memberships.Add(new MembershipRecord(fixture.OrganizationId, Guid.NewGuid(), TenantRole.Member));
 
         var members = await fixture.Service.ListOrganizationMembersAsync(
@@ -386,7 +391,7 @@ public sealed class TenantAuthorizationTests
                 actorId,
                 "owner@example.test",
                 "OWNER@EXAMPLE.TEST",
-                "Owner"));
+                "Orgadmin"));
             state.Organizations.Add(new OrganizationRecord(
                 organizationId,
                 "CVJM Sonnenhöhe",
@@ -468,7 +473,7 @@ public sealed class TenantAuthorizationTests
         {
             var result = Memberships
                 .Where(item => item.OrganizationId == organizationId && item.IsActive)
-                .Where(item => item.Role is TenantRole.Owner or TenantRole.OrganizationAdmin
+                .Where(item => item.Role is TenantRole.OrganizationAdmin or TenantRole.OrganizationAdmin
                     || Assignments.Any(assignment => assignment.OrganizationId == organizationId
                         && assignment.CampId == campId
                         && assignment.UserId == item.UserId
@@ -480,9 +485,9 @@ public sealed class TenantAuthorizationTests
             return ValueTask.FromResult<IReadOnlyList<CampMemberSummary>>(result);
         }
 
-        public ValueTask<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken) =>
+        public ValueTask<int> CountActiveOrganizationAdminsAsync(Guid organizationId, CancellationToken cancellationToken) =>
             ValueTask.FromResult(Memberships.Count(item =>
-                item.OrganizationId == organizationId && item.IsActive && item.Role == TenantRole.Owner));
+                item.OrganizationId == organizationId && item.IsActive && item.Role == TenantRole.OrganizationAdmin));
 
         public ValueTask SaveMembershipAsync(MembershipRecord membership, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;

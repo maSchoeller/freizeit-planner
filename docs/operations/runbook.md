@@ -12,7 +12,13 @@ mutation. The commands marked **cloud/manual** are hand-off procedures only. Loc
 ```powershell
 pwsh ./scripts/verify.ps1
 pwsh ./scripts/validate-deployment.ps1
+pwsh ./scripts/test-browser.ps1 -GoogleChrome -Grep '@smoke'
 ```
+
+The complete verify gate covers Chromium, Firefox and WebKit. The additional command runs the tagged sign-in,
+invitation and administration journeys with the locally installed Google Chrome channel at 390x844, 834x1112 and
+1440x1000. `scripts/test-browser.ps1` starts the real Aspire/PostgreSQL/Mailpit stack when necessary and invokes
+`scripts/smoke.ps1` before Playwright.
 
 The deployment plan is [`.azure/deployment-plan.md`](../../.azure/deployment-plan.md). `azd provision` is reserved
 for controlled infrastructure changes; normal application releases use the manual GitHub production workflow.
@@ -46,6 +52,9 @@ environment with required reviewers, and an operator allowed to create identitie
    `ImprintUrl` and `PrivacyUrl`; the repository contains no invented legal text.
 7. Trigger **Produktion veröffentlichen** from `main`, type `DEPLOY`, approve the environment and retain the produced
    deployment evidence.
+8. Open `/erste-einrichtung` once, create the initial Superadmin with a password-manager-generated password, and
+   verify successful sign-in. The route closes permanently through the database initialization marker. Do not place
+   the email address or password in deployment configuration, tickets, logs, or command history.
 
 Before bootstrap, manually check regional provider availability and quota. The non-mutating local substitute is not
 authoritative for a subscription. **Cloud/manual, do not run during repository implementation:**
@@ -128,18 +137,18 @@ disable ingress and schedules, then remove the dedicated resource group through 
 Key Vault purge protection and service backup retention intentionally prevent immediate physical purge. Never use
 `azd down` as an unreviewed convenience command.
 
-## Owner recovery
+## Administrator recovery
 
-Recovery uses the configured, externally identified platform administrator and audited application APIs. Verify the
-requester's identity out of band with two authorized people. Restore an Organization Owner only when the organization
-still exists and is not `Erasing`; do not alter database membership rows, disable RLS or impersonate a user. Record
-the target organization, approvers and resulting activity event without copying personal content. If the sole
-platform administrator is unavailable, rotate the external bootstrap principal through reviewed configuration and
-redeploy; never seed a hidden account.
+Recovery uses an active Superadmin and the versioned application APIs. Verify the requester's identity out of band
+with two authorized people. Restore an Orgadmin only when the organization still exists and is not `Erasing`; do not
+alter database membership rows, disable RLS or impersonate a user. Record the target organization, approvers and
+resulting audit event without copying personal content. The last active Superadmin cannot be suspended or demoted.
+If its credentials are unavailable, use the password-reset flow after verifying mailbox control; First Login never
+reopens and no hidden recovery account is seeded.
 
 ## Secret and key rotation
 
-Managed identities have no client secrets. Rotation scope is limited to login-code pepper, invitation-token pepper,
+Managed identities have no client secrets. Rotation scope is limited to authentication-token pepper, invitation-token pepper,
 SMTP credential and the Data Protection wrapping key.
 
 - For peppers, create a new Key Vault secret version and deploy/restart Web. Existing one-time codes or invitations

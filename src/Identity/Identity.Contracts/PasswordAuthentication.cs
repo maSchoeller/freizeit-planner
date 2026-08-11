@@ -74,6 +74,13 @@ public sealed record PasswordLoginRequest(
     string IpAddress,
     bool RememberMe);
 
+public sealed record SessionView(
+    Guid Id,
+    DateTimeOffset CreatedAt,
+    DateTimeOffset ExpiresAt,
+    string IpAddress,
+    bool IsCurrent);
+
 public sealed record SessionValidationRequest(
     Guid SessionId,
     Guid UserId,

@@ -11,9 +11,6 @@ import path from "node:path";
 
 const browserUserEmail = "miriam@example.test";
 const browserUserPassword = "Browser-Testpasswort 2026!";
-const superAdminEmail = "platform-admin@example.test";
-const superAdminPassword = "Browser-Superadminpasswort 2026!";
-
 type WorkerAuthentication = {
   accessToken: string;
   storageState: {
@@ -36,37 +33,20 @@ type WorkerAuthentication = {
 
 const test = base.extend<{}, { workerAuthentication: WorkerAuthentication }>({
   workerAuthentication: [
-    async ({ playwright }, use, workerInfo) => {
-      const api = await playwright.request.newContext({
-        baseURL: String(
-          workerInfo.project.use.baseURL ?? "http://localhost:5041",
-        ),
-      });
-      try {
-        const antiforgeryResponse = await api.get("/api/v1/auth/antiforgery");
-        expect(antiforgeryResponse.ok()).toBe(true);
-        const antiforgery = (await antiforgeryResponse.json()) as {
-          token: string;
-        };
-        const loginResponse = await api.post("/api/v1/auth/login", {
-          headers: { "X-CSRF-TOKEN": antiforgery.token },
-          data: {
-            email: browserUserEmail,
-            password: browserUserPassword,
-            rememberMe: true,
-          },
-        });
-        expect(loginResponse.ok()).toBe(true);
-        const authentication = (await loginResponse.json()) as {
-          accessToken: string;
-        };
-        await use({
-          accessToken: authentication.accessToken,
-          storageState: await api.storageState(),
-        });
-      } finally {
-        await api.dispose();
+    async ({}, use) => {
+      const accessToken = process.env.BROWSER_MEMBER_ACCESS_TOKEN;
+      const serializedStorageState = process.env.BROWSER_MEMBER_STORAGE_STATE;
+      if (!accessToken || !serializedStorageState) {
+        throw new Error(
+          "Die Browser-Anmeldung aus dem Global-Setup ist nicht verfügbar.",
+        );
       }
+      await use({
+        accessToken,
+        storageState: JSON.parse(
+          serializedStorageState,
+        ) as WorkerAuthentication["storageState"],
+      });
     },
     { scope: "worker" },
   ],
@@ -75,8 +55,9 @@ const test = base.extend<{}, { workerAuthentication: WorkerAuthentication }>({
 test.beforeEach(async ({ context, workerAuthentication }, testInfo) => {
   await context.clearCookies();
   if (
-    testInfo.title ===
-    "password login is responsive, keyboard operable and accessible"
+    testInfo.title.includes(
+      "password login is responsive, keyboard operable and accessible",
+    )
   )
     return;
 
@@ -85,7 +66,7 @@ test.beforeEach(async ({ context, workerAuthentication }, testInfo) => {
   });
 });
 
-test("password login is responsive, keyboard operable and accessible", async ({
+test("@smoke password login is responsive, keyboard operable and accessible", async ({
   page,
 }, testInfo) => {
   await page.goto("/anmelden");
@@ -116,6 +97,18 @@ test("password login is responsive, keyboard operable and accessible", async ({
 
   await assertAxe(page);
   await capture(page, testInfo, "anmeldung");
+
+  await page.getByLabel("E-Mail-Adresse").fill(browserUserEmail);
+  await page.getByLabel("Passwort", { exact: true }).fill(browserUserPassword);
+  await page.getByRole("checkbox", { name: /Angemeldet bleiben/ }).check();
+  const loginResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/v1/auth/login") &&
+      response.request().method() === "POST",
+  );
+  await page.getByRole("button", { name: "Anmelden", exact: true }).click();
+  expect((await loginResponsePromise).ok()).toBe(true);
+  await expect(page).not.toHaveURL(/\/anmelden$/);
 });
 
 test("member signs in with a persistent refresh session and reaches the camp overview", async ({
@@ -158,24 +151,11 @@ test("@smoke superadmin invitation registers and confirms a new global account",
   await page.context().setExtraHTTPHeaders({});
   const api = await playwright.request.newContext({ baseURL });
   try {
-    const loginCsrf = await getAntiforgery(api);
-    const login = await api.post("/api/v1/auth/login", {
-      headers: { "X-CSRF-TOKEN": loginCsrf },
-      data: {
-        email: superAdminEmail,
-        password: superAdminPassword,
-        rememberMe: false,
-      },
-    });
-    expect(login.ok()).toBe(true);
-    const authentication = (await login.json()) as { accessToken: string };
-    const invitationCsrf = await getAntiforgery(
-      api,
-      authentication.accessToken,
-    );
+    const superAdminAccessToken = requireSuperAdminAccessToken();
+    const invitationCsrf = await getAntiforgery(api, superAdminAccessToken);
     const invitationResponse = await api.post("/api/v1/invitations/links", {
       headers: {
-        Authorization: `Bearer ${authentication.accessToken}`,
+        Authorization: `Bearer ${superAdminAccessToken}`,
         "X-CSRF-TOKEN": invitationCsrf,
       },
       data: {
@@ -222,6 +202,47 @@ test("@smoke superadmin invitation registers and confirms a new global account",
     await api.dispose();
   }
 });
+
+test("@smoke Superadmin and Orgadmin user pages are responsive and accessible", async ({
+  page,
+  playwright,
+}, testInfo) => {
+  await page.goto("/o/sonnenhoehe/verwaltung/benutzer");
+  await expect(
+    page.getByRole("heading", { name: "Team verwalten" }),
+  ).toBeVisible();
+  await assertNoHorizontalOverflow(page);
+  await assertAxe(page);
+  await capture(page, testInfo, "orgadmin-benutzer");
+
+  const api = await playwright.request.newContext({
+    baseURL: String(testInfo.project.use.baseURL ?? "http://localhost:5041"),
+  });
+  try {
+    await page.context().setExtraHTTPHeaders({
+      Authorization: `Bearer ${requireSuperAdminAccessToken()}`,
+    });
+    await page.goto("/superadmin/benutzer");
+    await expect(
+      page.getByRole("heading", { name: "Benutzer verwalten" }),
+    ).toBeVisible();
+    await assertNoHorizontalOverflow(page);
+    await assertAxe(page);
+    await capture(page, testInfo, "superadmin-benutzer");
+  } finally {
+    await api.dispose();
+  }
+});
+
+function requireSuperAdminAccessToken(): string {
+  const accessToken = process.env.BROWSER_SUPERADMIN_ACCESS_TOKEN;
+  if (!accessToken) {
+    throw new Error(
+      "Die Superadmin-Anmeldung aus dem Global-Setup ist nicht verfügbar.",
+    );
+  }
+  return accessToken;
+}
 
 test("central camp pages render their responsive empty states without accessibility violations", async ({
   page,
@@ -284,10 +305,10 @@ test("camp list exposes a designed loading and server-error state", async ({
   await capture(page, testInfo, "fehlerzustand");
 });
 
-test("organization owner receives a designed permission error at the platform boundary", async ({
+test("organization member receives a designed permission error at the Superadmin boundary", async ({
   page,
 }, testInfo) => {
-  await page.goto("/plattform/organisationen");
+  await page.goto("/superadmin/organisationen");
   await expect(
     page.getByRole("heading", { name: "Organizations" }),
   ).toBeVisible();
@@ -494,6 +515,10 @@ async function assertNoHorizontalOverflow(page: Page) {
 }
 
 async function capture(page: Page, testInfo: TestInfo, name: string) {
+  const updatePrompt = page.getByRole("button", { name: "Hinweis schließen" });
+  if ((await updatePrompt.count()) > 0 && (await updatePrompt.isVisible())) {
+    await updatePrompt.click();
+  }
   const artifact = testInfo.outputPath(`${name}.png`);
   await page.screenshot({ path: artifact, fullPage: true });
   await testInfo.attach(`${name}-${testInfo.project.name}`, {

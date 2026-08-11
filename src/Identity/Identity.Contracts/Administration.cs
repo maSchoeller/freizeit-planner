@@ -45,6 +45,37 @@ public interface IInvitationConfirmationSender
         CancellationToken cancellationToken);
 }
 
+public interface IUserAdministration
+{
+    Task<AdministrationPage<UserAdministrationView>> SearchUsersAsync(
+        UserAdministrationQuery query,
+        CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<SuperAdminOrganizationView>> ListOrganizationsAsync(
+        Guid actorId,
+        CancellationToken cancellationToken);
+
+    Task<UserAdministrationView> ChangeGlobalAccountStatusAsync(
+        ChangeGlobalAccountStatusCommand command,
+        CancellationToken cancellationToken);
+
+    Task<UserAdministrationView> ChangeSuperAdminAsync(
+        ChangeSuperAdminCommand command,
+        CancellationToken cancellationToken);
+
+    Task<UserAdministrationView> ClearLoginLockoutAsync(
+        ClearLoginLockoutCommand command,
+        CancellationToken cancellationToken);
+
+    Task<OrganizationAdministrationView> ChangeMembershipAsync(
+        ChangeMembershipCommand command,
+        CancellationToken cancellationToken);
+
+    Task<CampAdministrationView?> ChangeCampAssignmentAsync(
+        ChangeCampAssignmentCommand command,
+        CancellationToken cancellationToken);
+}
+
 public enum MembershipStatus
 {
     Active,
@@ -199,6 +230,19 @@ public sealed record UserAdministrationView(
     IReadOnlyList<OrganizationAdministrationView> Organizations,
     long Version);
 
+public sealed record UserAdministrationQuery(
+    Guid ActorId,
+    string? Search,
+    int Page = 1,
+    int PageSize = 25,
+    Guid? OrganizationId = null);
+
+public sealed record AdministrationPage<T>(
+    IReadOnlyList<T> Items,
+    int Page,
+    int PageSize,
+    int TotalCount);
+
 public sealed record ChangeGlobalAccountStatusCommand(
     Guid ActorId,
     Guid UserId,
@@ -209,6 +253,11 @@ public sealed record ChangeSuperAdminCommand(
     Guid ActorId,
     Guid UserId,
     bool IsSuperAdmin,
+    long ExpectedVersion);
+
+public sealed record ClearLoginLockoutCommand(
+    Guid ActorId,
+    Guid UserId,
     long ExpectedVersion);
 
 public sealed record ChangeMembershipCommand(

@@ -33,7 +33,7 @@ public interface ITenantAuthorizationState
         Guid campId,
         CancellationToken cancellationToken);
 
-    ValueTask<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken);
+    ValueTask<int> CountActiveOrganizationAdminsAsync(Guid organizationId, CancellationToken cancellationToken);
 
     ValueTask SaveMembershipAsync(MembershipRecord membership, CancellationToken cancellationToken);
 

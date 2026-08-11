@@ -2,37 +2,6 @@ using System.Net;
 using System.Net.Mail;
 using Identity.Contracts;
 
-internal sealed class SmtpLoginCodeSender(IConfiguration configuration) : ILoginCodeSender
-{
-    public async Task SendAsync(
-        string email,
-        string code,
-        DateTimeOffset expiresAt,
-        CancellationToken cancellationToken)
-    {
-        var (host, port) = SmtpEndpoint.Resolve(configuration);
-        var from = configuration["Smtp:From"] ?? "anmeldung@freizeit-cockpit.local";
-        using var message = new MailMessage(from, email)
-        {
-            Subject = "Dein Anmeldecode für das Freizeit-Cockpit",
-            Body = $"Dein Anmeldecode lautet: {code}\n\nEr ist bis {expiresAt:HH:mm} Uhr gültig.",
-            IsBodyHtml = false
-        };
-        using var client = new SmtpClient(host, port)
-        {
-            EnableSsl = configuration.GetValue("Smtp:UseTls", false),
-            DeliveryMethod = SmtpDeliveryMethod.Network
-        };
-        var userName = configuration["Smtp:UserName"];
-        if (!string.IsNullOrEmpty(userName))
-        {
-            client.Credentials = new NetworkCredential(userName, configuration["Smtp:Password"]);
-        }
-
-        await client.SendMailAsync(message, cancellationToken);
-    }
-}
-
 internal sealed class SmtpEmailChangeCodeSender(IConfiguration configuration) : IEmailChangeCodeSender
 {
     public async Task SendAsync(

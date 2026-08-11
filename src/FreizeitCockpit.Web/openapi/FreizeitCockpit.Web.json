@@ -539,218 +539,6 @@
         }
       }
     },
-    "/api/v1/invitations/organizations/{organizationId}": {
-      "get": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "organizationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/InvitationSummary"
-                  }
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "organizationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/TeamInvitationBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvitationView"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "Forbidden",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/invitations/organizations": {
-      "post": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/OrganizationInvitationBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "Created",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvitationView"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/invitations/{invitationId}/rotate": {
-      "post": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "invitationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvitationView"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/v1/invitations/{invitationId}": {
-      "delete": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "parameters": [
-          {
-            "name": "invitationId",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "uuid"
-            }
-          }
-        ],
-        "responses": {
-          "204": {
-            "description": "No Content"
-          }
-        }
-      }
-    },
-    "/api/v1/invitations/accept": {
-      "post": {
-        "tags": [
-          "LifecycleEndpoints"
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/AcceptInvitationBody"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/InvitationAcceptance"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad Request",
-            "content": {
-              "application/problem+json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ProblemDetails"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/invitations/{token}/preview": {
       "get": {
         "tags": [
@@ -1108,6 +896,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AccountView"
+                }
+              }
+            }
+          },
+          "412": {
+            "description": "Precondition Failed",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          },
+          "428": {
+            "description": "Precondition Required",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
                 }
               }
             }
@@ -1500,7 +1308,230 @@
         }
       }
     },
-    "/api/v1/platform/organizations": {
+    "/api/v1/organizations/{organizationId}/administration/users": {
+      "get": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationPageOfUserAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/administration/users/{userId}/membership": {
+      "put": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMembershipBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/organizations/{organizationId}/administration/users/{userId}/camps/{campId}": {
+      "put": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeCampAssignmentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampAdministrationView"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users": {
+      "get": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "search",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdministrationPageOfUserAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/organizations": {
       "get": {
         "tags": [
           "TenantAdministrationEndpoints"
@@ -1513,7 +1544,7 @@
                 "schema": {
                   "type": "array",
                   "items": {
-                    "$ref": "#/components/schemas/PlatformOrganizationView"
+                    "$ref": "#/components/schemas/SuperAdminOrganizationView"
                   }
                 }
               }
@@ -1522,7 +1553,7 @@
         }
       }
     },
-    "/api/v1/platform/organizations/{organizationId}/status": {
+    "/api/v1/superadmin/organizations/{organizationId}/status": {
       "patch": {
         "tags": [
           "TenantAdministrationEndpoints"
@@ -1568,6 +1599,226 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users/{userId}/status": {
+      "patch": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeGlobalAccountStatusBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users/{userId}/superadmin": {
+      "patch": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeSuperAdminBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users/{userId}/unlock": {
+      "post": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users/{userId}/organizations/{organizationId}": {
+      "put": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeMembershipBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationAdministrationView"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/superadmin/users/{userId}/organizations/{organizationId}/camps/{campId}": {
+      "put": {
+        "tags": [
+          "TenantAdministrationEndpoints"
+        ],
+        "parameters": [
+          {
+            "name": "organizationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "campId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeCampAssignmentBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CampAdministrationView"
+                }
+              }
+            }
+          },
+          "204": {
+            "description": "No Content"
           }
         }
       }
@@ -5351,27 +5602,6 @@
   },
   "components": {
     "schemas": {
-      "AcceptInvitationBody": {
-        "required": [
-          "token",
-          "displayName"
-        ],
-        "type": "object",
-        "properties": {
-          "token": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "displayName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
       "AccessTokenResponse": {
         "required": [
           "accessToken",
@@ -5412,13 +5642,18 @@
           }
         }
       },
+      "AccountStatus": {
+        "type": "integer"
+      },
       "AccountView": {
         "required": [
           "id",
           "email",
           "displayName",
+          "firstName",
+          "lastName",
           "deletionScheduledAt",
-          "isPlatformAdmin",
+          "isSuperAdmin",
           "version"
         ],
         "type": "object",
@@ -5433,6 +5668,12 @@
           "displayName": {
             "type": "string"
           },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
           "deletionScheduledAt": {
             "type": [
               "null",
@@ -5440,7 +5681,7 @@
             ],
             "format": "date-time"
           },
-          "isPlatformAdmin": {
+          "isSuperAdmin": {
             "type": "boolean"
           },
           "version": {
@@ -5455,6 +5696,47 @@
       },
       "ActivityKind": {
         "type": "integer"
+      },
+      "AdministrationPageOfUserAdministrationView": {
+        "required": [
+          "items",
+          "page",
+          "pageSize",
+          "totalCount"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UserAdministrationView"
+            }
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "totalCount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          }
+        }
       },
       "AmbiguousLocalTimeChoice": {
         "type": "integer",
@@ -5572,6 +5854,35 @@
           "timestamp": {
             "type": "string",
             "format": "date-time"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
+      "CampAdministrationView": {
+        "required": [
+          "campId",
+          "campName",
+          "role",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "campId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "campName": {
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/CampRole"
           },
           "version": {
             "pattern": "^-?(?:0|[1-9]\\d*)$",
@@ -5822,6 +6133,24 @@
           }
         }
       },
+      "ChangeCampAssignmentBody": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/CampRole"
+              }
+            ]
+          }
+        }
+      },
       "ChangeCampStatusBody": {
         "required": [
           "status"
@@ -5830,6 +6159,39 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/CampStatus"
+          }
+        }
+      },
+      "ChangeGlobalAccountStatusBody": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/AccountStatus"
+          }
+        }
+      },
+      "ChangeMembershipBody": {
+        "required": [
+          "status",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/MembershipStatus"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganizationRole"
+              }
+            ]
           }
         }
       },
@@ -5852,6 +6214,17 @@
         "properties": {
           "status": {
             "$ref": "#/components/schemas/OrganizationStatus"
+          }
+        }
+      },
+      "ChangeSuperAdminBody": {
+        "required": [
+          "isSuperAdmin"
+        ],
+        "type": "object",
+        "properties": {
+          "isSuperAdmin": {
+            "type": "boolean"
           }
         }
       },
@@ -6216,37 +6589,6 @@
           }
         }
       },
-      "InvitationAcceptance": {
-        "required": [
-          "outcome",
-          "userId",
-          "organizationId",
-          "requiresLogin"
-        ],
-        "type": "object",
-        "properties": {
-          "outcome": {
-            "$ref": "#/components/schemas/InvitationAcceptanceOutcome"
-          },
-          "userId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "organizationId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "requiresLogin": {
-            "type": "boolean"
-          }
-        }
-      },
       "InvitationAcceptanceOutcome": {
         "type": "integer"
       },
@@ -6421,85 +6763,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "InvitationSummary": {
-        "required": [
-          "id",
-          "email",
-          "role",
-          "campId",
-          "expiresAt",
-          "isRevoked",
-          "isUsed"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/TenantRole"
-          },
-          "campId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          },
-          "isRevoked": {
-            "type": "boolean"
-          },
-          "isUsed": {
-            "type": "boolean"
-          }
-        }
-      },
-      "InvitationView": {
-        "required": [
-          "id",
-          "organizationId",
-          "email",
-          "role",
-          "campId",
-          "expiresAt"
-        ],
-        "type": "object",
-        "properties": {
-          "id": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "email": {
-            "type": "string"
-          },
-          "role": {
-            "$ref": "#/components/schemas/TenantRole"
-          },
-          "campId": {
-            "type": [
-              "null",
-              "string"
-            ],
-            "format": "uuid"
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
           }
         }
       },
@@ -6890,6 +7153,9 @@
       "MeasurementUnit": {
         "type": "integer"
       },
+      "MembershipStatus": {
+        "type": "integer"
+      },
       "NameBody": {
         "required": [
           "name"
@@ -6956,6 +7222,57 @@
       "NoteLinkTargetType": {
         "type": "integer"
       },
+      "OrganizationAdministrationView": {
+        "required": [
+          "organizationId",
+          "organizationName",
+          "organizationSlug",
+          "status",
+          "role",
+          "camps",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "organizationSlug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MembershipStatus"
+          },
+          "role": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/OrganizationRole"
+              }
+            ]
+          },
+          "camps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CampAdministrationView"
+            }
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
+          }
+        }
+      },
       "OrganizationDeletionBody": {
         "required": [
           "confirmedSlug"
@@ -6963,34 +7280,6 @@
         "type": "object",
         "properties": {
           "confirmedSlug": {
-            "type": [
-              "null",
-              "string"
-            ]
-          }
-        }
-      },
-      "OrganizationInvitationBody": {
-        "required": [
-          "email",
-          "organizationName",
-          "organizationSlug"
-        ],
-        "type": "object",
-        "properties": {
-          "email": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "organizationName": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "organizationSlug": {
             "type": [
               "null",
               "string"
@@ -7163,39 +7452,6 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "PlatformOrganizationView": {
-        "required": [
-          "organizationId",
-          "name",
-          "slug",
-          "status",
-          "version"
-        ],
-        "type": "object",
-        "properties": {
-          "organizationId": {
-            "type": "string",
-            "format": "uuid"
-          },
-          "name": {
-            "type": "string"
-          },
-          "slug": {
-            "type": "string"
-          },
-          "status": {
-            "$ref": "#/components/schemas/OrganizationStatus"
-          },
-          "version": {
-            "pattern": "^-?(?:0|[1-9]\\d*)$",
-            "type": [
-              "integer",
-              "string"
-            ],
-            "format": "int64"
           }
         }
       },
@@ -7836,29 +8092,36 @@
           }
         }
       },
-      "TeamInvitationBody": {
+      "SuperAdminOrganizationView": {
         "required": [
-          "email",
-          "role",
-          "campId"
+          "organizationId",
+          "name",
+          "slug",
+          "status",
+          "version"
         ],
         "type": "object",
         "properties": {
-          "email": {
-            "type": [
-              "null",
-              "string"
-            ]
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
           },
-          "role": {
-            "$ref": "#/components/schemas/TenantRole"
+          "name": {
+            "type": "string"
           },
-          "campId": {
+          "slug": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OrganizationStatus"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
             "type": [
-              "null",
+              "integer",
               "string"
             ],
-            "format": "uuid"
+            "format": "int64"
           }
         }
       },
@@ -7985,15 +8248,78 @@
       },
       "UpdateProfileBody": {
         "required": [
-          "displayName"
+          "firstName",
+          "lastName"
         ],
         "type": "object",
         "properties": {
-          "displayName": {
+          "firstName": {
             "type": [
               "null",
               "string"
             ]
+          },
+          "lastName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "UserAdministrationView": {
+        "required": [
+          "userId",
+          "email",
+          "firstName",
+          "lastName",
+          "accountStatus",
+          "isSuperAdmin",
+          "loginLockedUntil",
+          "organizations",
+          "version"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "firstName": {
+            "type": "string"
+          },
+          "lastName": {
+            "type": "string"
+          },
+          "accountStatus": {
+            "$ref": "#/components/schemas/AccountStatus"
+          },
+          "isSuperAdmin": {
+            "type": "boolean"
+          },
+          "loginLockedUntil": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "organizations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/OrganizationAdministrationView"
+            }
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int64"
           }
         }
       }

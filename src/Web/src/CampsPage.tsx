@@ -134,7 +134,7 @@ export function CampsPage() {
     }
   }
 
-  const canCreate = membership?.role === 0 || membership?.role === 1;
+  const canCreate = membership?.role === 1;
 
   return (
     <SettingsLayout backTo="/konto">

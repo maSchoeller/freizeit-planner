@@ -62,9 +62,6 @@ namespace Identity.Implementation.Migrations
                         .HasMaxLength(80)
                         .HasColumnType("character varying(80)");
 
-                    b.Property<bool>("IsPlatformAdmin")
-                        .HasColumnType("boolean");
-
                     b.Property<bool>("IsSuperAdmin")
                         .HasColumnType("boolean");
 
@@ -133,6 +130,9 @@ namespace Identity.Implementation.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("user_id");
 
+                    b.Property<int>("CampRole")
+                        .HasColumnType("integer");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
@@ -192,6 +192,22 @@ namespace Identity.Implementation.Migrations
                     b.HasIndex("NormalizedEmail");
 
                     b.ToTable("email_change_challenges", "identity");
+                });
+
+            modelBuilder.Entity("Identity.Implementation.IdentityInitializationEntity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("initialization", "identity");
                 });
 
             modelBuilder.Entity("Identity.Implementation.InvitationEntity", b =>
@@ -292,42 +308,6 @@ namespace Identity.Implementation.Migrations
                     b.ToTable("invitation_registrations", "identity");
                 });
 
-            modelBuilder.Entity("Identity.Implementation.LoginChallengeEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("CodeHash")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<DateTimeOffset>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("FailedAttempts")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("NormalizedEmail")
-                        .IsRequired()
-                        .HasMaxLength(320)
-                        .HasColumnType("character varying(320)");
-
-                    b.Property<DateTimeOffset?>("UsedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedEmail")
-                        .IsUnique();
-
-                    b.ToTable("login_challenges", "identity");
-                });
-
             modelBuilder.Entity("Identity.Implementation.LoginRateEventEntity", b =>
                 {
                     b.Property<long>("Id")
@@ -409,7 +389,13 @@ namespace Identity.Implementation.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<int?>("OrganizationRole")
+                        .HasColumnType("integer");
+
                     b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
                         .HasColumnType("integer");
 
                     b.Property<long>("Version")

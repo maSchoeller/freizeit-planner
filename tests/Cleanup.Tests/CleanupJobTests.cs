@@ -45,7 +45,7 @@ public sealed class CleanupJobTests
         Assert.Equal(37, logistics.BatchSize);
         Assert.Equal(37, schedule.BatchSize);
         Assert.Equal(37, meals.BatchSize);
-        Assert.Equal(2, result.Identity.ExpiredLoginChallenges);
+        Assert.Equal(2, result.Identity.ExpiredEmailChangeChallenges);
         Assert.Equal(3, result.Notes.PurgedNotes);
         Assert.Equal(4, result.Attachments.MetadataPurged);
         Assert.Equal(8, result.Devotions.PurgedDevotions);
@@ -139,7 +139,7 @@ public sealed class CleanupJobTests
             CancellationToken cancellationToken)
         {
             BatchSize = batchSize;
-            return Task.FromResult(new IdentityCleanupResult(2, 0, 0, 0, 0));
+            return Task.FromResult(new IdentityCleanupResult(2, 0, 0, 0));
         }
 
         public List<Guid> CompletedOrganizations { get; } = [];

@@ -6,15 +6,15 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
     ITenantAccessControl,
     ITenantAdministration,
     ICampMemberDirectory,
-    IPlatformAdministration
+    ISuperAdminOrganizationAdministration
 {
-    public async Task<IReadOnlyList<PlatformOrganizationView>> ListOrganizationsAsync(
+    public async Task<IReadOnlyList<SuperAdminOrganizationView>> ListOrganizationsAsync(
         Guid actorId,
         CancellationToken cancellationToken)
     {
-        await RequirePlatformAdminAsync(actorId, cancellationToken);
+        await RequireSuperAdminAsync(actorId, cancellationToken);
         return (await state.ListOrganizationsAsync(cancellationToken))
-            .Select(item => new PlatformOrganizationView(
+            .Select(item => new SuperAdminOrganizationView(
                 item.Id,
                 item.Name,
                 item.Slug,
@@ -76,10 +76,6 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         {
             return TenantAccessDecision.Deny(TenantAccessDenial.ActorUnknown);
         }
-        if (actor.IsPlatformAdmin)
-        {
-            return TenantAccessDecision.Deny(TenantAccessDenial.PlatformScopeOnly);
-        }
         var organization = await state.FindOrganizationAsync(request.OrganizationId, cancellationToken);
         if (organization is null)
         {
@@ -116,7 +112,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         {
             return organizationDecision;
         }
-        if (organizationDecision.EffectiveRole is TenantRole.Owner or TenantRole.OrganizationAdmin)
+        if (organizationDecision.EffectiveRole is TenantRole.OrganizationAdmin)
         {
             return TenantAccessDecision.Permit(organizationDecision.EffectiveRole.Value);
         }
@@ -142,12 +138,6 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         var actor = await RequireManagerAsync(change.ActorId, change.OrganizationId, cancellationToken);
         var target = await RequireMembershipAsync(change.OrganizationId, change.UserId, cancellationToken);
         EnsureMayManageRole(actor.Role, target.Role, change.Role);
-        if (target.Role == TenantRole.Owner
-            && change.Role != TenantRole.Owner
-            && await state.CountActiveOwnersAsync(change.OrganizationId, cancellationToken) <= 1)
-        {
-            throw Rule("last_owner", "Der letzte aktive Owner kann nicht herabgestuft werden.");
-        }
         target.ChangeRole(change.Role, change.ExpectedVersion);
         await state.SaveMembershipAsync(target, cancellationToken);
         return ToView(target);
@@ -160,11 +150,6 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         var actor = await RequireManagerAsync(removal.ActorId, removal.OrganizationId, cancellationToken);
         var target = await RequireMembershipAsync(removal.OrganizationId, removal.UserId, cancellationToken);
         EnsureMayManageRole(actor.Role, target.Role, TenantRole.Viewer);
-        if (target.Role == TenantRole.Owner
-            && await state.CountActiveOwnersAsync(removal.OrganizationId, cancellationToken) <= 1)
-        {
-            throw Rule("last_owner", "Der letzte aktive Owner kann nicht entfernt werden.");
-        }
         target.Remove(removal.ExpectedVersion);
         await state.SaveMembershipAsync(target, cancellationToken);
     }
@@ -173,9 +158,9 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         CampMemberAssignment assignment,
         CancellationToken cancellationToken)
     {
-        if (assignment.Role is TenantRole.Owner or TenantRole.OrganizationAdmin)
+        if (assignment.Role is TenantRole.OrganizationAdmin)
         {
-            throw Rule("role_scope_invalid", "Owner- und Admin-Rollen gelten nur für die Organization.");
+            throw Rule("role_scope_invalid", "Orgadmin-Rechte gelten nur für die Organization.");
         }
         _ = await RequireMembershipAsync(
             assignment.OrganizationId,
@@ -185,7 +170,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
             assignment.OrganizationId,
             assignment.ActorId,
             cancellationToken);
-        if (actor.Role is not (TenantRole.Owner or TenantRole.OrganizationAdmin))
+        if (actor.Role is not TenantRole.OrganizationAdmin)
         {
             var actorAssignment = await state.FindCampAssignmentAsync(
                 assignment.OrganizationId,
@@ -234,7 +219,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
             removal.OrganizationId,
             removal.ActorId,
             cancellationToken);
-        if (actor.Role is not (TenantRole.Owner or TenantRole.OrganizationAdmin))
+        if (actor.Role is not TenantRole.OrganizationAdmin)
         {
             var actorAssignment = await state.FindCampAssignmentAsync(
                 removal.OrganizationId,
@@ -252,7 +237,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
             removal.UserId,
             cancellationToken)
             ?? throw Rule("camp_assignment_not_found", "Die Camp-Zuweisung wurde nicht gefunden.");
-        if (actor.Role is not (TenantRole.Owner or TenantRole.OrganizationAdmin)
+        if (actor.Role is not TenantRole.OrganizationAdmin
             && target.Role == TenantRole.CampLead)
         {
             throw Rule("role_escalation", "Eine Camp-Leitung darf keine andere Camp-Leitung entfernen.");
@@ -265,7 +250,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         OrganizationStatusChange change,
         CancellationToken cancellationToken)
     {
-        await RequirePlatformAdminAsync(change.ActorId, cancellationToken);
+        await RequireSuperAdminAsync(change.ActorId, cancellationToken);
         var organization = await state.FindOrganizationAsync(change.OrganizationId, cancellationToken)
             ?? throw Rule("organization_not_found", "Die Organization wurde nicht gefunden.");
         if (change.Status == OrganizationStatus.Erasing || organization.Status == OrganizationStatus.Erasing)
@@ -277,13 +262,13 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
         return new OrganizationStatusView(organization.Id, organization.Status, organization.Version);
     }
 
-    private async Task RequirePlatformAdminAsync(Guid actorId, CancellationToken cancellationToken)
+    private async Task RequireSuperAdminAsync(Guid actorId, CancellationToken cancellationToken)
     {
         var actor = await state.FindUserAsync(actorId, cancellationToken)
             ?? throw Rule("user_not_found", "Das Konto wurde nicht gefunden.");
-        if (!actor.IsPlatformAdmin)
+        if (!actor.IsSuperAdmin)
         {
-            throw Rule("platform_admin_required", "Nur ein Platform Admin darf Organizations verwalten.");
+            throw Rule("super_admin_required", "Nur ein Superadmin darf Organizations verwalten.");
         }
     }
 
@@ -315,9 +300,7 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
 
     private static bool Allows(TenantRole role, OrganizationAction action) => role switch
     {
-        TenantRole.Owner => true,
-        TenantRole.OrganizationAdmin => action is not (
-            OrganizationAction.ManageSettings or OrganizationAction.DeleteOrganization),
+        TenantRole.OrganizationAdmin => true,
         _ => action is OrganizationAction.Read or OrganizationAction.Export
     };
 
@@ -331,16 +314,11 @@ public sealed class TenantAuthorizationService(ITenantAuthorizationState state) 
 
     private static void EnsureMayManageRole(TenantRole actor, TenantRole current, TenantRole requested)
     {
-        if (actor == TenantRole.Owner)
+        if (actor is TenantRole.OrganizationAdmin)
         {
             return;
         }
-        if (actor != TenantRole.OrganizationAdmin
-            || current is TenantRole.Owner or TenantRole.OrganizationAdmin
-            || requested is TenantRole.Owner or TenantRole.OrganizationAdmin)
-        {
-            throw Rule("role_escalation", "Diese Rollenänderung würde Rechte unzulässig erweitern.");
-        }
+        throw Rule("role_escalation", "Diese Rollenänderung würde Rechte unzulässig erweitern.");
     }
 
     private static OrganizationMemberView ToView(MembershipRecord membership) => new(

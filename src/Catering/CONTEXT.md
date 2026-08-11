@@ -4,7 +4,7 @@
   RecipeSnapshot is meal-owned; Meal may link exactly one ScheduleEntry.
 - Invariants: normalized ingredient name is organization-unique; quantities are decimal; conversion only inside mass,
   volume, or count; recipe edits never silently alter snapshots; meal people default is overridable.
-- Roles: Owner/Admin maintain libraries and merge ingredients; assigned CampLead/Member edit camp meals; Viewer reads.
+- Roles: Orgadmins maintain libraries and merge ingredients; assigned CampLead/Member edit camp meals; Viewer reads.
 - Contracts: meal schedule linkage and source lines suitable for an explicitly edited shopping transfer.
 - Data/schema: owns `catering`; organization library rows carry `organization_id`, meal rows also `camp_id`.
 - Dependencies: Identity authorization plus host-provided Camp context; Logistics transfer, Files and Activity are
@@ -15,18 +15,18 @@
 - `IOrganizationCateringLibrary` owns ingredient autocomplete, Unicode-KC name normalization, controlled
   preview/CAS merge, and immutable recipe version creation. Merge and rename append versions for affected current
   recipes; historical versions and meal snapshots are never rewritten.
-- The Camp workspace exposes the Organization recipe list and an Owner/Admin creation form. Ingredient search uses
+- The Camp workspace exposes the Organization recipe list and an Orgadmins creation form. Ingredient search uses
   the library autocomplete endpoint; submitted rows carry positive decimal values, one of the six supported unit
   variants, optional named-count labels and notes. Every create sends antiforgery to the resolved Organization route.
 - Every listed recipe opens into its complete current version with quantities, tags, allergen and kitchen notes.
-  Owner/Admin edits start from that version and send antiforgery plus the aggregate Version as `If-Match`; a success
+  Orgadmins edits start from that version and send antiforgery plus the aggregate Version as `If-Match`; a success
   displays the newly appended immutable version, while a precondition conflict keeps the form visible and directs
   the user to reopen the current state. Existing meal snapshots are explicitly described as unchanged.
 - Recipe details compose the Files-owned organization-library endpoints without crossing module internals. Every
-  reader can list and open attachments through an actor-bound single-use read grant; Owner/Admin users can upload
+  reader can list and open attachments through an actor-bound single-use read grant; Orgadmins users can upload
   validated multipart files with antiforgery while seeing the shared 100 MiB recipe-library quota. Archived Camp
   workspaces remain read-only even though the recipe library itself is Organization-scoped.
-- Owner/Admin ingredient management lists active normalized names, creates and renames through antiforgery, and sends
+- Orgadmins ingredient management lists active normalized names, creates and renames through antiforgery, and sends
   the current numeric Version as `If-Match` for rename. Merge remains a two-step workflow: preview returns current
   source/target versions and affected recipes; the destructive confirmation uses exactly those CAS versions and
   reiterates that existing meal snapshots remain unchanged.

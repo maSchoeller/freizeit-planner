@@ -3,7 +3,6 @@ using System.Net.Http.Json;
 using Activity.Contracts;
 using Camps.Contracts;
 using Catering.Contracts;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Microsoft.AspNetCore.Hosting;
@@ -397,8 +396,6 @@ public sealed class CampPlanningApiTests
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<ICampManagement>();
                 services.RemoveAll<ISchedulePlanning>();
                 services.RemoveAll<IActivityJournal>();
@@ -406,8 +403,6 @@ public sealed class CampPlanningApiTests
                 services.RemoveAll<ICampMealPlanning>();
                 services.RemoveAll<IDevotionPlanning>();
                 services.RemoveAll<ICampMemberDirectory>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ICampManagement>(planning);
                 services.AddSingleton<ISchedulePlanning>(planning);
                 services.AddSingleton<IActivityJournal>(planning);
@@ -474,7 +469,7 @@ public sealed class CampPlanningApiTests
         ScheduleEntryView ScheduleEntry,
         DevotionDetails Devotion);
 
-    private sealed class CapturingSender : ILoginCodeSender
+    private sealed class CapturingSender
     {
         public List<string> Codes { get; } = [];
 

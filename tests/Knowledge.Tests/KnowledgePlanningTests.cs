@@ -296,12 +296,12 @@ internal sealed class AllowKnowledgeAccessControl : ITenantAccessControl
     public Task<TenantAccessDecision> AuthorizeOrganizationAsync(
         OrganizationAccessRequest request,
         CancellationToken cancellationToken) =>
-        Task.FromResult(TenantAccessDecision.Permit(TenantRole.Owner));
+        Task.FromResult(TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
 
     public Task<TenantAccessDecision> AuthorizeCampAsync(
         CampAccessRequest request,
         CancellationToken cancellationToken) =>
-        Task.FromResult(TenantAccessDecision.Permit(TenantRole.Owner));
+        Task.FromResult(TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
 }
 
 internal sealed class MemberAccessControl : ITenantAccessControl

@@ -100,8 +100,8 @@ public sealed class TransferableInvitationLinkService(
         var canManage = await dbContext.Memberships.AnyAsync(
             item => item.OrganizationId == organizationId
                 && item.UserId == actorId
-                && item.IsActive
-                && (item.Role == TenantRole.Owner || item.Role == TenantRole.OrganizationAdmin),
+                && item.Status == MembershipStatus.Active
+                && item.OrganizationRole == OrganizationRole.OrganizationAdmin,
             cancellationToken);
         if (!canManage)
             throw Rule("organization_admin_required", "Diesen Einladungslink darf nur ein Orgadmin erstellen.");

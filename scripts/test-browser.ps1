@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
     [switch]$UpdateHelpScreenshots,
+    [switch]$GoogleChrome,
     [string]$Project,
     [string]$Grep
 )
@@ -51,6 +52,7 @@ try {
     $env:WEB_BASE_URL = 'http://localhost:5041'
     $env:MAILPIT_URL = "http://localhost:$mailpitPort"
     $env:UPDATE_HELP_SCREENSHOTS = if ($UpdateHelpScreenshots) { '1' } else { '0' }
+    $env:PLAYWRIGHT_GOOGLE_CHROME = if ($GoogleChrome) { '1' } else { '0' }
 
     $arguments = @('exec', '--yes', 'pnpm@11.20.0', '--', 'test:browser')
     if (-not [string]::IsNullOrWhiteSpace($Project)) { $arguments += @('--project', $Project) }
@@ -59,7 +61,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Playwright ist mit Exitcode $LASTEXITCODE fehlgeschlagen." }
 }
 finally {
-    Remove-Item Env:WEB_BASE_URL, Env:MAILPIT_URL, Env:UPDATE_HELP_SCREENSHOTS -ErrorAction SilentlyContinue
+    Remove-Item Env:WEB_BASE_URL, Env:MAILPIT_URL, Env:UPDATE_HELP_SCREENSHOTS, Env:PLAYWRIGHT_GOOGLE_CHROME -ErrorAction SilentlyContinue
     if ($null -ne $appHostProcess -and -not $appHostProcess.HasExited) {
         Stop-Process -Id $appHostProcess.Id
         $appHostProcess.WaitForExit(10000) | Out-Null

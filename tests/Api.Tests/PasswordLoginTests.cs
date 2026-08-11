@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;

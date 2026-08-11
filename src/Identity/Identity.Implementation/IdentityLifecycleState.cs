@@ -25,7 +25,7 @@ public interface IIdentityLifecycleState
         Guid userId,
         CancellationToken cancellationToken);
 
-    ValueTask<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken);
+    ValueTask<int> CountActiveOrganizationAdminsAsync(Guid organizationId, CancellationToken cancellationToken);
 
     ValueTask SaveMembershipAsync(MembershipRecord membership, CancellationToken cancellationToken);
 
@@ -64,10 +64,12 @@ public sealed class LifecycleUser(
     string email,
     string normalizedEmail,
     string displayName,
-    bool isPlatformAdmin = false,
+    bool isSuperAdmin = false,
     DateTimeOffset? deletionScheduledAt = null,
     DateTimeOffset? erasureStartedAt = null,
-    long version = 1)
+    long version = 1,
+    string? firstName = null,
+    string? lastName = null)
 {
     public Guid Id { get; } = id;
 
@@ -77,7 +79,11 @@ public sealed class LifecycleUser(
 
     public string DisplayName { get; private set; } = displayName;
 
-    public bool IsPlatformAdmin { get; } = isPlatformAdmin;
+    public string FirstName { get; private set; } = firstName ?? displayName;
+
+    public string LastName { get; private set; } = lastName ?? string.Empty;
+
+    public bool IsSuperAdmin { get; } = isSuperAdmin;
 
     public DateTimeOffset? DeletionScheduledAt { get; private set; } = deletionScheduledAt;
 
@@ -85,9 +91,12 @@ public sealed class LifecycleUser(
 
     public long Version { get; private set; } = version;
 
-    public void Rename(string displayName)
+    public void Rename(string firstName, string lastName, long expectedVersion)
     {
-        DisplayName = displayName;
+        EnsureVersion(expectedVersion);
+        FirstName = firstName;
+        LastName = lastName;
+        DisplayName = $"{firstName} {lastName}";
         Version++;
     }
 
@@ -101,6 +110,16 @@ public sealed class LifecycleUser(
     {
         DeletionScheduledAt = null;
         Version++;
+    }
+
+    private void EnsureVersion(long expectedVersion)
+    {
+        if (Version != expectedVersion)
+        {
+            throw new Identity.Contracts.IdentityRuleException(
+                "version_conflict",
+                "Das Konto wurde zwischenzeitlich geändert.");
+        }
     }
 }
 

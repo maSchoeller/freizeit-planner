@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Json;
 using Identity.Contracts;
 using Identity.Implementation;
-using FreizeitCockpit.TestSupport;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
@@ -15,20 +14,62 @@ namespace Api.Tests;
 public sealed class AccountLifecycleApiTests
 {
     [Fact]
+    public async Task ProfileRequiresIfMatchAndPersistsSeparateNames()
+    {
+        var lifecycle = new ProfileLifecycleFake();
+        using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureTestServices(services =>
+            {
+                services.RemoveAll<IAccountLifecycle>();
+                services.AddSingleton<IAccountLifecycle>(lifecycle);
+            });
+        });
+        using var client = factory.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            BaseAddress = new Uri("https://localhost"),
+            AllowAutoRedirect = false,
+            HandleCookies = true
+        });
+        var cancellationToken = TestContext.Current.CancellationToken;
+        await LoginAsync(client, cancellationToken);
+        var antiforgery = await GetAntiforgeryAsync(client, cancellationToken);
+
+        using var missingVersion = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/account/profile")
+        {
+            Content = JsonContent.Create(new { firstName = "Miriam", lastName = "König" })
+        };
+        missingVersion.Headers.Add("X-CSRF-TOKEN", antiforgery);
+        using var precondition = await client.SendAsync(missingVersion, cancellationToken);
+        antiforgery = await GetAntiforgeryAsync(client, cancellationToken);
+        using var valid = new HttpRequestMessage(HttpMethod.Patch, "/api/v1/account/profile")
+        {
+            Content = JsonContent.Create(new { firstName = "Miriam", lastName = "König" })
+        };
+        valid.Headers.Add("X-CSRF-TOKEN", antiforgery);
+        valid.Headers.IfMatch.ParseAdd("\"3\"");
+        using var response = await client.SendAsync(valid, cancellationToken);
+        var account = await response.Content.ReadFromJsonAsync<AccountView>(cancellationToken);
+
+        Assert.Equal((HttpStatusCode)428, precondition.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Miriam", account?.FirstName);
+        Assert.Equal("König", account?.LastName);
+        Assert.Equal(3, lifecycle.ExpectedVersion);
+        Assert.Equal("\"4\"", response.Headers.ETag?.Tag);
+    }
+
+    [Fact]
     public async Task AuthenticatedUserCanVerifyANewEmailWithAntiforgeryProtection()
     {
-        var loginSender = new CapturingLoginCodeSender();
         var lifecycle = new EmailChangeLifecycleFake();
         using var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<IEmailChangeLifecycle>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(loginSender);
                 services.AddSingleton<IEmailChangeLifecycle>(lifecycle);
             });
         });
@@ -39,7 +80,7 @@ public sealed class AccountLifecycleApiTests
             HandleCookies = true
         });
         var cancellationToken = TestContext.Current.CancellationToken;
-        await LoginAsync(client, loginSender, cancellationToken);
+        await LoginAsync(client, cancellationToken);
 
         using var missingCsrf = await client.PostAsJsonAsync(
             "/api/v1/account/email-change",
@@ -69,7 +110,6 @@ public sealed class AccountLifecycleApiTests
 
     private static Task LoginAsync(
         HttpClient client,
-        CapturingLoginCodeSender sender,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -98,17 +138,6 @@ public sealed class AccountLifecycleApiTests
 
     private sealed record AntiforgeryResponse(string Token);
 
-    private sealed class CapturingLoginCodeSender : ILoginCodeSender
-    {
-        public List<string> Codes { get; } = [];
-
-        public Task SendAsync(string email, string code, DateTimeOffset expiresAt, CancellationToken cancellationToken)
-        {
-            Codes.Add(code);
-            return Task.CompletedTask;
-        }
-    }
-
     private sealed class EmailChangeLifecycleFake : IEmailChangeLifecycle
     {
         public EmailChangeRequest? Request { get; private set; }
@@ -128,5 +157,57 @@ public sealed class AccountLifecycleApiTests
             Confirmation = request;
             return Task.FromResult(new EmailChangeResult(EmailChangeOutcome.Changed, request.Email));
         }
+    }
+
+    private sealed class ProfileLifecycleFake : IAccountLifecycle
+    {
+        public long ExpectedVersion { get; private set; }
+
+        public Task<AccountView> UpdateProfileAsync(
+            Guid userId,
+            string firstName,
+            string lastName,
+            long expectedVersion,
+            CancellationToken cancellationToken)
+        {
+            ExpectedVersion = expectedVersion;
+            return Task.FromResult(new AccountView(
+                userId,
+                "miriam@example.test",
+                $"{firstName} {lastName}",
+                firstName,
+                lastName,
+                null,
+                false,
+                expectedVersion + 1));
+        }
+
+        public Task<AccountView> GetAccountAsync(Guid userId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task<IReadOnlyList<AccountMembershipView>> ListMembershipsAsync(
+            Guid userId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<DeletionSchedule> ScheduleAccountDeletionAsync(
+            Guid userId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task CancelAccountDeletionAsync(Guid userId, CancellationToken cancellationToken) =>
+            throw new NotSupportedException();
+
+        public Task LeaveOrganizationAsync(
+            Guid userId,
+            Guid organizationId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task<DeletionSchedule> ScheduleOrganizationDeletionAsync(
+            OrganizationDeletionRequest request,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
+
+        public Task CancelOrganizationDeletionAsync(
+            Guid actorId,
+            Guid organizationId,
+            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }

@@ -9,7 +9,7 @@ namespace Identity.Tests;
 public sealed class EfIdentityStateTests
 {
     [Fact]
-    public async Task RelationalAdaptersPersistTenantPasswordlessAndEmailChangeState()
+    public async Task RelationalAdaptersPersistTenantAndEmailChangeState()
     {
         var cancellationToken = TestContext.Current.CancellationToken;
         await using var connection = new SqliteConnection("Data Source=:memory:");
@@ -20,7 +20,6 @@ public sealed class EfIdentityStateTests
         await using var database = new IdentityDbContext(options);
         await database.Database.EnsureCreatedAsync(cancellationToken);
         var lifecycle = new EfIdentityLifecycleState(database);
-        var passwordless = new EfPasswordlessState(database);
         var emailChange = new EfEmailChangeState(database);
         var now = new DateTimeOffset(2027, 8, 2, 10, 0, 0, TimeSpan.Zero);
         var userId = Guid.Parse("10000000-0000-0000-0000-000000000001");
@@ -33,7 +32,7 @@ public sealed class EfIdentityStateTests
         Assert.Equal(userId, (await lifecycle.FindUserAsync(userId, cancellationToken))?.Id);
         Assert.Equal(userId, (await lifecycle.FindUserByEmailAsync(
             "MIRIAM@EXAMPLE.TEST", cancellationToken))?.Id);
-        user.Rename("Miriam König");
+        user.Rename("Miriam", "König", 1);
         await lifecycle.SaveUserAsync(user, cancellationToken);
         database.ChangeTracker.Clear();
 
@@ -52,10 +51,10 @@ public sealed class EfIdentityStateTests
             invitation.Id, cancellationToken))?.Id);
         Assert.Single(await lifecycle.ListInvitationsAsync(organizationId, cancellationToken));
 
-        var membership = new MembershipRecord(organizationId, userId, TenantRole.Owner);
+        var membership = new MembershipRecord(organizationId, userId, TenantRole.OrganizationAdmin);
         await lifecycle.SaveMembershipAsync(membership, cancellationToken);
         database.ChangeTracker.Clear();
-        Assert.Equal(1, await lifecycle.CountActiveOwnersAsync(organizationId, cancellationToken));
+        Assert.Equal(1, await lifecycle.CountActiveOrganizationAdminsAsync(organizationId, cancellationToken));
         Assert.Single(await lifecycle.ListMembershipsAsync(userId, cancellationToken));
         Assert.Single(await lifecycle.ListOrganizationMembershipsAsync(organizationId, cancellationToken));
         membership.ChangeRole(TenantRole.OrganizationAdmin, membership.Version);
@@ -78,24 +77,6 @@ public sealed class EfIdentityStateTests
         organization.ChangeStatus(OrganizationStatus.Suspended, organization.Version);
         await lifecycle.SaveOrganizationAsync(organization, cancellationToken);
         await lifecycle.AddInvitationRateEventAsync(new RateEvent("invite:ip", now), cancellationToken);
-        database.ChangeTracker.Clear();
-
-        Assert.Equal(userId, (await passwordless.FindUserAsync(
-            "MIRIAM@EXAMPLE.TEST", cancellationToken))?.Id);
-        var loginChallenge = new LoginChallenge(Guid.NewGuid(), userId, "MIRIAM@EXAMPLE.TEST",
-            "code-hash", now.AddMinutes(10));
-        await passwordless.SaveChallengeAsync(loginChallenge, cancellationToken);
-        loginChallenge.RecordFailure();
-        await passwordless.SaveChallengeAsync(loginChallenge, cancellationToken);
-        Assert.Equal(1, (await passwordless.FindCurrentChallengeAsync(
-            "MIRIAM@EXAMPLE.TEST", cancellationToken))?.FailedAttempts);
-        var session = new LoginSession(Guid.NewGuid(), userId, now, now.AddDays(30), "127.0.0.1");
-        await passwordless.SaveSessionAsync(session, cancellationToken);
-        session.Revoke(now.AddHours(1));
-        await passwordless.SaveSessionAsync(session, cancellationToken);
-        Assert.Equal(session.Id, (await passwordless.FindSessionAsync(
-            session.Id, cancellationToken))?.Id);
-        await passwordless.AddRateEventAsync(new RateEvent("login:ip", now), cancellationToken);
         database.ChangeTracker.Clear();
 
         Assert.Equal(userId, (await emailChange.FindUserAsync(userId, cancellationToken))?.Id);

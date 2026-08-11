@@ -407,14 +407,14 @@ internal sealed class PermitAllTenantAccess : ITenantAccessControl
         CancellationToken cancellationToken) =>
         Task.FromResult(DenyAll || DeniedActorIds.Contains(request.ActorId)
             ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
-            : TenantAccessDecision.Permit(TenantRole.Owner));
+            : TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
 
     public Task<TenantAccessDecision> AuthorizeCampAsync(
         CampAccessRequest request,
         CancellationToken cancellationToken) =>
         Task.FromResult(DenyAll || DeniedActorIds.Contains(request.ActorId)
             ? TenantAccessDecision.Deny(TenantAccessDenial.PermissionDenied)
-            : TenantAccessDecision.Permit(TenantRole.Owner));
+            : TenantAccessDecision.Permit(TenantRole.OrganizationAdmin));
 }
 
 internal sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

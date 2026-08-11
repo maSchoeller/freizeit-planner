@@ -1,6 +1,5 @@
 using System.Net;
 using System.Net.Http.Json;
-using FreizeitCockpit.TestSupport;
 using Identity.Contracts;
 using Identity.Implementation;
 using Microsoft.AspNetCore.Hosting;
@@ -18,11 +17,11 @@ public sealed class TenantAdministrationApiTests
     public async Task MemberChangesRequireAntiforgeryAndIfMatch()
     {
         var administration = new AdministrationFake();
-        var (client, sender) = CreateClient(administration);
+        var client = CreateClient(administration);
         using (client)
         {
             var cancellationToken = TestContext.Current.CancellationToken;
-            await LoginAsync(client, sender, cancellationToken);
+            await LoginAsync(client, cancellationToken);
             var csrf = await GetAntiforgeryAsync(client, cancellationToken);
             var uri = $"/api/v1/organizations/{administration.OrganizationId}/members/{administration.UserId}/role";
 
@@ -42,56 +41,27 @@ public sealed class TenantAdministrationApiTests
         }
     }
 
-    [Fact]
-    public async Task PlatformOrganizationListReturnsMetadataWithoutTenantContent()
+    private static HttpClient CreateClient(AdministrationFake administration)
     {
-        var administration = new AdministrationFake();
-        var (client, sender) = CreateClient(administration);
-        using (client)
-        {
-            var cancellationToken = TestContext.Current.CancellationToken;
-            await LoginAsync(client, sender, cancellationToken);
-
-            using var response = await client.GetAsync("/api/v1/platform/organizations", cancellationToken);
-            var organizations = await response.Content
-                .ReadFromJsonAsync<PlatformOrganizationView[]>(cancellationToken);
-
-            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-            var organization = Assert.Single(Assert.IsType<PlatformOrganizationView[]>(organizations));
-            Assert.Equal("sonnenhoehe", organization.Slug);
-            Assert.Equal(Guid.Parse("10000000-0000-0000-0000-000000000001"), administration.ActorId);
-        }
-    }
-
-    private static (HttpClient Client, CapturingSender Sender) CreateClient(AdministrationFake administration)
-    {
-        var sender = new CapturingSender();
         var factory = new WebApplicationFactory<Program>().WithWebHostBuilder(builder =>
         {
             builder.UseEnvironment("Testing");
             builder.ConfigureTestServices(services =>
             {
-                services.RemoveAll<IPasswordlessState>();
-                services.RemoveAll<ILoginCodeSender>();
                 services.RemoveAll<ITenantAdministration>();
-                services.RemoveAll<IPlatformAdministration>();
-                services.AddSingleton<IPasswordlessState>(PasswordlessTestState.WithMiriam());
-                services.AddSingleton<ILoginCodeSender>(sender);
                 services.AddSingleton<ITenantAdministration>(administration);
-                services.AddSingleton<IPlatformAdministration>(administration);
             });
         });
-        return (factory.CreateClient(new WebApplicationFactoryClientOptions
+        return factory.CreateClient(new WebApplicationFactoryClientOptions
         {
             BaseAddress = new Uri("https://localhost"),
             AllowAutoRedirect = false,
             HandleCookies = true
-        }), sender);
+        });
     }
 
     private static Task LoginAsync(
         HttpClient client,
-        CapturingSender sender,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -124,37 +94,13 @@ public sealed class TenantAdministrationApiTests
 
     private sealed record AntiforgeryResponse(string Token);
 
-    private sealed class CapturingSender : ILoginCodeSender
-    {
-        public List<string> Codes { get; } = [];
-
-        public Task SendAsync(string email, string code, DateTimeOffset expiresAt, CancellationToken cancellationToken)
-        {
-            Codes.Add(code);
-            return Task.CompletedTask;
-        }
-    }
-
-    private sealed class AdministrationFake : ITenantAdministration, IPlatformAdministration
+    private sealed class AdministrationFake : ITenantAdministration
     {
         public Guid OrganizationId { get; } = Guid.Parse("20000000-0000-0000-0000-000000000001");
 
         public Guid UserId { get; } = Guid.Parse("10000000-0000-0000-0000-000000000004");
 
-        public Guid ActorId { get; private set; }
-
         public long ExpectedVersion { get; private set; }
-
-        public Task<IReadOnlyList<PlatformOrganizationView>> ListOrganizationsAsync(
-            Guid actorId,
-            CancellationToken cancellationToken)
-        {
-            ActorId = actorId;
-            return Task.FromResult<IReadOnlyList<PlatformOrganizationView>>(
-            [
-                new(OrganizationId, "CVJM Sonnenhöhe", "sonnenhoehe", OrganizationStatus.Active, 1)
-            ]);
-        }
 
         public Task<OrganizationMemberView> ChangeOrganizationRoleAsync(
             OrganizationRoleChange change,
@@ -187,8 +133,5 @@ public sealed class TenantAdministrationApiTests
             CampMemberRemoval removal,
             CancellationToken cancellationToken) => throw new NotSupportedException();
 
-        public Task<OrganizationStatusView> ChangeOrganizationStatusAsync(
-            OrganizationStatusChange change,
-            CancellationToken cancellationToken) => throw new NotSupportedException();
     }
 }
